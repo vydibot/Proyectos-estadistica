@@ -1,0 +1,164 @@
+# ====================================================================
+# SCRIPT MAESTRO DEFINITIVO — Análisis Multidimensional (Dataset de Diabetes)
+# Asignatura: Estadística Multidimensional
+# Incluye: 
+#   1. Tabla de resumen estadístico limpia
+#   2. Histogramas con Densidad Kernel y ajuste de Pearson (Normal)
+#   3. Boxplots univariados y comparativos por actividad física
+#   4. Mapa de calor de correlaciones (corrplot estilo bwr)
+#   5. Diagramas de dispersión separados con líneas de tendencia (regresión lineal)
+# ====================================================================
+
+# 0. Cargar librerías necesarias
+# Si no tienes instalado corrplot, ejecuta: install.packages("corrplot")
+library(corrplot)
+
+# 1. Carga del dataset limpio
+archivo_datos <- "data/clean/diabetes_limpia.csv"
+datos <- read.csv(archivo_datos, header = TRUE, sep = ",", dec = ".", stringsAsFactors = FALSE)
+
+# Seleccionar estrictamente columnas numéricas
+datos_num <- datos[, sapply(datos, is.numeric)]
+n_vars <- ncol(datos_num)
+
+cat("=== DIMENSIONES DEL DATASET ===\n")
+print(dim(datos))
+cat("\n")
+
+# ====================================================================
+# 1. TABLA DE RESUMEN ESTADÍSTICO
+# ====================================================================
+cat("=== 1. TABLA DE RESUMEN ESTADÍSTICO ===\n")
+resumen_df <- data.frame(
+  Variable = names(datos_num),
+  Media = sapply(datos_num, function(x) mean(x, na.rm = TRUE)),
+  Desv.Est = sapply(datos_num, function(x) sd(x, na.rm = TRUE)),
+  Minimo = sapply(datos_num, function(x) min(x, na.rm = TRUE)),
+  Mediana = sapply(datos_num, function(x) median(x, na.rm = TRUE)),
+  Maximo = sapply(datos_num, function(x) max(x, na.rm = TRUE))
+)
+rownames(resumen_df) <- NULL
+resumen_df[, 2:6] <- round(resumen_df[, 2:6], 2)
+print(resumen_df)
+cat("\n")
+
+# ====================================================================
+# 2. HISTOGRAMAS CON DENSIDAD KERNEL Y AJUSTE PEARSON (NORMAL)
+# ====================================================================
+cat("=== 2. GENERANDO HISTOGRAMAS CON KERNEL Y PEARSON ===\n")
+png("1_Histogramas_Kernel_Pearson.png", width = 1400, height = 1400, res = 150)
+par(mfrow = c(4, 4), mar = c(3, 3, 2, 1))
+
+for (i in 1:n_vars) {
+  var_name <- names(datos_num)[i]
+  x <- datos_num[[i]]
+  x <- x[!is.na(x)]
+  
+  # Objeto histograma limpio sin argumentos de escala previos (evita warnings)
+  h_obj <- hist(x, plot = FALSE)
+  
+  # Graficar usando freq = FALSE directamente en el plot
+  plot(h_obj, freq = FALSE, col = rgb(0.5, 0.8, 0.9, 0.5), border = "white",
+       main = paste(var_name, "\n(mu=", round(mean(x),1), ", sd=", round(sd(x),1), ")"),
+       xlab = "", ylab = "", cex.main = 0.7)
+  
+  # Curva de Densidad Kernel
+  lines(density(x), col = "red", lwd = 2)
+  
+  # Curva Teórica de Pearson (Normal basada en media y desviación estándar)
+  curve(dnorm(x, mean = mean(x), sd = sd(x)), add = TRUE, col = "darkgreen", lwd = 2, lty = 2)
+  
+  legend("topright", legend = c("Kernel", "Pearson"), col = c("red", "darkgreen"), lwd = 2, lty = c(1, 2), cex = 0.5, bty = "n")
+}
+dev.off()
+
+# ====================================================================
+# 3. BOXPLOTS UNIVARIADOS — CORREGIDO (Sin avisos de muescas)
+# ====================================================================
+cat("=== 3. GENERANDO BOXPLOTS UNIVARIADOS ===\n")
+png("2_Boxplots_Univariados.png", width = 1400, height = 1400, res = 150)
+par(mfrow = c(4, 4), mar = c(3, 3, 2, 1))
+
+for (i in 1:n_vars) {
+  var_name <- names(datos_num)[i]
+  x <- datos_num[[i]]
+  
+  # CORRECCIÓN: Se elimina notch = TRUE para evitar advertencias por exceso de datos
+  boxplot(x, main = paste("Boxplot:", var_name), 
+          col = "orange", border = "darkred", cex.main = 0.8)
+}
+dev.off()
+
+# ====================================================================
+# 4. BOXPLOTS COMPARATIVOS SEGÚN ACTIVIDAD FÍSICA
+# ====================================================================
+cat("=== 4. GENERANDO BOXPLOTS COMPARATIVOS ===\n")
+png("3_Boxplots_Comparativos_Actividad.png", width = 1200, height = 800, res = 150)
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+grupo_cat <- datos$Physical.Activity
+for (i in 1:min(4, n_vars)) {
+  var_name <- names(datos_num)[i]
+  x <- datos_num[[i]]
+  boxplot(x ~ grupo_cat, 
+          main = paste(var_name, "por Actividad Física"), 
+          xlab = "Physical Activity", ylab = var_name, 
+          col = c("steelblue", "orange", "indianred"), border = "black", cex.main = 0.9)
+}
+dev.off()
+
+# ====================================================================
+# 5. MAPA DE CALOR DE CORRELACIONES (CORRPLOT - BWR)
+# ====================================================================
+cat("=== 5. GENERANDO MAPA DE CALOR DE CORRELACIONES ===\n")
+mat_cor <- cor(datos_num, use = "complete.obs")
+
+png("4_Mapa_Calor_Correlaciones.png", width = 1000, height = 1000, res = 150)
+corrplot(mat_cor, 
+         method = "color",                 
+         col = colorRampPalette(c("blue", "white", "red"))(200), 
+         addCoef.col = "black",            
+         number.cex = 0.55,                
+         tl.col = "black",                 
+         tl.srt = 45,                      
+         tl.cex = 0.7,                     
+         type = "full",                    
+         diag = TRUE,                      
+         mar = c(0, 0, 2, 0)
+)
+title("Mapa de Calor de Correlaciones (Pearson r) — Dataset de Diabetes", line = 1, cex.main = 1.1)
+dev.off()
+
+# ====================================================================
+# 6. DIAGRAMAS DE DISPERSIÓN SEPARADOS CON LÍNEAS DE TENDENCIA
+# ====================================================================
+cat("=== 6. GENERANDO DIAGRAMAS DE DISPERSIÓN SEPARADOS CON TENDENCIA ===\n")
+
+# Crear directorio independiente para los gráficos de dispersión separados
+dir.create("dispersion_separados", showWarnings = FALSE, recursive = TRUE)
+
+# Definir las variables clave para cruces bivariados
+vars_clave <- c("BMI", "Blood.Glucose.Levels", "Insulin.Levels", "Age", "Blood.Pressure", "Cholesterol.Levels")
+
+# Bucle para generar y exportar un diagrama de dispersión separado por cada combinación
+for (i in 1:(length(vars_clave) - 1)) {
+  for (j in (i + 1):length(vars_clave)) {
+    v1 <- vars_clave[i]
+    v2 <- vars_clave[j]
+    
+    nombre_archivo <- paste0("dispersion_separados/dispersion_", v1, "_vs_", v2, ".png")
+    png(nombre_archivo, width = 800, height = 600, res = 150)
+    
+    plot(datos[[v1]], datos[[v2]],
+         main = paste("Dispersión y Tendencia:", v2, "vs", v1),
+         xlab = v1, ylab = v2,
+         pch = 19, col = rgb(0.2, 0.4, 0.8, 0.15))
+    
+    # Añadir línea de regresión lineal (lm) en rojo
+    abline(lm(datos[[v2]] ~ datos[[v1]], data = datos), col = "red", lwd = 2)
+    grid()
+    
+    dev.off()
+  }
+}
+
+cat("\n¡SCRIPT MAESTRO EJECUTADO CON ÉXITO! Tablas y gráficos guardados correctamente.\n")

@@ -1,0 +1,132 @@
+Análisis Exploratorio de Datos: Sector Salud (Formato Modular)
+Este documento presenta el análisis exploratorio de datos de salud dividido en módulos lógicos. Cada sección incluye la explicación del paso analítico y su respectivo bloque de código en formato R Markdown (.Rmd). El análisis se enfoca en la distribución, dispersión, normalización y correlación de variables biométricas.
+Configuración Inicial R Markdown
+Bloque de configuración global para el tejido (knitting) del documento. Se silencian mensajes y advertencias (como el de 'reshape2' y 'tidyr').
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+Módulo 1: Preparación del Entorno
+Cargamos las librerías necesarias y creamos un directorio ('imagenes_Salud') para almacenar las gráficas de manera ordenada.
+```{r preparacion_entorno}
+# Crear directorio para imágenes
+dir.create("imagenes_Salud", showWarnings = FALSE)
+
+# Cargar librerías
+library(ggplot2)  # Visualización
+library(dplyr)    # Manipulación
+library(tidyr)    # Ordenamiento
+library(reshape2) # Reestructuración
+```
+Módulo 2: Carga y Preprocesamiento de Datos
+Se asume la existencia de un dataset de salud (ej. 'datos_salud.csv'). Filtramos las variables de tipo numérico, ya que las operaciones matemáticas, normalizaciones y cálculos de frecuencia mediante Freedman-Diaconis requieren datos cuantitativos.
+```{r carga_datos}
+# Leer el dataset (Asegúrese de que el archivo exista en su directorio de trabajo)
+# Cambiar el nombre del archivo al correspondiente. Ejemplo:
+datos <- read.csv("data/smoking_driking_dataset_Ver01.csv") 
+
+# Para propósitos de este script, se simulará la carga asumiendo que 'datos' existe.
+# Filtramos únicamente las variables numéricas
+variables_numericas <- datos %>% select(where(is.numeric))
+```
+Módulo 3: Distribución (Histogramas Completos)
+Se generan los histogramas para todas las variables biométricas numéricas. La amplitud del intervalo (h) y el número de bins se calculan dinámicamente usando la regla estadística de Freedman-Diaconis.
+```{r histogramas}
+# Iterar sobre cada columna numérica del dataset de salud
+for (col_name in names(variables_numericas)) {
+  x <- na.omit(variables_numericas[[col_name]])
+  n <- length(x)
+  iqr_val <- IQR(x)
+  
+  # Regla de Freedman-Diaconis
+  if (iqr_val > 0) {
+    h <- 2 * iqr_val * n^(-1/3)
+    bins <- max(1, ceiling((max(x) - min(x)) / h))
+  } else {
+    bins <- 30 # Fallback 
+  }
+  
+  # Gráfico
+  p <- ggplot(data.frame(x), aes(x)) + 
+    geom_histogram(bins = bins, fill = "darkcyan", color = "black", alpha=0.7) +
+    labs(title = paste("Distribución de", col_name), x = col_name, y = "Frecuencia") +
+    theme_minimal()
+  
+  # Guardar
+  ggsave(filename = paste0("imagenes_Salud/Hist_", col_name, ".png"), plot = p, width = 6, height = 4)
+}
+```
+Módulo 4: Normalización y Detección de Outliers (Boxplots)
+Dado que las variables de salud tienen escalas muy distintas (ej. Colesterol Total en ~200 mg/dL vs Hemoglobina en ~15 g/dL), aplicamos la técnica de Normalización Min-Max (rango de 0 a 1). Posteriormente, creamos un boxplot para cada variable ya normalizada.
+```{r boxplots_normalizacion}
+# Definición de la función de Normalización Min-Max
+normalizar <- function(x) {
+  return ((x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)))
+}
+
+# Aplicar la función a todo el subconjunto de variables numéricas
+datos_norm <- variables_numericas %>% mutate(across(everything(), normalizar))
+
+# Generar y exportar Boxplots
+for (col_name in names(datos_norm)) {
+  p <- ggplot(datos_norm, aes(y = .data[[col_name]])) +
+    geom_boxplot(fill = "coral", color = "darkred", outlier.color = "blue") +
+    labs(title = paste("Boxplot Normalizado:", col_name), y = "Valor Min-Max [0,1]") +
+    theme_minimal()
+  
+  ggsave(filename = paste0("imagenes_Salud/Boxplot_Norm_", col_name, ".png"), plot = p, width = 4, height = 6)
+}
+```
+Módulo 5: Relaciones Críticas (Diagramas de Dispersión)
+Se trazan diagramas de dispersión bivariados para explorar visualmente posibles relaciones médicas, tales como el balance de presión arterial (Sistólica vs Diastólica), o los perfiles hepáticos y lipídicos.
+```{r dispersion}
+# Lista de 5 pares de variables médicas comunes a analizar
+pares <- list(
+  c("SBP", "DBP"),                      # Presión Sistólica vs Diastólica
+  c("tot_chole", "LDL_chole"),          # Colesterol Total vs LDL
+  c("weight", "BLDS"),                  # Peso vs Glucosa en Ayunas
+  c("SGOT_AST", "SGOT_ALT"),            # Enzimas hepáticas
+  c("hemoglobin", "serum_creatinine")   # Sangre y Función Renal
+)
+
+for (i in 1:length(pares)) {
+  var1 <- pares[[i]][1]
+  var2 <- pares[[i]][2]
+  
+  if(var1 %in% names(datos) & var2 %in% names(datos)) {
+    p <- ggplot(datos, aes_string(x = var1, y = var2)) +
+      geom_point(alpha = 0.4, color = "purple") +
+      labs(title = paste("Relación Bivariada:", var1, "vs", var2), x = var1, y = var2) +
+      theme_minimal()
+    
+    ggsave(filename = paste0("imagenes_Salud/Dispersion_", i, "_", var1, "_", var2, ".png"), plot = p, width = 6, height = 4)
+  }
+}
+```
+Módulo 6: Matriz de Correlación
+Calculamos la matriz de correlación de Pearson, creamos un Heatmap global para identificar agrupaciones visuales y finalmente listamos de forma explícita qué variables tienen una correlación fuerte (coeficiente > 0.8).
+```{r correlacion}
+# Matriz
+matriz_corr <- cor(variables_numericas, use = "complete.obs")
+
+# Mapa de Calor (Heatmap)
+melted_corr <- melt(matriz_corr)
+p_corr <- ggplot(melted_corr, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(title = "Heatmap de Correlación Biométrica")
+
+ggsave(filename = "imagenes_Salud/Heatmap_Correlacion_Salud.png", plot = p_corr, width = 10, height = 10)
+
+# Listar las más correlacionadas
+matriz_corr[lower.tri(matriz_corr, diag = TRUE)] <- NA
+pares_corr <- as.data.frame(as.table(matriz_corr))
+pares_corr <- na.omit(pares_corr)
+pares_corr <- pares_corr[order(-abs(pares_corr$Freq)), ]
+
+# Filtrar fuertes |r| > 0.8
+top_corr <- head(subset(pares_corr, abs(Freq) > 0.8), 15)
+print("Variables con mayor índice de correlación (|r| > 0.8):")
+print(top_corr)
+```
