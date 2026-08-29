@@ -1,0 +1,516 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{longtable,booktabs,array}
+\newcounter{none} % for unnumbered tables
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Análisis Multidimensional de Indicadores Educativos},
+  pdfauthor={Reporte Estadístico},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Análisis Multidimensional de Indicadores Educativos}
+\author{Reporte Estadístico}
+\date{2026-08-28}
+
+\begin{document}
+\maketitle
+
+{
+\setcounter{tocdepth}{3}
+\tableofcontents
+}
+\subsection{Resumen del Dataset}\label{resumen-del-dataset}
+
+Este reporte presenta una evaluación completa de múltiples variables e
+indicadores de cobertura, aprobación, reprobación, repitencia y
+deserción del sector educativo. El análisis discrimina adecuadamente las
+variables categóricas de las numéricas, normaliza los datos continuos y
+explora las distribuciones, valores atípicos y correlaciones
+estadísticas de interés.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\subsection{1. Preparación del Entorno y Carga de
+Datos}\label{preparaciuxf3n-del-entorno-y-carga-de-datos}
+
+En esta etapa inicial, se importan los datos aplicando una distinción
+estricta de los separadores de archivo (comas para dividir columnas) y
+los delimitadores de decimales (puntos). Luego, con base en el
+entendimiento funcional (diccionario de datos), reclasificamos las
+variables geográficas que originalmente son numéricas (Códigos DANE)
+como categóricas (factores).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Cargar librerías necesarias}
+\FunctionTok{library}\NormalTok{(ggplot2)}
+\FunctionTok{library}\NormalTok{(dplyr)}
+\FunctionTok{library}\NormalTok{(tidyr)}
+\FunctionTok{library}\NormalTok{(reshape2)}
+\FunctionTok{library}\NormalTok{(knitr)}
+
+\CommentTok{\# Crear carpeta para guardar todos los resultados}
+\FunctionTok{dir.create}\NormalTok{(}\StringTok{"resultados taller 1"}\NormalTok{, }\AttributeTok{showWarnings =} \ConstantTok{FALSE}\NormalTok{)}
+
+\CommentTok{\# 1. Carga de datos con parámetros explícitos (sep para comas de archivo, dec para decimales)}
+\NormalTok{datos }\OtherTok{\textless{}{-}} \FunctionTok{read.csv}\NormalTok{(}\StringTok{"data/EDUCACION\_LIMPIO.csv"}\NormalTok{, }\AttributeTok{sep =} \StringTok{","}\NormalTok{, }\AttributeTok{dec =} \StringTok{"."}\NormalTok{)}
+
+\CommentTok{\# 2. Análisis y Tipificación según "Diccionario de Datos":}
+\CommentTok{\# Convertimos las entidades geográficas a factores (categóricas) ya que no son magnitudes numéricas reales.}
+\NormalTok{datos}\SpecialCharTok{$}\NormalTok{CÓDIGO\_MUNICIPIO }\OtherTok{\textless{}{-}} \FunctionTok{as.factor}\NormalTok{(datos}\SpecialCharTok{$}\NormalTok{CÓDIGO\_MUNICIPIO)}
+\NormalTok{datos}\SpecialCharTok{$}\NormalTok{CÓDIGO\_DEPARTAMENTO }\OtherTok{\textless{}{-}} \FunctionTok{as.factor}\NormalTok{(datos}\SpecialCharTok{$}\NormalTok{CÓDIGO\_DEPARTAMENTO)}
+
+\CommentTok{\# Filtramos estrictamente las variables numéricas (cuantitativas reales) para el análisis estadístico}
+\NormalTok{variables\_numericas }\OtherTok{\textless{}{-}}\NormalTok{ datos }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{select}\NormalTok{(}\FunctionTok{where}\NormalTok{(is.numeric))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\subsection{2. Tabla de Resumen Estadístico (Variables
+Clave)}\label{tabla-de-resumen-estaduxedstico-variables-clave}
+
+La siguiente tabla consolida las estadísticas descriptivas para todas
+las variables cuantitativas del modelo.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Cálculo de estadísticas clave}
+\NormalTok{resumen }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
+  \AttributeTok{Variable =} \FunctionTok{names}\NormalTok{(variables\_numericas),}
+  \AttributeTok{Media =} \FunctionTok{sapply}\NormalTok{(variables\_numericas, mean, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+  \AttributeTok{Desv\_Est =} \FunctionTok{sapply}\NormalTok{(variables\_numericas, sd, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+\NormalTok{  Mínimo }\OtherTok{=} \FunctionTok{sapply}\NormalTok{(variables\_numericas, min, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+  \AttributeTok{Mediana =} \FunctionTok{sapply}\NormalTok{(variables\_numericas, median, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{),}
+\NormalTok{  Máximo }\OtherTok{=} \FunctionTok{sapply}\NormalTok{(variables\_numericas, max, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{)}
+\NormalTok{)}
+
+\CommentTok{\# Exportar los resultados a CSV}
+\FunctionTok{write.csv}\NormalTok{(resumen, }\StringTok{"resultados taller 1/Resumen\_Estadistico.csv"}\NormalTok{, }\AttributeTok{row.names =} \ConstantTok{FALSE}\NormalTok{)}
+
+\CommentTok{\# Renderización de tabla en HTML}
+\FunctionTok{kable}\NormalTok{(resumen, }\AttributeTok{digits =} \DecValTok{3}\NormalTok{, }\AttributeTok{caption =} \StringTok{"Resumen Estadístico de las Variables Numéricas"}\NormalTok{, }\AttributeTok{row.names =} \ConstantTok{FALSE}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.3803}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1268}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1268}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.0986}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1268}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1408}}@{}}
+\caption{Resumen Estadístico de las Variables Numéricas}\tabularnewline
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Variable
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Media
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Desv\_Est
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Mínimo
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Mediana
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Máximo
+\end{minipage} \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Variable
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Media
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Desv\_Est
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Mínimo
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Mediana
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Máximo
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+POBLACIÓN\_5\_16 & 3143.451 & 2819.803 & 1.005 & 2220.000 & 14013.000 \\
+TASA\_MATRICULACIÓN\_5\_16 & 0.832 & 0.127 & 0.454 & 0.837 & 1.235 \\
+COBERTURA\_NETA & 0.841 & 0.115 & 0.513 & 0.851 & 1.170 \\
+COBERTURA\_NETA\_TRANSICIÓN & 0.575 & 0.134 & 0.206 & 0.575 & 0.946 \\
+COBERTURA\_NETA\_PRIMARIA & 0.810 & 0.120 & 0.479 & 0.813 & 1.156 \\
+COBERTURA\_NETA\_SECUNDARIA & 0.715 & 0.130 & 0.342 & 0.715 & 1.076 \\
+COBERTURA\_NETA\_MEDIA & 0.431 & 0.121 & 0.076 & 0.435 & 0.762 \\
+COBERTURA\_BRUTA & 0.947 & 0.141 & 0.552 & 0.953 & 1.356 \\
+COBERTURA\_BRUTA\_TRANSICIÓN & 0.822 & 0.177 & 0.348 & 0.819 & 1.348 \\
+COBERTURA\_BRUTA\_PRIMARIA & 1.001 & 0.176 & 0.534 & 1.000 & 1.478 \\
+COBERTURA\_BRUTA\_SECUNDARIA & 1.006 & 0.181 & 0.516 & 1.006 & 1.497 \\
+COBERTURA\_BRUTA\_MEDIA & 0.758 & 0.187 & 0.237 & 0.758 & 1.280 \\
+DESERCIÓN & 0.030 & 0.016 & 0.000 & 0.028 & 0.083 \\
+DESERCIÓN\_TRANSICIÓN & 0.029 & 0.021 & 0.000 & 0.026 & 0.095 \\
+DESERCIÓN\_PRIMARIA & 0.023 & 0.015 & 0.000 & 0.020 & 0.070 \\
+DESERCIÓN\_SECUNDARIA & 0.041 & 0.024 & 0.000 & 0.037 & 0.114 \\
+DESERCIÓN\_MEDIA & 0.028 & 0.019 & 0.000 & 0.025 & 0.084 \\
+APROBACIÓN & 0.934 & 0.037 & 0.809 & 0.936 & 1.000 \\
+APROBACIÓN\_TRANSICIÓN & 0.000 & 0.000 & 0.000 & 0.000 & 0.000 \\
+APROBACIÓN\_PRIMARIA & 0.948 & 0.034 & 0.832 & 0.953 & 1.000 \\
+APROBACIÓN\_SECUNDARIA & 0.905 & 0.059 & 0.698 & 0.911 & 1.000 \\
+APROBACIÓN\_MEDIA & 0.941 & 0.037 & 0.818 & 0.946 & 1.000 \\
+REPROBACIÓN & 0.036 & 0.031 & 0.000 & 0.034 & 0.150 \\
+REPROBACIÓN\_TRANSICIÓN & 0.000 & 0.000 & 0.000 & 0.000 & 0.000 \\
+REPROBACIÓN\_PRIMARIA & 0.029 & 0.028 & 0.000 & 0.023 & 0.126 \\
+REPROBACIÓN\_SECUNDARIA & 0.055 & 0.051 & 0.000 & 0.048 & 0.239 \\
+REPROBACIÓN\_MEDIA & 0.031 & 0.030 & 0.000 & 0.023 & 0.125 \\
+REPITENCIA & 0.024 & 0.022 & 0.000 & 0.018 & 0.101 \\
+REPITENCIA\_TRANSICIÓN & 0.003 & 0.006 & 0.000 & 0.000 & 0.024 \\
+REPITENCIA\_PRIMARIA & 0.023 & 0.023 & 0.000 & 0.016 & 0.099 \\
+REPITENCIA\_SECUNDARIA & 0.034 & 0.034 & 0.000 & 0.023 & 0.141 \\
+REPITENCIA\_MEDIA & 0.012 & 0.013 & 0.000 & 0.007 & 0.053 \\
+\end{longtable}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\subsection{3. Histogramas para las Variables
+Numéricas}\label{histogramas-para-las-variables-numuxe9ricas}
+
+Se presentan las distribuciones individuales para evaluar la simetría,
+sesgos y concentración en cada indicador.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Transformar datos a formato largo para facilitar la graficación con facetas}
+\NormalTok{datos\_long }\OtherTok{\textless{}{-}}\NormalTok{ variables\_numericas }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{pivot\_longer}\NormalTok{(}\AttributeTok{cols =} \FunctionTok{everything}\NormalTok{(), }\AttributeTok{names\_to =} \StringTok{"Variable"}\NormalTok{, }\AttributeTok{values\_to =} \StringTok{"Valor"}\NormalTok{)}
+
+\CommentTok{\# Graficar la cuadrícula de histogramas}
+\NormalTok{p\_hist }\OtherTok{\textless{}{-}} \FunctionTok{ggplot}\NormalTok{(datos\_long, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ Valor)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_histogram}\NormalTok{(}\AttributeTok{bins =} \DecValTok{30}\NormalTok{, }\AttributeTok{fill =} \StringTok{"\#3498db"}\NormalTok{, }\AttributeTok{color =} \StringTok{"black"}\NormalTok{, }\AttributeTok{alpha =} \FloatTok{0.8}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{facet\_wrap}\NormalTok{(}\SpecialCharTok{\textasciitilde{}}\NormalTok{ Variable, }\AttributeTok{scales =} \StringTok{"free"}\NormalTok{, }\AttributeTok{ncol =} \DecValTok{4}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{theme\_minimal}\NormalTok{() }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}
+    \AttributeTok{title =} \StringTok{"Distribución de Variables Educativas (Histogramas)"}\NormalTok{,}
+    \AttributeTok{x =} \StringTok{"Valor del Indicador"}\NormalTok{,}
+    \AttributeTok{y =} \StringTok{"Frecuencia"}
+\NormalTok{  ) }\SpecialCharTok{+}
+  \FunctionTok{theme}\NormalTok{(}\AttributeTok{strip.text =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{size =} \DecValTok{8}\NormalTok{, }\AttributeTok{face =} \StringTok{"bold"}\NormalTok{))}
+
+\CommentTok{\# Mostrar y guardar gráfico}
+\FunctionTok{print}\NormalTok{(p\_hist)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{center}\includegraphics{Taller1_files/figure-latex/histogramas-1} \end{center}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{ggsave}\NormalTok{(}\StringTok{"resultados taller 1/Histogramas.png"}\NormalTok{, }\AttributeTok{plot =}\NormalTok{ p\_hist, }\AttributeTok{width =} \DecValTok{12}\NormalTok{, }\AttributeTok{height =} \DecValTok{10}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\subsection{4. Normalización y Diagramas de Caja
+(Boxplots)}\label{normalizaciuxf3n-y-diagramas-de-caja-boxplots}
+
+Para evaluar los indicadores en una escala comparable e identificar la
+presencia de valores atípicos (outliers), se aplica una normalización
+Min-Max (rango de {[}0, 1{]}) y se consolidan en diagramas de caja.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Función de normalización Min{-}Max}
+\NormalTok{normalizar }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(x) \{}
+  \FunctionTok{return}\NormalTok{ ((x }\SpecialCharTok{{-}} \FunctionTok{min}\NormalTok{(x, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{)) }\SpecialCharTok{/}\NormalTok{ (}\FunctionTok{max}\NormalTok{(x, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{{-}} \FunctionTok{min}\NormalTok{(x, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{)))}
+\NormalTok{\}}
+
+\CommentTok{\# Aplicar normalización a las variables numéricas}
+\NormalTok{datos\_norm }\OtherTok{\textless{}{-}}\NormalTok{ variables\_numericas }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{mutate}\NormalTok{(}\FunctionTok{across}\NormalTok{(}\FunctionTok{everything}\NormalTok{(), normalizar))}
+
+\CommentTok{\# Formato largo para los boxplots}
+\NormalTok{datos\_norm\_long }\OtherTok{\textless{}{-}}\NormalTok{ datos\_norm }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{pivot\_longer}\NormalTok{(}\AttributeTok{cols =} \FunctionTok{everything}\NormalTok{(), }\AttributeTok{names\_to =} \StringTok{"Variable"}\NormalTok{, }\AttributeTok{values\_to =} \StringTok{"Valor\_Normalizado"}\NormalTok{)}
+
+\CommentTok{\# Graficar Boxplots unificados}
+\NormalTok{p\_box }\OtherTok{\textless{}{-}} \FunctionTok{ggplot}\NormalTok{(datos\_norm\_long, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =} \FunctionTok{reorder}\NormalTok{(Variable, Valor\_Normalizado, }\AttributeTok{FUN =}\NormalTok{ median, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{), }\AttributeTok{y =}\NormalTok{ Valor\_Normalizado)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_boxplot}\NormalTok{(}\AttributeTok{fill =} \StringTok{"\#2ecc71"}\NormalTok{, }\AttributeTok{color =} \StringTok{"\#27ae60"}\NormalTok{, }\AttributeTok{outlier.color =} \StringTok{"\#e74c3c"}\NormalTok{, }\AttributeTok{outlier.alpha =} \FloatTok{0.5}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{coord\_flip}\NormalTok{() }\SpecialCharTok{+} \CommentTok{\# Voltear para mejorar la lectura de las etiquetas}
+  \FunctionTok{theme\_minimal}\NormalTok{() }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}
+    \AttributeTok{title =} \StringTok{"Diagramas de Caja (Variables Normalizadas [0,1])"}\NormalTok{,}
+    \AttributeTok{x =} \StringTok{"Variable Numérica"}\NormalTok{,}
+    \AttributeTok{y =} \StringTok{"Valor Normalizado"}
+\NormalTok{  )}
+
+\CommentTok{\# Mostrar y guardar gráfico}
+\FunctionTok{print}\NormalTok{(p\_box)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{center}\includegraphics{Taller1_files/figure-latex/boxplots_normalizados-1} \end{center}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{ggsave}\NormalTok{(}\StringTok{"resultados taller 1/Boxplots.png"}\NormalTok{, }\AttributeTok{plot =}\NormalTok{ p\_box, }\AttributeTok{width =} \DecValTok{8}\NormalTok{, }\AttributeTok{height =} \DecValTok{10}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\subsection{5. Relaciones Bivariadas (Diagramas de
+Dispersión)}\label{relaciones-bivariadas-diagramas-de-dispersiuxf3n}
+
+Analizamos las interdependencias críticas entre indicadores
+seleccionados, evaluando su trayectoria y posibles tendencias lineales.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Definir los 5 pares de variables solicitados}
+\NormalTok{pares }\OtherTok{\textless{}{-}} \FunctionTok{list}\NormalTok{(}
+  \FunctionTok{c}\NormalTok{(}\StringTok{"COBERTURA\_NETA"}\NormalTok{, }\StringTok{"COBERTURA\_BRUTA"}\NormalTok{),}
+  \FunctionTok{c}\NormalTok{(}\StringTok{"APROBACIÓN\_SECUNDARIA"}\NormalTok{, }\StringTok{"REPROBACIÓN\_SECUNDARIA"}\NormalTok{),}
+  \FunctionTok{c}\NormalTok{(}\StringTok{"DESERCIÓN"}\NormalTok{, }\StringTok{"DESERCIÓN\_SECUNDARIA"}\NormalTok{),}
+  \FunctionTok{c}\NormalTok{(}\StringTok{"REPITENCIA"}\NormalTok{, }\StringTok{"REPITENCIA\_PRIMARIA"}\NormalTok{),}
+  \FunctionTok{c}\NormalTok{(}\StringTok{"APROBACIÓN"}\NormalTok{, }\StringTok{"REPROBACIÓN"}\NormalTok{) }\CommentTok{\# Quinto par añadido para complementar el análisis}
+\NormalTok{)}
+
+\CommentTok{\# Generar gráficos secuenciales y exportarlos}
+\ControlFlowTok{for}\NormalTok{ (i }\ControlFlowTok{in} \DecValTok{1}\SpecialCharTok{:}\FunctionTok{length}\NormalTok{(pares)) \{}
+\NormalTok{  var1 }\OtherTok{\textless{}{-}}\NormalTok{ pares[[i]][}\DecValTok{1}\NormalTok{]}
+\NormalTok{  var2 }\OtherTok{\textless{}{-}}\NormalTok{ pares[[i]][}\DecValTok{2}\NormalTok{]}
+  
+  \ControlFlowTok{if}\NormalTok{(var1 }\SpecialCharTok{\%in\%} \FunctionTok{names}\NormalTok{(datos) }\SpecialCharTok{\&}\NormalTok{ var2 }\SpecialCharTok{\%in\%} \FunctionTok{names}\NormalTok{(datos)) \{}
+\NormalTok{    p }\OtherTok{\textless{}{-}} \FunctionTok{ggplot}\NormalTok{(datos, }\FunctionTok{aes\_string}\NormalTok{(}\AttributeTok{x =}\NormalTok{ var1, }\AttributeTok{y =}\NormalTok{ var2)) }\SpecialCharTok{+}
+      \FunctionTok{geom\_point}\NormalTok{(}\AttributeTok{alpha =} \FloatTok{0.5}\NormalTok{, }\AttributeTok{color =} \StringTok{"\#2c3e50"}\NormalTok{, }\AttributeTok{size =} \DecValTok{2}\NormalTok{) }\SpecialCharTok{+}
+      \FunctionTok{geom\_smooth}\NormalTok{(}\AttributeTok{method =} \StringTok{"lm"}\NormalTok{, }\AttributeTok{color =} \StringTok{"\#e74c3c"}\NormalTok{, }\AttributeTok{se =} \ConstantTok{FALSE}\NormalTok{, }\AttributeTok{linetype =} \StringTok{"dashed"}\NormalTok{) }\SpecialCharTok{+}
+      \FunctionTok{labs}\NormalTok{(}
+        \AttributeTok{title =} \FunctionTok{paste}\NormalTok{(}\StringTok{"Relación entre"}\NormalTok{, var1, }\StringTok{"y"}\NormalTok{, var2), }
+        \AttributeTok{x =}\NormalTok{ var1, }
+        \AttributeTok{y =}\NormalTok{ var2}
+\NormalTok{      ) }\SpecialCharTok{+}
+      \FunctionTok{theme\_minimal}\NormalTok{()}
+    
+    \FunctionTok{print}\NormalTok{(p)}
+    \FunctionTok{ggsave}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(}\StringTok{"resultados taller 1/Dispersion\_"}\NormalTok{, var1, }\StringTok{"\_vs\_"}\NormalTok{, var2, }\StringTok{".png"}\NormalTok{), }\AttributeTok{plot =}\NormalTok{ p, }\AttributeTok{width =} \DecValTok{6}\NormalTok{, }\AttributeTok{height =} \DecValTok{4}\NormalTok{)}
+\NormalTok{  \}}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{center}\includegraphics{Taller1_files/figure-latex/diagramas_dispersion-1} \end{center}
+
+\begin{center}\includegraphics{Taller1_files/figure-latex/diagramas_dispersion-2} \end{center}
+
+\begin{center}\includegraphics{Taller1_files/figure-latex/diagramas_dispersion-3} \end{center}
+
+\begin{center}\includegraphics{Taller1_files/figure-latex/diagramas_dispersion-4} \end{center}
+
+\begin{center}\includegraphics{Taller1_files/figure-latex/diagramas_dispersion-5} \end{center}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\subsection{6. Matriz de Correlación Completa
+(Pearson)}\label{matriz-de-correlaciuxf3n-completa-pearson}
+
+Asociación lineal cruzada entre todas las variables cuantitativas del
+sistema educativo.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Matriz de Correlación ignorando valores faltantes}
+\NormalTok{matriz\_corr }\OtherTok{\textless{}{-}} \FunctionTok{cor}\NormalTok{(variables\_numericas, }\AttributeTok{use =} \StringTok{"complete.obs"}\NormalTok{)}
+
+\CommentTok{\# Guardar matriz de correlación en CSV}
+\FunctionTok{write.csv}\NormalTok{(matriz\_corr, }\StringTok{"resultados taller 1/Matriz\_Correlacion.csv"}\NormalTok{)}
+
+\CommentTok{\# Transformación de la matriz para el mapa de calor (Heatmap)}
+\NormalTok{melted\_corr }\OtherTok{\textless{}{-}} \FunctionTok{melt}\NormalTok{(matriz\_corr)}
+
+\CommentTok{\# Graficar el Heatmap}
+\NormalTok{p\_corr }\OtherTok{\textless{}{-}} \FunctionTok{ggplot}\NormalTok{(melted\_corr, }\FunctionTok{aes}\NormalTok{(Var1, Var2, }\AttributeTok{fill =}\NormalTok{ value)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_tile}\NormalTok{(}\AttributeTok{color =} \StringTok{"white"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{scale\_fill\_gradient2}\NormalTok{(}
+    \AttributeTok{low =} \StringTok{"\#2980b9"}\NormalTok{, }\AttributeTok{high =} \StringTok{"\#c0392b"}\NormalTok{, }\AttributeTok{mid =} \StringTok{"white"}\NormalTok{, }
+    \AttributeTok{midpoint =} \DecValTok{0}\NormalTok{, }\AttributeTok{limit =} \FunctionTok{c}\NormalTok{(}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{,}\DecValTok{1}\NormalTok{), }\AttributeTok{name =} \StringTok{"Pearson (r)"}
+\NormalTok{  ) }\SpecialCharTok{+}
+  \FunctionTok{theme\_minimal}\NormalTok{() }\SpecialCharTok{+}
+  \FunctionTok{theme}\NormalTok{(}
+    \AttributeTok{axis.text.x =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{angle =} \DecValTok{45}\NormalTok{, }\AttributeTok{vjust =} \DecValTok{1}\NormalTok{, }\AttributeTok{hjust =} \DecValTok{1}\NormalTok{, }\AttributeTok{size =} \DecValTok{8}\NormalTok{),}
+    \AttributeTok{axis.text.y =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{size =} \DecValTok{8}\NormalTok{),}
+    \AttributeTok{axis.title =} \FunctionTok{element\_blank}\NormalTok{(),}
+    \AttributeTok{panel.grid.major =} \FunctionTok{element\_blank}\NormalTok{()}
+\NormalTok{  ) }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}\AttributeTok{title =} \StringTok{"Matriz de Correlación (Todas las Variables Numéricas)"}\NormalTok{)}
+
+\CommentTok{\# Mostrar y guardar gráfico}
+\FunctionTok{print}\NormalTok{(p\_corr)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{center}\includegraphics{Taller1_files/figure-latex/matriz_correlacion-1} \end{center}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{ggsave}\NormalTok{(}\StringTok{"resultados taller 1/Heatmap\_Correlacion.png"}\NormalTok{, }\AttributeTok{plot =}\NormalTok{ p\_corr, }\AttributeTok{width =} \DecValTok{10}\NormalTok{, }\AttributeTok{height =} \DecValTok{10}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\subsection{7. Conclusiones del
+Análisis}\label{conclusiones-del-anuxe1lisis}
+
+Con base en los gráficos y el modelo estadístico construido, se destaca
+lo siguiente:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Variables Geográficas vs.~Métricas:} Se aplicó la separación
+  dictada por el diccionario de datos: los Códigos DANE municipales y
+  departamentales fueron tratados como dimensiones categóricas, dejando
+  un espacio analítico puramente enfocado en tasas, porcentajes y
+  coberturas.
+\item
+  \textbf{Distribuciones (Histogramas):} Se observa que las variables de
+  \emph{Aprobación} tienen un marcado sesgo hacia la derecha (alta
+  concentración cerca al 100\%), mientras que las métricas de
+  \emph{Deserción} y \emph{Reprobación} tienen distribuciones sesgadas
+  fuertemente hacia la izquierda, denotando valores bajos mayoritarios
+  con una larga cola de casos críticos.
+\item
+  \textbf{Identificación de Atípicos (Boxplots):} En el plano
+  normalizado, la \emph{Deserción} y la \emph{Repitencia} presentan una
+  gran cantidad de municipios por fuera de los ``bigotes'' superiores,
+  indicando enclaves territoriales con crisis educativas severas.
+\item
+  \textbf{Relaciones Lineales Bivariadas:}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Se confirma una correlación negativa perfecta entre Aprobación y
+    Reprobación, como es naturalmente esperado.
+  \item
+    La Deserción Secundaria tracciona sustancialmente el indicador de
+    Deserción General, indicando que el abandono escolar es prevalente
+    en la educación media/secundaria más que en preescolar o primaria.
+  \end{itemize}
+\item
+  \textbf{Matriz de Correlación Multivariada:} Se detectan bloques
+  altamente interconectados. Las variables de Aprobación por niveles
+  (Transición, Primaria, Secundaria) correlacionan positivamente entre
+  sí, y negativamente contra cualquier tipo de Reprobación y Deserción,
+  con un patrón cromático en la matriz que divide visualmente las
+  métricas positivas frente a los déficits del sistema educativo.
+\end{enumerate}
+
+\end{document}
