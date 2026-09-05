@@ -1,0 +1,215 @@
+---
+title: "Checklist del dataset - Taller 2"
+author: "Estadística Multidimensional"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    code_folding: show
+---
+
+Este documento revisa el dataset para covarianzas, correlaciones y distancias de Mahalanobis.
+Todos los resultados se guardan en `outputs/taller-02/tables` y `outputs/taller-02/figures`.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.width = 10, fig.height = 7, fig.align = "center")
+find_project_root <- function(start = getwd()) {
+  path <- normalizePath(start, mustWork = TRUE)
+  repeat {
+    expected_data <- file.path(path, "data", "raw", "EDUCACION_LIMPIO.csv")
+    if (file.exists(expected_data) && dir.exists(file.path(path, "reports"))) {
+      return(path)
+    }
+    parent <- dirname(path)
+    if (parent == path) stop("No se encontró la raíz del proyecto.")
+    path <- parent
+  }
+}
+
+project_root <- find_project_root()
+knitr::opts_knit$set(root.dir = project_root)
+tables_dir <- file.path(project_root, "outputs", "taller-02", "tables")
+figures_dir <- file.path(project_root, "outputs", "taller-02", "figures")
+dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
+
+paquetes <- c("ggplot2", "dplyr", "tidyr", "reshape2", "knitr")
+faltantes <- paquetes[!vapply(paquetes, requireNamespace, logical(1), quietly = TRUE)]
+if (length(faltantes) > 0) {
+  stop("Faltan paquetes R. Ejecute scripts/install_dependencies.R: ",
+       paste(faltantes, collapse = ", "))
+}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(knitr)
+```
+
+## 1. Carga y limpieza
+
+Los códigos geográficos se excluyen porque identifican lugares, pero no son magnitudes. Además,
+`APROBACIÓN_TRANSICIÓN` y `REPROBACIÓN_TRANSICIÓN` son constantes en este archivo: se reportan y
+se excluyen de los gráficos y cálculos que requieren variación.
+
+```{r carga_limpieza}
+datos <- read.csv(file.path(project_root, "data", "raw", "EDUCACION_LIMPIO.csv"),
+                  check.names = FALSE,
+                  stringsAsFactors = FALSE)
+
+excluir <- c("CÓDIGO_MUNICIPIO", "CÓDIGO_DEPARTAMENTO")
+X <- datos[, vapply(datos, is.numeric, logical(1)), drop = FALSE]
+X <- X[, !names(X) %in% excluir, drop = FALSE]
+
+# Convierte Inf y NaN a NA antes de cualquier cálculo o gráfico.
+X[] <- lapply(X, function(x) {
+  x[!is.finite(x)] <- NA_real_
+  x
+})
+
+es_constante <- vapply(X, function(x) {
+  valores <- x[is.finite(x)]
+  length(valores) > 0 && length(unique(valores)) <= 1
+}, logical(1))
+
+columnas_constantes <- names(X)[es_constante]
+write.csv(data.frame(Variable = columnas_constantes,
+                     Motivo = "Constante o sin variación"),
+          file.path(tables_dir, "Columnas_excluidas.csv"), row.names = FALSE)
+
+# Evita rangos cero, correlaciones indefinidas y matrices singulares.
+X <- X[, !es_constante, drop = FALSE]
+write.csv(data.frame(Variable = names(X)),
+          file.path(tables_dir, "Variables_usadas.csv"), row.names = FALSE)
+
+cat("Columnas constantes excluidas:\n")
+print(columnas_constantes)
+```
+
+## 2. Tamaño y faltantes
+
+```{r diagnostico}
+n <- nrow(X)
+p <- ncol(X)
+filas_completas <- sum(complete.cases(X))
+diagnostico <- data.frame(
+  filas = n,
+  variables = p,
+  razon_n_p = n / p,
+  porcentaje_faltantes = mean(is.na(as.matrix(X))) * 100,
+  filas_completas = filas_completas
+)
+write.csv(diagnostico, file.path(tables_dir, "Diagnostico_dataset.csv"), row.names = FALSE)
+kable(diagnostico, digits = 3)
+```
+
+## 3. Resumen estadístico
+
+```{r resumen}
+resumen <- data.frame(
+  Variable = names(X),
+  Media = vapply(X, mean, numeric(1), na.rm = TRUE),
+  Desv_Est = vapply(X, sd, numeric(1), na.rm = TRUE),
+  Minimo = vapply(X, min, numeric(1), na.rm = TRUE),
+  Mediana = vapply(X, median, numeric(1), na.rm = TRUE),
+  Maximo = vapply(X, max, numeric(1), na.rm = TRUE),
+  Faltantes = vapply(X, function(x) sum(is.na(x)), integer(1))
+)
+write.csv(resumen, file.path(tables_dir, "Resumen_estadistico.csv"), row.names = FALSE)
+kable(resumen, digits = 4)
+```
+
+## 4. Boxplot sin rangos cero
+
+La normalización solo se aplica a variables con rango positivo. Así no se produce `0 / 0 = NaN`
+en las variables de transición ni en ninguna otra columna constante.
+
+```{r boxplot}
+normalizar <- function(x) {
+  rango <- range(x, na.rm = TRUE)
+  if (!all(is.finite(rango)) || diff(rango) == 0) return(rep(NA_real_, length(x)))
+  (x - rango[1]) / diff(rango)
+}
+
+datos_norm <- X %>% mutate(across(everything(), normalizar))
+datos_norm_largo <- datos_norm %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "Valor_normalizado") %>%
+  filter(is.finite(Valor_normalizado))
+
+p_box <- ggplot(datos_norm_largo,
+                aes(x = reorder(Variable, Valor_normalizado, FUN = median, na.rm = TRUE),
+                    y = Valor_normalizado)) +
+  geom_boxplot(fill = "#2ecc71", color = "#1e8449", outlier.color = "#c0392b") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Boxplots de variables normalizadas", x = NULL, y = "Escala [0, 1]")
+print(p_box)
+ggsave(file.path(figures_dir, "Boxplots_normalizados.png"), p_box,
+  width = 10, height = 10, dpi = 150)
+write.csv(datos_norm_largo, file.path(tables_dir, "Datos_normalizados.csv"), row.names = FALSE)
+```
+
+## 5. Correlación y heatmap
+
+```{r correlacion}
+matriz_corr <- cor(X, use = "pairwise.complete.obs")
+matriz_corr[!is.finite(matriz_corr)] <- NA_real_
+write.csv(matriz_corr, file.path(tables_dir, "Matriz_correlacion.csv"))
+
+corr_largo <- melt(matriz_corr, varnames = c("Variable_1", "Variable_2"),
+                   value.name = "Correlacion", na.rm = TRUE)
+corr_largo <- corr_largo[is.finite(corr_largo$Correlacion), ]
+
+p_heatmap <- ggplot(corr_largo, aes(Variable_1, Variable_2, fill = Correlacion)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
+                       midpoint = 0, limits = c(-1, 1), na.value = "grey90") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        axis.text.y = element_text(size = 8), axis.title = element_blank(),
+        panel.grid = element_blank()) +
+  labs(title = "Heatmap de correlaciones de Pearson", fill = "r")
+print(p_heatmap)
+ggsave(file.path(figures_dir, "Heatmap_correlacion.png"), p_heatmap,
+  width = 12, height = 10, dpi = 150)
+```
+
+## 6. Covarianza y Mahalanobis
+
+```{r mahalanobis}
+S <- cov(X, use = "pairwise.complete.obs")
+write.csv(S, file.path(tables_dir, "Matriz_covarianzas.csv"))
+
+filas_X_completas <- complete.cases(X)
+X_completa <- X[filas_X_completas, , drop = FALSE]
+# Se estandariza para evitar que POBLACIÓN_5_16 domine numéricamente a las tasas.
+# Mahalanobis es invariante ante este cambio de escala.
+X_mahalanobis <- as.data.frame(scale(X_completa))
+S_mahalanobis <- cov(X_mahalanobis)
+matriz_invertible <- nrow(X_mahalanobis) > ncol(X_mahalanobis) &&
+  qr(S_mahalanobis)$rank == ncol(S_mahalanobis)
+
+if (matriz_invertible) {
+  distancias <- mahalanobis(X_mahalanobis,
+                            center = colMeans(X_mahalanobis),
+                            cov = S_mahalanobis)
+  write.csv(data.frame(Fila = which(filas_X_completas), Mahalanobis = distancias),
+            file.path(tables_dir, "Distancias_Mahalanobis.csv"), row.names = FALSE)
+  cat("Distancias calculadas para", length(distancias), "filas completas.\n")
+} else {
+  write.csv(data.frame(Fila = integer(0), Mahalanobis = numeric(0)),
+            file.path(tables_dir, "Distancias_Mahalanobis.csv"), row.names = FALSE)
+  cat("No se pudo invertir la matriz de covarianzas.\n")
+}
+```
+
+## 7. Resultado del checklist
+
+```{r resultado}
+cat("Filas:", n, " | Variables usadas:", p, " | n/p:", round(n / p, 2), "\n")
+cat("Filas completas:", filas_completas, "\n")
+cat("Columnas constantes excluidas:", paste(columnas_constantes, collapse = ", "), "\n")
+cat("Los CSV quedaron en outputs/taller-02/tables y las imágenes en outputs/taller-02/figures.\n")
+```

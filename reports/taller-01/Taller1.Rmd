@@ -3,9 +3,6 @@ title: "Análisis Multidimensional de Indicadores Educativos"
 author: "Reporte Estadístico"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
-    toc: true
-    toc_depth: '3'
   html_document:
     toc: true
     toc_depth: 3
@@ -13,10 +10,12 @@ output:
     theme: flatly
     highlight: tango
     code_folding: show
+  pdf_document:
+    toc: true
+    toc_depth: '3'
 ---
 
 ```{r setup, include=FALSE}
-# Configuración global para el documento HTML
 knitr::opts_chunk$set(
   echo = TRUE, 
   warning = FALSE, 
@@ -25,6 +24,26 @@ knitr::opts_chunk$set(
   fig.height = 7, 
   fig.align = "center"
 )
+
+find_project_root <- function(start = getwd()) {
+  path <- normalizePath(start, mustWork = TRUE)
+  repeat {
+    expected_data <- file.path(path, "data", "raw", "EDUCACION_LIMPIO.csv")
+    if (file.exists(expected_data) && dir.exists(file.path(path, "reports"))) {
+      return(path)
+    }
+    parent <- dirname(path)
+    if (parent == path) stop("No se encontró la raíz del proyecto.")
+    path <- parent
+  }
+}
+
+project_root <- find_project_root()
+knitr::opts_knit$set(root.dir = project_root)
+tables_dir <- file.path(project_root, "outputs", "taller-01", "tables")
+figures_dir <- file.path(project_root, "outputs", "taller-01", "figures")
+dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
 ```
 
 ## Resumen del Dataset
@@ -45,11 +64,9 @@ library(tidyr)
 library(reshape2)
 library(knitr)
 
-# Crear carpeta para guardar todos los resultados
-dir.create("resultados taller 1", showWarnings = FALSE)
-
 # 1. Carga de datos con parámetros explícitos (sep para comas de archivo, dec para decimales)
-datos <- read.csv("data/EDUCACION_LIMPIO.csv", sep = ",", dec = ".")
+datos <- read.csv(file.path(project_root, "data", "raw", "EDUCACION_LIMPIO.csv"),
+                  sep = ",", dec = ".", check.names = FALSE)
 
 # 2. Análisis y Tipificación según "Diccionario de Datos":
 # Convertimos las entidades geográficas a factores (categóricas) ya que no son magnitudes numéricas reales.
@@ -78,7 +95,7 @@ resumen <- data.frame(
 )
 
 # Exportar los resultados a CSV
-write.csv(resumen, "resultados taller 1/Resumen_Estadistico.csv", row.names = FALSE)
+write.csv(resumen, file.path(tables_dir, "Resumen_Estadistico.csv"), row.names = FALSE)
 
 # Renderización de tabla en HTML
 kable(resumen, digits = 3, caption = "Resumen Estadístico de las Variables Numéricas", row.names = FALSE)
@@ -109,7 +126,7 @@ p_hist <- ggplot(datos_long, aes(x = Valor)) +
 
 # Mostrar y guardar gráfico
 print(p_hist)
-ggsave("resultados taller 1/Histogramas.png", plot = p_hist, width = 12, height = 10)
+ggsave(file.path(figures_dir, "Histogramas.png"), plot = p_hist, width = 12, height = 10)
 ```
 
 ---
@@ -121,7 +138,9 @@ Para evaluar los indicadores en una escala comparable e identificar la presencia
 ```{r boxplots_normalizados}
 # Función de normalización Min-Max
 normalizar <- function(x) {
-  return ((x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)))
+  rango <- range(x, na.rm = TRUE)
+  if (!all(is.finite(rango)) || diff(rango) == 0) return(rep(NA_real_, length(x)))
+  (x - rango[1]) / diff(rango)
 }
 
 # Aplicar normalización a las variables numéricas
@@ -144,7 +163,7 @@ p_box <- ggplot(datos_norm_long, aes(x = reorder(Variable, Valor_Normalizado, FU
 
 # Mostrar y guardar gráfico
 print(p_box)
-ggsave("resultados taller 1/Boxplots.png", plot = p_box, width = 8, height = 10)
+ggsave(file.path(figures_dir, "Boxplots.png"), plot = p_box, width = 8, height = 10)
 ```
 
 ---
@@ -164,11 +183,11 @@ pares <- list(
 )
 
 # Generar gráficos secuenciales y exportarlos
-for (i in 1:length(pares)) {
+for (i in seq_along(pares)) {
   var1 <- pares[[i]][1]
   var2 <- pares[[i]][2]
   
-  if(var1 %in% names(datos) & var2 %in% names(datos)) {
+  if (var1 %in% names(datos) && var2 %in% names(datos)) {
     p <- ggplot(datos, aes_string(x = var1, y = var2)) +
       geom_point(alpha = 0.5, color = "#2c3e50", size = 2) +
       geom_smooth(method = "lm", color = "#e74c3c", se = FALSE, linetype = "dashed") +
@@ -180,7 +199,8 @@ for (i in 1:length(pares)) {
       theme_minimal()
     
     print(p)
-    ggsave(paste0("resultados taller 1/Dispersion_", var1, "_vs_", var2, ".png"), plot = p, width = 6, height = 4)
+        ggsave(file.path(figures_dir, paste0("Dispersion_", var1, "_vs_", var2, ".png")),
+          plot = p, width = 6, height = 4)
   }
 }
 ```
@@ -193,10 +213,11 @@ Asociación lineal cruzada entre todas las variables cuantitativas del sistema e
 
 ```{r matriz_correlacion, fig.height=10, fig.width=10}
 # Matriz de Correlación ignorando valores faltantes
-matriz_corr <- cor(variables_numericas, use = "complete.obs")
+matriz_corr <- cor(variables_numericas, use = "pairwise.complete.obs")
+matriz_corr[!is.finite(matriz_corr)] <- NA_real_
 
 # Guardar matriz de correlación en CSV
-write.csv(matriz_corr, "resultados taller 1/Matriz_Correlacion.csv")
+write.csv(matriz_corr, file.path(tables_dir, "Matriz_Correlacion.csv"))
 
 # Transformación de la matriz para el mapa de calor (Heatmap)
 melted_corr <- melt(matriz_corr)
@@ -219,7 +240,8 @@ p_corr <- ggplot(melted_corr, aes(Var1, Var2, fill = value)) +
 
 # Mostrar y guardar gráfico
 print(p_corr)
-ggsave("resultados taller 1/Heatmap_Correlacion.png", plot = p_corr, width = 10, height = 10)
+ggsave(file.path(figures_dir, "Heatmap_Correlacion.png"), plot = p_corr,
+  width = 10, height = 10)
 ```
 
 ---

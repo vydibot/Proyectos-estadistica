@@ -1,0 +1,21 @@
+# R y RStudio
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+
+# Compilacion y caches de R Markdown
+*_cache/
+*_files/
+figure/
+*.aux
+*.out
+*.toc
+
+# Temporales del sistema
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs de compilacion nuevos
+reports/**/archive/*.log
