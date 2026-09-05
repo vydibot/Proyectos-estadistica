@@ -1,0 +1,235 @@
+---
+title: "Taller 02 HTML: análisis integrado de indicadores educativos"
+author: "Luisa Fernanda Velasco López 20212020106
+Jairo Arturo Barrera Mosquera 20222020142
+David lugo Piñeros 20222020180
+Gabriela Martínez Silva 20231020205"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: hide
+    self_contained: true
+    theme: readable
+    highlight: tango
+---
+
+Este documento integra los resultados descriptivos del Taller 01 con el diagnóstico
+multivariado del Taller 02. Todo el análisis se ejecuta desde el dataset original y
+las tablas y figuras aparecen dentro de esta entrega HTML.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, warning = FALSE, message = FALSE,
+  fig.width = 10, fig.height = 7, fig.align = "center"
+)
+
+find_project_root <- function(start = getwd()) {
+  path <- normalizePath(start, mustWork = TRUE)
+  repeat {
+    if (file.exists(file.path(path, "data", "raw", "educacion_limpio.csv")) &&
+        dir.exists(file.path(path, "reports"))) return(path)
+    parent <- dirname(path)
+    if (parent == path) stop("No se encontró la raíz del proyecto.")
+    path <- parent
+  }
+}
+
+project_root <- find_project_root()
+knitr::opts_knit$set(root.dir = project_root)
+paquetes <- c("ggplot2", "dplyr", "tidyr", "reshape2", "knitr")
+faltantes <- paquetes[!vapply(paquetes, requireNamespace, logical(1), quietly = TRUE)]
+if (length(faltantes) > 0) stop("Faltan paquetes R: ", paste(faltantes, collapse = ", "))
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(knitr)
+
+datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio.csv"),
+                  check.names = FALSE, stringsAsFactors = FALSE)
+datos$CÓDIGO_MUNICIPIO <- as.factor(datos$CÓDIGO_MUNICIPIO)
+datos$CÓDIGO_DEPARTAMENTO <- as.factor(datos$CÓDIGO_DEPARTAMENTO)
+
+excluir <- c("CÓDIGO_MUNICIPIO", "CÓDIGO_DEPARTAMENTO")
+X <- datos[, vapply(datos, is.numeric, logical(1)), drop = FALSE]
+X <- X[, !names(X) %in% excluir, drop = FALSE]
+X[] <- lapply(X, function(x) { x[!is.finite(x)] <- NA_real_; x })
+es_constante <- vapply(X, function(x) {
+  valores <- x[is.finite(x)]
+  length(valores) > 0 && length(unique(valores)) <= 1
+}, logical(1))
+columnas_constantes <- names(X)[es_constante]
+X <- X[, !es_constante, drop = FALSE]
+
+normalizar <- function(x) {
+  rango <- range(x, na.rm = TRUE)
+  if (!all(is.finite(rango)) || diff(rango) == 0) return(rep(NA_real_, length(x)))
+  (x - rango[1]) / diff(rango)
+}
+
+resumen <- data.frame(
+  Variable = names(X),
+  Media = vapply(X, mean, numeric(1), na.rm = TRUE),
+  Desv_Est = vapply(X, sd, numeric(1), na.rm = TRUE),
+  Minimo = vapply(X, min, numeric(1), na.rm = TRUE),
+  Mediana = vapply(X, median, numeric(1), na.rm = TRUE),
+  Maximo = vapply(X, max, numeric(1), na.rm = TRUE),
+  Faltantes = vapply(X, function(x) sum(is.na(x)), integer(1))
+)
+diagnostico <- data.frame(
+  Filas = nrow(X), Variables = ncol(X),
+  Razon_n_p = nrow(X) / ncol(X),
+  Porcentaje_faltantes = mean(is.na(as.matrix(X))) * 100,
+  Filas_completas = sum(complete.cases(X))
+)
+datos_norm_largo <- X %>% mutate(across(everything(), normalizar)) %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "Valor_normalizado") %>%
+  filter(is.finite(Valor_normalizado))
+matriz_corr <- cor(X, use = "pairwise.complete.obs")
+matriz_corr[!is.finite(matriz_corr)] <- NA_real_
+S <- cov(X, use = "pairwise.complete.obs")
+X_completa <- X[complete.cases(X), , drop = FALSE]
+X_mahalanobis <- as.data.frame(scale(X_completa))
+S_mahalanobis <- cov(X_mahalanobis)
+matriz_invertible <- nrow(X_mahalanobis) > ncol(X_mahalanobis) &&
+  qr(S_mahalanobis)$rank == ncol(S_mahalanobis)
+if (matriz_invertible) {
+  distancias <- mahalanobis(X_mahalanobis, colMeans(X_mahalanobis), S_mahalanobis)
+}
+```
+
+## 1. Diagnóstico general
+
+```{r diagnostico-tabla}
+kable(diagnostico, digits = 3, caption = "Diagnóstico del dataset")
+kable(data.frame(Variable = columnas_constantes,
+         Motivo = "Constante o sin variación"),
+  caption = "Variables excluidas")
+kable(data.frame(Variable = names(X)), caption = "Variables utilizadas")
+```
+
+Se analizaron `r nrow(X)` filas y `r ncol(X)` variables cuantitativas. El conjunto tiene
+`r diagnostico$Filas_completas` filas completas y `r round(diagnostico$Porcentaje_faltantes, 2)`%
+de valores faltantes. Se excluyeron por ser constantes:
+`r if (length(columnas_constantes)) paste(columnas_constantes, collapse = ", ") else "ninguna"`.
+
+## 2. Resumen estadístico integrado
+
+La siguiente tabla reúne el resumen usado en ambos talleres: media, desviación estándar,
+extremos, mediana y faltantes por variable.
+
+```{r resumen-tabla}
+kable(resumen, digits = 4, caption = "Resumen estadístico de variables cuantitativas")
+```
+
+## 3. Distribuciones: histogramas
+
+```{r histogramas, fig.height=11, fig.width=12}
+datos_long <- X %>% pivot_longer(everything(), names_to = "Variable", values_to = "Valor")
+ggplot(datos_long, aes(Valor)) +
+  geom_histogram(bins = 30, fill = "#247ba0", color = "white") +
+  facet_wrap(~ Variable, scales = "free", ncol = 4) +
+  theme_minimal() + labs(title = "Distribución de los indicadores", x = "Valor", y = "Frecuencia")
+```
+
+## 4. Comparación y valores atípicos
+
+La normalización Min-Max permite comparar indicadores con escalas distintas. Las variables
+constantes se retiraron antes de normalizar para evitar rangos cero.
+
+```{r boxplots, fig.height=11}
+ggplot(datos_norm_largo,
+       aes(reorder(Variable, Valor_normalizado, FUN = median, na.rm = TRUE),
+           Valor_normalizado)) +
+  geom_boxplot(fill = "#70c1b3", color = "#1b4965", outlier.color = "#d1495b") +
+  coord_flip() + theme_minimal() +
+  labs(title = "Boxplots de variables normalizadas", x = NULL, y = "Escala [0, 1]")
+```
+
+## 5. Relaciones bivariadas
+
+Se muestran cinco relaciones seleccionadas del Taller 01. La línea discontinua representa
+el ajuste lineal y ayuda a visualizar la dirección de la asociación.
+
+```{r dispersion, fig.height=10, fig.width=12}
+pares <- list(
+  c("COBERTURA_NETA", "COBERTURA_BRUTA"),
+  c("APROBACIÓN_SECUNDARIA", "REPROBACIÓN_SECUNDARIA"),
+  c("DESERCIÓN", "DESERCIÓN_SECUNDARIA"),
+  c("REPITENCIA", "REPITENCIA_PRIMARIA"),
+  c("APROBACIÓN", "REPROBACIÓN")
+)
+pares <- Filter(function(par) all(par %in% names(datos)), pares)
+for (par in pares) {
+  print(ggplot(datos, aes(x = .data[[par[1]]], y = .data[[par[2]]])) +
+    geom_point(alpha = 0.35, color = "#1b4965") +
+    geom_smooth(method = "lm", se = FALSE, color = "#d1495b", linetype = "dashed") +
+    theme_minimal() + labs(title = paste(par[1], "vs", par[2]), x = par[1], y = par[2]))
+}
+```
+
+## 6. Correlaciones de Pearson
+
+```{r correlacion, fig.height=10, fig.width=12}
+corr_largo <- melt(matriz_corr, varnames = c("Variable_1", "Variable_2"),
+                    value.name = "Correlacion", na.rm = TRUE)
+corr_largo <- corr_largo[is.finite(corr_largo$Correlacion), ]
+ggplot(corr_largo, aes(Variable_1, Variable_2, fill = Correlacion)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
+                       midpoint = 0, limits = c(-1, 1), na.value = "grey90") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        axis.text.y = element_text(size = 8), axis.title = element_blank(),
+        panel.grid = element_blank()) +
+  labs(title = "Matriz de correlaciones de Pearson", fill = "r")
+```
+
+## 7. Covarianzas
+
+```{r covarianzas}
+kable(round(S, 4), caption = "Matriz de covarianzas")
+```
+
+La covarianza conserva las unidades originales, por lo que su magnitud está influida por la
+escala de cada variable. Por esa razón, para la distancia de Mahalanobis se estandarizaron
+las variables antes de invertir la matriz.
+
+## 8. Distancias de Mahalanobis
+
+```{r mahalanobis-tabla}
+if (matriz_invertible) {
+  mahalanobis_resumen <- data.frame(
+    Filas_completas = length(distancias),
+    Minimo = min(distancias), Mediana = median(distancias),
+    Maximo = max(distancias),
+    Umbral_chi2_99 = qchisq(0.99, df = ncol(X)),
+    Casos_sobre_umbral = sum(distancias > qchisq(0.99, df = ncol(X)))
+  )
+  kable(mahalanobis_resumen, digits = 3,
+        caption = "Resumen de distancias de Mahalanobis")
+    kable(data.frame(Fila = which(complete.cases(X)),
+         Mahalanobis = distancias), digits = 4,
+      caption = "Detalle de distancias de Mahalanobis")
+} else {
+  cat("La matriz estandarizada no es invertible; no se calcularon distancias.")
+}
+```
+
+## 9. Conclusiones integradas
+
+1. Los códigos geográficos se trataron como categóricos y las variables constantes de
+   transición se excluyeron de los cálculos multivariados.
+2. Las coberturas y aprobaciones concentran sus valores en niveles altos, mientras que
+   deserción, reprobación y repitencia presentan distribuciones más bajas y asimétricas.
+3. Las relaciones de aprobación-reprobación muestran una asociación negativa consistente;
+   las relaciones entre indicadores del mismo fenómeno permiten identificar patrones por
+   nivel educativo.
+4. La matriz de correlaciones permite detectar bloques de indicadores asociados, mientras
+   que la matriz de covarianzas conserva el efecto de las escalas originales.
+5. Las distancias de Mahalanobis resumen la rareza multivariada de cada fila completa; los
+   casos que superan el umbral chi-cuadrado del 99% requieren revisión territorial y
+   sustantiva antes de considerarse anomalías.

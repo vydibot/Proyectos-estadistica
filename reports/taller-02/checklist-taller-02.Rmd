@@ -1,6 +1,9 @@
 ---
 title: "Checklist del dataset - Taller 2"
-author: "Estadística Multidimensional"
+author: "Luisa Fernanda Velasco López 20212020106
+Jairo Arturo Barrera Mosquera 20222020142
+David lugo Piñeros 20222020180
+Gabriela Martínez Silva 20231020205"
 date: "`r Sys.Date()`"
 output:
   html_document:

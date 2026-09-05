@@ -14,7 +14,8 @@ if (length(missing_packages) > 0) {
 
 reports <- c(
   file.path(project_root, "reports", "taller-01", "taller-01.Rmd"),
-  file.path(project_root, "reports", "taller-02", "checklist-taller-02.Rmd")
+  file.path(project_root, "reports", "taller-02", "checklist-taller-02.Rmd"),
+  file.path(project_root, "reports", "taller-02", "taller-02-html.Rmd")
 )
 
 for (report in reports) {
