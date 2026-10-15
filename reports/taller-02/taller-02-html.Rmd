@@ -198,6 +198,41 @@ La covarianza conserva las unidades originales, por lo que su magnitud está inf
 escala de cada variable. Por esa razón, para la distancia de Mahalanobis se estandarizaron
 las variables antes de invertir la matriz.
 
+```{r matriz covarianzas}
+# Excluir la variable con varianza extremadamente grande
+S_sub <- S[rownames(S) != "POBLACIÓN_5_16", colnames(S) != "POBLACIÓN_5_16"]
+
+# Transformación de compresión (signo * |valor|^0.35) solo para el color,
+# así las covarianzas pequeñas (deserción, aprobación, etc.) no quedan
+# opacadas por las de mayor magnitud (coberturas)
+comprimir <- function(x, p = 0.35) sign(x) * (abs(x) ^ p)
+
+S_largo <- melt(S_sub, varnames = c("Variable_1", "Variable_2"),
+                 value.name = "Covarianza", na.rm = TRUE)
+S_largo <- S_largo[is.finite(S_largo$Covarianza), ]
+S_largo$Covarianza_vis <- comprimir(S_largo$Covarianza)
+
+grafico_covarianzas <- ggplot(S_largo, aes(Variable_1, Variable_2, fill = Covarianza_vis)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
+                        midpoint = 0, na.value = "grey90") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        axis.text.y = element_text(size = 8), axis.title = element_blank(),
+        panel.grid = element_blank(),
+        legend.text = element_blank(), legend.ticks = element_blank()) +
+  labs(title = "Matriz de covarianzas (excluye POBLACIÓN_5_16; escala comprimida)",
+       fill = "Cov.\n(comprimida)")
+
+grafico_covarianzas
+
+# Exportar a PNG
+dir.create("outputs/taller-02/figures", recursive = TRUE, showWarnings = FALSE)
+ggsave(filename = "outputs/taller-02/figures/covarianzas.png",
+       plot = grafico_covarianzas,
+       width = 10, height = 9, dpi = 200)
+```
+
 ## 8. Distancias de Mahalanobis
 
 ```{r mahalanobis-tabla}
@@ -217,6 +252,45 @@ if (matriz_invertible) {
 } else {
   cat("La matriz estandarizada no es invertible; no se calcularon distancias.")
 }
+```
+```{r representacion}
+p <- ncol(X)
+umbral <- qchisq(0.99, df = p)
+
+mahalanobis_df <- data.frame(
+  Fila = which(complete.cases(X)),
+  Mahalanobis = distancias,
+  Atipico = distancias > umbral
+)
+
+dir.create("outputs/taller-02/figures", recursive = TRUE, showWarnings = FALSE)
+
+# ---------- 1. Gráfico de índice ----------
+grafico_indice <- ggplot(mahalanobis_df, aes(Fila, Mahalanobis, color = Atipico)) +
+  geom_point(alpha = 0.6, size = 1) +
+  geom_hline(yintercept = umbral, linetype = "dashed", color = "#d1495b") +
+  scale_color_manual(values = c("FALSE" = "#1b4965", "TRUE" = "#d1495b")) +
+  theme_minimal() +
+  labs(title = "Distancias de Mahalanobis por observación",
+       y = "Distancia de Mahalanobis", color = "Atípico")
+
+grafico_indice
+
+ggsave(filename = "outputs/taller-02/figures/mahalanobis_indice.png",
+       plot = grafico_indice, width = 11, height = 5.5, dpi = 200)
+
+# ---------- 2. QQ-plot vs chi-cuadrado ----------
+grafico_qq <- ggplot(mahalanobis_df, aes(sample = Mahalanobis)) +
+  stat_qq(distribution = qchisq, dparams = list(df = p), color = "#1b4965", alpha = 0.5) +
+  stat_qq_line(distribution = qchisq, dparams = list(df = p), color = "#d1495b", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Gráfico QQ: Mahalanobis vs. chi-cuadrado teórica",
+       x = "Cuantiles teóricos", y = "Distancias observadas")
+
+grafico_qq
+
+ggsave(filename = "outputs/taller-02/figures/mahalanobis_qqplot.png",
+       plot = grafico_qq, width = 7, height = 7, dpi = 200)
 ```
 
 ## 9. Conclusiones integradas

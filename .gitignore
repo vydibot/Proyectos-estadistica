@@ -19,3 +19,4 @@ Thumbs.db
 
 # Logs de compilacion nuevos
 reports/**/archive/*.log
+.Rproj.user

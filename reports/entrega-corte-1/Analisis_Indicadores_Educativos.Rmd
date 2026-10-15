@@ -1,0 +1,307 @@
+---
+title: "Análisis Exploratorio de Datos: Indicadores Educativos Municipales de Colombia 2011-2024"
+author: 
+  - "David Santiago Lugo Piñeros - Cód:20222020180"
+  - "Luisa Fernández Velasco López - Cód:20212020106"
+  - "Jairo Arturo Barrera Mosquera - Cód:20222020142"
+  - "Gabriela Martínez Silva - Cód:20231020205"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    highlight: tango
+    code_folding: show    
+    df_print: paged
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE, 
+  message = FALSE,
+  fig.align = "center", 
+  fig.width = 8, 
+  fig.height = 6,
+  dpi = 300,
+  out.width = "85%"
+)
+
+find_project_root <- function(start = getwd()) {
+  path <- normalizePath(start, mustWork = TRUE)
+  repeat {
+    if (file.exists(file.path(path, "data", "raw", "educacion_limpio.csv")) &&
+        dir.exists(file.path(path, "reports"))) return(path)
+    parent <- dirname(path)
+    if (parent == path) stop("No se encontró la raíz del proyecto.")
+    path <- parent
+  }
+}
+
+project_root <- find_project_root()
+knitr::opts_knit$set(root.dir = project_root)
+
+# Paquetes que se usan en el documento
+paquetes <- c(
+  "ggplot2",
+  "dplyr",
+  "tidyr",
+  "reshape2",
+  "knitr",
+  "corrplot",
+  "forcats",
+  "readr",
+  "DT"
+)
+
+faltantes <- paquetes[
+  !vapply(paquetes, requireNamespace, logical(1), quietly = TRUE)
+]
+
+if (length(faltantes) > 0) {
+  install.packages(faltantes)
+}
+
+# Librerías que se usan en el documento
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(knitr)
+library(DT)
+library(forcats)
+
+# Cargar dataset
+datos <- read.csv(file.path(project_root, "data", "raw", "educacion.csv"),
+                  check.names = FALSE, stringsAsFactors = FALSE)
+```
+
+# Introducción
+
+El presente documento desarrolla un Análisis Exploratorio de Datos (EDA) sobre los indicadores educativos a nivel municipal en Colombia durante el periodo 2011-2024. A partir de información oficial del Ministerio de Educación Nacional, sometida a un riguroso proceso de limpieza y reducción dimensional (consolidando una muestra operativa de 13.802 observaciones y 33 variables), el estudio aplica un enfoque estadístico escalonado. Metodológicamente, la investigación transita desde un análisis descriptivo y univariado —centrado en la caracterización geométrica de las distribuciones y la detección de valores atípicos mediante el rango intercuartílico— hacia un análisis bivariado y de correlación múltiple. A través del cálculo de coeficientes de asociación, matrices de calor, evaluación de redundancias y pruebas de significancia estadística, el objetivo central es cuantificar el comportamiento simultáneo de los indicadores en sus distintos niveles formativos. Este marco cuantitativo proporciona una base empírica sólida para la formulación de hipótesis sobre las dinámicas y factores subyacentes del sistema educativo colombiano.
+
+# Descripción del dataset
+
+```{r dimensiones}
+dim(datos) 
+```
+
+El conjunto de datos original consta de 15.707 observaciones y 41 variables, consolidando información oficial del Ministerio de Educación Nacional sobre el comportamiento del sector educativo en los municipios de Colombia durante el periodo 2011–2024 (enfocado en la población de 5 a 16 años). La unidad de análisis corresponde a la relación panel municipio-año, lo que permite capturar tanto la heterogeneidad territorial como las dinámicas longitudinales de los indicadores.
+
+A continuación, se presenta la caracterización taxonómica de las variables agrupadas en cinco dimensiones metodológicas. La columna Tipo Original especifica la codificación inicial asignada por la lectura del motor de R, señalando en particular las variables porcentuales leídas como cadenas de texto (por ejemplo, "56,11%"), cuya conversión a escala numérica continua se aborda formalmente en la sección de Carga y Limpieza de Datos.
+
+```{r estructura}
+str(datos)
+```
+
+## 1. Variables de Identificación Geográfica y Temporal
+
+| Variable | Tipo Original | Clasificación | Descripción |
+|:---|:---|:---|:---|
+| `AÑO` | Entero | Categórica | Año de referencia del registro (2011-2024) |
+| `CÓDIGO_MUNICIPIO` | Entero | Categórica | Código DANE único del municipio |
+| `MUNICIPIO` | Texto | Categórica | Nombre del municipio |
+| `CÓDIGO_DEPARTAMENTO` | Entero | Categórica | Código DANE del departamento |
+| `DEPARTAMENTO` | Texto | Categórica | Nombre del departamento |
+| `CÓDIGO_ETC` | Numérico | Categórica | Código de la Entidad Territorial Certificada |
+| `ETC` | Texto | Categórica | Nombre de la Entidad Territorial Certificada |
+
+## 2. Variables Demográficas
+
+| Variable | Tipo Original | Clasificación | Descripción |
+|:---|:---|:---|:---|
+| `POBLACIÓN_5_16` | Texto | Numérica | Población proyectada entre 5 y 16 años en el municipio |
+
+## 3. Variables de Matrícula y Cobertura
+
+| Variable | Tipo Original | Clasificación | Descripción |
+|:---|:---|:---|:---|
+| `TASA_MATRICULACIÓN_5_16` | Texto | Numérica | % de población de 5-16 años matriculada en el sistema educativo |
+| `COBERTURA_NETA` | Texto | Numérica | % de población en edad escolar matriculada en el nivel correspondiente (general) |
+| `COBERTURA_NETA_TRANSICIÓN` | Texto | Numérica | Cobertura neta en nivel de transición (preescolar) |
+| `COBERTURA_NETA_PRIMARIA` | Texto | Numérica | Cobertura neta en educación primaria |
+| `COBERTURA_NETA_SECUNDARIA` | Texto | Numérica | Cobertura neta en educación secundaria |
+| `COBERTURA_NETA_MEDIA` | Texto | Numérica | Cobertura neta en educación media |
+| `COBERTURA_BRUTA` | Texto | Numérica | Matrícula total respecto a la población en edad escolar (general) |
+| `COBERTURA_BRUTA_TRANSICIÓN` | Texto | Numérica | Cobertura bruta en nivel de transición |
+| `COBERTURA_BRUTA_PRIMARIA` | Texto | Numérica | Cobertura bruta en educación primaria |
+| `COBERTURA_BRUTA_SECUNDARIA` | Texto | Numérica | Cobertura bruta en educación secundaria |
+| `COBERTURA_BRUTA_MEDIA` | Texto | Numérica | Cobertura bruta en educación media |
+
+## 4. Variables de Eficiencia Escolar
+
+| Variable | Tipo Original | Clasificación | Descripción |
+|:---|:---|:---|:---|
+| `DESERCIÓN` | Texto | Numérica | Tasa general de abandono del sistema educativo |
+| `DESERCIÓN_TRANSICIÓN` | Texto | Numérica | Tasa de deserción en nivel de transición |
+| `DESERCIÓN_PRIMARIA` | Texto | Numérica | Tasa de deserción en educación primaria |
+| `DESERCIÓN_SECUNDARIA` | Texto | Numérica | Tasa de deserción en educación secundaria |
+| `DESERCIÓN_MEDIA` | Texto | Numérica | Tasa de deserción en educación media |
+| `APROBACIÓN` | Texto | Numérica | Tasa general de promovidos de grado |
+| `APROBACIÓN_TRANSICIÓN` | Texto | Numérica | Tasa de aprobación en nivel de transición |
+| `APROBACIÓN_PRIMARIA` | Texto | Numérica | Tasa de aprobación en educación primaria |
+| `APROBACIÓN_SECUNDARIA` | Texto | Numérica | Tasa de aprobación en educación secundaria |
+| `APROBACIÓN_MEDIA` | Texto | Numérica | Tasa de aprobación en educación media |
+| `REPROBACIÓN` | Texto | Numérica | Tasa general de no promovidos de grado |
+| `REPROBACIÓN_TRANSICIÓN` | Texto | Numérica | Tasa de reprobación en nivel de transición |
+| `REPROBACIÓN_PRIMARIA` | Texto | Numérica | Tasa de reprobación en educación primaria |
+| `REPROBACIÓN_SECUNDARIA` | Texto | Numérica | Tasa de reprobación en educación secundaria |
+| `REPROBACIÓN_MEDIA` | Texto | Numérica | Tasa de reprobación en educación media |
+| `REPITENCIA` | Texto | Numérica | Tasa general de estudiantes que cursan nuevamente el grado |
+| `REPITENCIA_TRANSICIÓN` | Texto | Numérica | Tasa de repitencia en nivel de transición |
+| `REPITENCIA_PRIMARIA` | Texto | Numérica | Tasa de repitencia en educación primaria |
+| `REPITENCIA_SECUNDARIA` | Texto | Numérica | Tasa de repitencia en educación secundaria |
+| `REPITENCIA_MEDIA` | Texto | Numérica | Tasa de repitencia en educación media |
+
+## 5. Variables de Infraestructura y Conectividad
+
+| Variable | Tipo Original | Clasificación | Descripción |
+|:---|:---|:---|:---|
+| `TAMAÑO_PROMEDIO_DE_GRUPO` | Texto | Numérica | Número promedio de estudiantes por grupo académico |
+| `SEDES_CONECTADAS_A_INTERNET` | Texto | Numérica | Proporción de sedes educativas con acceso a internet |
+
+# Carga, Depuración y Limpieza de Datos
+
+El proceso de preparación de los datos constituye una fase crítica para garantizar la validez metodológica del estudio. Esta etapa busca transformar el conjunto de datos original en una estructura limpia, consistente y operativamente eficiente, eliminando sesgos derivados de errores de codificación, valores atípicos de formato e inconsistencias en la captura de la información oficial.
+
+## 1. Tratamiento e Identificación de Valores Faltantes
+
+En primera instancia, se procedió con la depuración inicial mediante la identificación y estandarización de campos vacíos o representados por espacios en blanco (`""` o `" "`), sustituyéndolos explícitamente por la estructura `NA` de R. Esto previene que datos inexistentes sean interpretados erróneamente como cadenas de texto válidas.
+
+```{r depuracion}
+# Sustitución de cadenas vacías por valores nulos explícitos (NA)
+datos[datos == "" | datos == " "] <- NA
+```
+
+Seguidamente, se evaluó la proporción de valores faltantes por columna para diagnosticar la integridad del conjunto de variables.
+
+```{r pct_faltantes}
+# Cálculo del porcentaje de nulos por columna
+porcentaje_nulos <- round(colMeans(is.na(datos)) * 100, 2)
+print(porcentaje_nulos)
+```
+
+La exploración evidencia que la gran mayoría de las variables presenta una completitud superior al 99%. Las excepciones críticas se concentran en TAMAÑO_PROMEDIO_DE_GRUPO (51,79%) y SEDES_CONECTADAS_A_INTERNET (50,54%), seguidas por DESERCIÓN_TRANSICIÓN (5,75%) y DESERCIÓN_MEDIA (4,67%). Para los dos primeros indicadores, se analizó su comportamiento longitudinal a lo largo de la serie temporal (2011-2024).
+
+```{r nulos_por_anio}
+# Evaluación del sesgo temporal en los valores faltantes
+datos %>%
+  group_by(AÑO) %>%
+  summarise(
+    n = n(),
+    NA_tamano_grupo   = round(mean(is.na(TAMAÑO_PROMEDIO_DE_GRUPO)) * 100, 2),
+    NA_sedes_internet = round(mean(is.na(SEDES_CONECTADAS_A_INTERNET)) * 100, 2)
+  ) %>%
+  kable(caption = "Porcentaje de valores faltantes por año en variables de infraestructura")
+```
+
+El análisis temporal revela que el vacío de información no es aleatorio: entre los años 2018 y 2024 ambas variables registran una ausencia total del 100% de los datos. Este comportamiento sugiere que la entidad no contempló la recolección, medición o incorporación de estas variables durante dichos años, lo que habría generado una interrupción en la continuidad de la información. Esta ausencia no debe interpretarse necesariamente como una falta de ocurrencia, sino como una posible consecuencia de decisiones metodológicas o cambios en los criterios de recopilación y reporte de MinEducación.
+
+## 2. Criterios de Exclusión de Variables
+
+Con base en la evaluación de calidad de datos y los objetivos analíticos del estudio, se establecieron tres criterios de exclusión:
+
+* **Identificadores Redundantes:** Se prescinde de CÓDIGO_MUNICIPIO y CÓDIGO_DEPARTAMENTO, dado que la identificación territorial se realiza directamente mediante los nombres de las entidades (MUNICIPIO y DEPARTAMENTO).
+
+* **Entidades de Administración Operativa:** Se omiten ETC y CÓDIGO_ETC (Entidades Territoriales Certificadas) por no aportar variabilidad directa a las métricas pedagógicas y de cobertura municipal.
+
+* **Ausencia Estructural de Información:** Se eliminan TAMAÑO_PROMEDIO_DE_GRUPO y SEDES_CONECTADAS_A_INTERNET. Imputar el 50% de la serie histórica (correspondiente a 7 años consecutivos sin reporte) introduciría un sesgo severo en las distribuciones.
+
+* **Anomalías e Inconsistencia en Datos de Transición:** Se excluyen APROBACIÓN_TRANSICIÓN y REPROBACIÓN_TRANSICIÓN. Ambas variables presentan registros idénticos entre sí, lo que es incoherente con su definición, pues deberían ser complementarias y no iguales, y cerca de un 69% de ceros absolutos. Dado que en preescolar no se reprueban grados, la reprobación en cero es esperable, pero no la aprobación, de modo que los datos no son confiables. El análisis de este nivel se preserva mediante las métricas de cobertura, deserción y repitencia.
+
+```{r variables_excluidas}
+# Definición del vector de variables a descartar
+variables_a_excluir <- c(
+  "CÓDIGO_MUNICIPIO", 
+  "CÓDIGO_DEPARTAMENTO", 
+  "ETC", 
+  "CÓDIGO_ETC", 
+  "TAMAÑO_PROMEDIO_DE_GRUPO", 
+  "SEDES_CONECTADAS_A_INTERNET",
+  "APROBACIÓN_TRANSICIÓN",
+  "REPROBACIÓN_TRANSICIÓN"
+)
+```
+
+## 3. Transformación de Tipos de Datos y Normalización
+
+Para adecuar las variables a los algoritmos de cálculo matricial, covarianza y correlación, se aplicaron las siguientes funciones de transformación:
+
+* **Escala Porcentual a Decimal:** Conversión de cadenas de texto con formato porcentual (por ejemplo, "56,11%") a valores numéricos continuos en escala proporcional (0,5611). Las coberturas brutas superiores al 100% conservan su magnitud proporcional ($>1.0$).
+
+* **Reclasificación de la Variable Temporal:** La variable AÑO se transformó de entero a carácter/factor, permitiendo su uso como variable categórica de agrupación y evitando su inclusión en cálculos numéricos absolutos.
+
+* **Corrección Estructural de Población:** Se implementó un algoritmo de parseo para la variable POBLACIÓN_5_16 debido a discontinuidades en la captura del año 2021 (uso inconsistente de puntos decimales y omisión de ceros a la derecha).
+
+```{r transformación_datos}
+# Función para convertir porcentajes en texto a proporciones numéricas
+limpiar_porcentajes <- function(x) {
+  if (is.character(x)) {
+    x <- as.numeric(gsub(",", ".", gsub("%", "", x))) / 100
+  }
+  return(x)
+}
+
+# Función para corregir inconsistencias de formato en la variable de población (2021)
+limpiar_poblacion <- function(x, anio) {
+  valor <- suppressWarnings(as.numeric(gsub(",", "", x)))
+  case_when(
+    grepl("\\.", x)                               ~ round(valor * 1000),
+    anio == "2021" & !grepl(",", x) & valor < 100 ~ valor * 1000,
+    TRUE                                          ~ valor
+  )
+}
+```
+
+## 4. Consolidador y Construcción del Dataset Operativo
+
+Finalmente, se ejecutó la canalización de depuración (pipeline) para construir la estructura analítica final educacion_limpio. Este paso consolida la normalización de nombres territoriales (unificando Bogotá D.C. y San Andrés), filtra agregados no municipales (NACIONAL) y aplica la eliminación por filas incompletas (listwise deletion).
+
+```{r dataset_limpio}
+# Pipeline de consolidación del dataset operativo
+educacion_limpio <- datos %>%
+  # 1. Exclusión de variables no relevantes
+  select(-any_of(variables_a_excluir)) %>%
+  
+  # 2. Normalización de toponimia territorial
+  mutate(
+    DEPARTAMENTO = case_when(
+      grepl("^Bogot", DEPARTAMENTO)   ~ "Bogotá D.C.",
+      grepl("^Archipi", DEPARTAMENTO) ~ "Archipiélago de San Andrés, Providencia y Santa Catalina",
+      TRUE ~ DEPARTAMENTO
+    ),
+    MUNICIPIO = if_else(MUNICIPIO == "Bogotá, D.C.", "Bogotá D.C.", MUNICIPIO)
+  ) %>%
+  
+  # 3. Exclusión de registros consolidados nacionales
+  filter(DEPARTAMENTO != "NACIONAL") %>%
+  
+  # 4. Reclasificación categórica de la dimensión temporal
+  mutate(AÑO = as.character(AÑO)) %>%
+  
+  # 5. Normalización de formatos numéricos
+  mutate(POBLACIÓN_5_16 = limpiar_poblacion(POBLACIÓN_5_16, AÑO)) %>%
+  mutate(across(
+    starts_with("TASA") | starts_with("COBERTURA") | starts_with("DESERCIÓN") | 
+      starts_with("APROBACIÓN") | starts_with("REPROBACIÓN") | starts_with("REPITENCIA"),
+    limpiar_porcentajes
+  )) %>%
+  
+  # 6. Depuración de registros incompletos (Listwise deletion)
+  na.omit()
+
+# Guardar el dataset final
+write.csv(educacion_limpio, "data/raw/educacion_limpio.csv", row.names = FALSE)
+
+# Evaluación de dimensiones finales del dataset de trabajo
+dim(educacion_limpio)
+```
+
+> **Nota Metodológica sobre la Muestra Resultante:**
+> La aplicación del criterio de eliminación completa (listwise deletion) redujo el dataset operativo de 15.707 a 13.802 observaciones (pérdida del 12,13% del total). Esta pérdida no es totalmente homogénea: se concentra en el quinquenio 2011–2015 (donde se descartó entre el 27,5% y el 40,0% de los registros anuales), mientras que el periodo 2016–2024 conserva una completitud casi perfecta (solo 37 descartes). Esta subrepresentación inicial se considerará al interpretar las tendencias temporales. La matriz resultante consolidó 33 variables operativas.
