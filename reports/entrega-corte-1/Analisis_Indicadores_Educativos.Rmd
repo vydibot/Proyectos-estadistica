@@ -2087,3 +2087,563 @@ En las tasas de deserción, reprobación y repitencia, todos los atípicos detec
 
 * **Inconsistencias y Valores $>100\%$:** Como se estableció en el marco inicial, los registros donde la cobertura neta o la tasa de matriculación superan el 100% responden a desfases entre el SIMAT y las proyecciones poblacionales del DANE. Dado que no es posible atribuir con certeza la inconsistencia al numerador o al denominador, se conservan intactos para preservar la integridad de la serie histórica.
 
+
+# Análisis Bivariado
+
+Se analizaron las relaciones bivariadas entre pares de indicadores mediante diagramas de dispersión con líneas de tendencia ajustadas por regresión lineal y coeficientes de correlación. El análisis se organiza en dos bloques principales: en primer lugar, la interacción entre los indicadores agregados del sistema (cobertura, matrícula, aprobación, reprobación, deserción, repitencia y población); en segundo lugar, la asociación entre los distintos niveles educativos (transición, primaria, secundaria y media) para una misma dimensión. Todos los cálculos emplean la muestra completa de registros municipio-año ($N = 13.802$).
+
+Adicionalmente al coeficiente de correlación de Pearson ($r$), que evalúa la asociación lineal paramétrica, se calculó el coeficiente de Spearman ($\rho$), el cual es robusto ante la presencia de valores atípicos y asimetrías severas. Para interpretar la magnitud de las relaciones se estableció una escala operacional sobre el valor absoluto del coeficiente, aplicada de forma estandarizada en todo el reporte:
+
+```{r escala_interpretabilidad}
+# Definición de cortes y etiquetas estandarizadas para la interpretación de correlaciones
+escala_cortes    <- c(0, 0.10, 0.30, 0.70, 0.90, 1.00)
+escala_etiquetas <- c("Prácticamente nula", "Débil", "Moderada", "Fuerte", "Muy fuerte")
+
+# Función vectorial para clasificar el valor absoluto de cualquier coeficiente de correlación
+clasificar_fuerza <- function(r) {
+  cut(abs(r), breaks = escala_cortes, labels = escala_etiquetas,
+      right = FALSE, include.lowest = TRUE)
+}
+
+# Tabla de referencia de la escala de correlación
+kable(
+  data.frame(
+    `Valor absoluto de r` = c("0 a < 0,10", "0,10 a < 0,30", "0,30 a < 0,70",
+                              "0,70 a < 0,90", "0,90 a 1,00"),
+    `Clasificación` = escala_etiquetas,
+    check.names = FALSE
+  ),
+  align = "ll",
+  caption = "Escala estandarizada para interpretar la fuerza de una correlación"
+)
+```
+
+Ninguna correlación observada implica causalidad directa. La caracterización cualitativa de cada relación se asigna mediante el coeficiente de Pearson, excepto en las asociaciones que involucran la población municipal, donde se prioriza el coeficiente de Spearman debido a la asimetría de la variable demográfica.
+
+```{r funciones_bivariado}
+# Definición de la matriz de pares principales de indicadores educativos
+pares <- data.frame(
+  Par = c(
+    "Tasa de matriculación y cobertura neta",
+    "Cobertura neta y cobertura bruta",
+    "Cobertura neta y deserción",
+    "Cobertura neta y aprobación",
+    "Aprobación y reprobación",
+    "Aprobación y deserción",
+    "Reprobación y repitencia",
+    "Deserción y repitencia",
+    "Aprobación y repitencia",
+    "Población y cobertura neta",
+    "Población y deserción"
+  ),
+  x = c("TASA_MATRICULACIÓN_5_16", "COBERTURA_NETA", "COBERTURA_NETA", "COBERTURA_NETA",
+        "APROBACIÓN", "APROBACIÓN", "REPROBACIÓN", "DESERCIÓN", "APROBACIÓN",
+        "POBLACIÓN_5_16", "POBLACIÓN_5_16"),
+  y = c("COBERTURA_NETA", "COBERTURA_BRUTA", "DESERCIÓN", "APROBACIÓN",
+        "REPROBACIÓN", "DESERCIÓN", "REPITENCIA", "REPITENCIA", "REPITENCIA",
+        "COBERTURA_NETA", "DESERCIÓN")
+)
+
+# Cálculo automatizado de coeficientes de Pearson y Spearman para cada par
+pares$Pearson <- mapply(
+  function(a, b) cor(educacion_limpio[[a]], educacion_limpio[[b]], method = "pearson"),
+  pares$x, pares$y, USE.NAMES = FALSE
+)
+pares$Spearman <- mapply(
+  function(a, b) cor(educacion_limpio[[a]], educacion_limpio[[b]], method = "spearman"),
+  pares$x, pares$y, USE.NAMES = FALSE
+)
+
+# Presentación de la tabla consolidada de coeficientes
+kable(
+  pares[, c("Par", "Pearson", "Spearman")],
+  digits = 4,
+  row.names = FALSE,
+  caption = "Coeficientes de correlación de Pearson y Spearman entre indicadores principales"
+)
+
+# Funciones auxiliares para la citación dinámica de coeficientes en el texto
+r_p <- function(a, b) formatC(cor(educacion_limpio[[a]], educacion_limpio[[b]], method = "pearson"),
+                              digits = 4, format = "f", decimal.mark = ",")
+r_s <- function(a, b) formatC(cor(educacion_limpio[[a]], educacion_limpio[[b]], method = "spearman"),
+                              digits = 4, format = "f", decimal.mark = ",")
+
+# Función para generar la descripción textual (sentido y fuerza) según la escala unificada
+descr_r <- function(r) {
+  fuerza <- tolower(as.character(clasificar_fuerza(r)))
+  if (fuerza == "prácticamente nula") return(fuerza)
+  paste(if (r > 0) "positiva" else "negativa", fuerza)
+}
+d_p <- function(a, b) descr_r(cor(educacion_limpio[[a]], educacion_limpio[[b]], method = "pearson"))
+d_s <- function(a, b) descr_r(cor(educacion_limpio[[a]], educacion_limpio[[b]], method = "spearman"))
+```
+
+## Relación entre indicadores principales
+
+### Acceso al sistema educativo
+
+#### Tasa de matriculación y cobertura neta
+
+```{r scatter-matriculacion-neta}
+# Diagrama de dispersión: Tasa de Matriculación vs. Cobertura Neta
+ggplot(educacion_limpio, aes(x = TASA_MATRICULACIÓN_5_16, y = COBERTURA_NETA)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre tasa de matriculación y cobertura neta",
+    subtitle = "Registros municipio-año",
+    x = "Tasa de matriculación (% de la población de 5 a 16 años)",
+    y = "Cobertura neta (% de la población en edad escolar)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("TASA_MATRICULACIÓN_5_16", "COBERTURA_NETA")`** y el de Spearman es **`r r_s("TASA_MATRICULACIÓN_5_16", "COBERTURA_NETA")`**, lo que indica una asociación `r d_p("TASA_MATRICULACIÓN_5_16", "COBERTURA_NETA")`. Ambos indicadores relacionan la matrícula con la población en edad escolar: la tasa de matriculación considera a todos los matriculados de 5 a 16 años en el sistema, y la cobertura neta, a los que cursan el nivel que corresponde a su edad.
+
+#### Cobertura neta y cobertura bruta
+
+```{r scatter-coberturas}
+# Diagrama de dispersión: Cobertura Neta vs. Cobertura Bruta
+ggplot(educacion_limpio, aes(x = COBERTURA_NETA, y = COBERTURA_BRUTA)) +
+  geom_point(alpha = 0.25) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray40") +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre cobertura neta y cobertura bruta",
+    subtitle = "Registros municipio-año; la línea punteada marca la igualdad entre ambas",
+    x = "Cobertura neta (% de la población en edad escolar)",
+    y = "Cobertura bruta (% frente a la población en edad escolar)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("COBERTURA_NETA", "COBERTURA_BRUTA")`** y el de Spearman es **`r r_s("COBERTURA_NETA", "COBERTURA_BRUTA")`**, lo que indica una asociación `r d_p("COBERTURA_NETA", "COBERTURA_BRUTA")`. Esto significa que los municipios con mayores niveles de cobertura neta tienden a presentar también mayores niveles de cobertura bruta, lo que es esperable porque ambos indicadores parten de la misma matrícula: la cobertura bruta incluye a todos los estudiantes matriculados en el nivel y la neta solo a los que tienen la edad teórica.
+
+#### Cobertura neta y aprobación
+
+```{r scatter-neta-aprobacion}
+# Diagrama de dispersión: Cobertura Neta vs. Aprobación
+ggplot(educacion_limpio, aes(x = COBERTURA_NETA, y = APROBACIÓN)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre cobertura neta y aprobación",
+    subtitle = "Registros municipio-año",
+    x = "Cobertura neta (% de la población en edad escolar)",
+    y = "Aprobación (% de estudiantes)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("COBERTURA_NETA", "APROBACIÓN")`** y el de Spearman es **`r r_s("COBERTURA_NETA", "APROBACIÓN")`**, lo que indica una asociación `r d_p("COBERTURA_NETA", "APROBACIÓN")`. No se observa una relación lineal apreciable: los municipios con mayor acceso al sistema educativo no presentan sistemáticamente mayores ni menores tasas de aprobación entre quienes están matriculados.
+
+#### Cobertura neta y deserción
+
+```{r scatter-cobertura-desercion}
+# Diagrama de dispersión: Cobertura Neta vs. Deserción
+ggplot(educacion_limpio, aes(x = COBERTURA_NETA, y = DESERCIÓN)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre cobertura neta y deserción",
+    subtitle = "Registros municipio-año",
+    x = "Cobertura neta (% de la población en edad escolar)",
+    y = "Deserción (% de estudiantes)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("COBERTURA_NETA", "DESERCIÓN")`** y el de Spearman es **`r r_s("COBERTURA_NETA", "DESERCIÓN")`**, lo que indica una asociación `r d_p("COBERTURA_NETA", "DESERCIÓN")`. No se observa una relación lineal ni monótona apreciable: el nivel de acceso al sistema educativo no se asocia con el nivel de abandono escolar.
+
+### Rendimiento y permanencia
+
+#### Aprobación y reprobación
+
+```{r scatter-aprobacion-reprobacion}
+# Diagrama de dispersión: Aprobación vs. Reprobación
+ggplot(educacion_limpio, aes(x = APROBACIÓN, y = REPROBACIÓN)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre aprobación y reprobación",
+    subtitle = "Registros municipio-año",
+    x = "Aprobación (% de estudiantes)",
+    y = "Reprobación (% de estudiantes)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("APROBACIÓN", "REPROBACIÓN")`** y el de Spearman es **`r r_s("APROBACIÓN", "REPROBACIÓN")`**, lo que indica una asociación `r d_p("APROBACIÓN", "REPROBACIÓN")`. Esta relación es en buena parte esperable por la forma en que se calculan los indicadores: aprobación, reprobación y deserción se expresan como proporción de los estudiantes matriculados y suman aproximadamente 100%, de modo que cuando una de ellas aumenta, las otras tienden a disminuir.
+
+#### Aprobación y deserción
+
+```{r scatter-aprobacion-desercion}
+# Diagrama de dispersión: Aprobación vs. Deserción
+ggplot(educacion_limpio, aes(x = APROBACIÓN, y = DESERCIÓN)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre aprobación y deserción",
+    subtitle = "Registros municipio-año",
+    x = "Aprobación (% de estudiantes)",
+    y = "Deserción (% de estudiantes)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("APROBACIÓN", "DESERCIÓN")`** y el de Spearman es **`r r_s("APROBACIÓN", "DESERCIÓN")`**, lo que indica una asociación `r d_p("APROBACIÓN", "DESERCIÓN")`. Al igual que con la reprobación, esta relación está condicionada por la forma en que se calculan los indicadores, ya que ambos forman parte de un mismo total de estudiantes matriculados.
+
+#### Reprobación y repitencia
+
+```{r scatter-reprobacion-repitencia}
+# Diagrama de dispersión: Reprobación vs. Repitencia
+ggplot(educacion_limpio, aes(x = REPROBACIÓN, y = REPITENCIA)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre reprobación y repitencia",
+    subtitle = "Registros municipio-año",
+    x = "Reprobación (% de estudiantes)",
+    y = "Repitencia (% de estudiantes)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("REPROBACIÓN", "REPITENCIA")`** y el de Spearman es **`r r_s("REPROBACIÓN", "REPITENCIA")`**, lo que indica una asociación `r d_p("REPROBACIÓN", "REPITENCIA")`. La repitencia corresponde a los estudiantes que cursan de nuevo un grado, situación que en general se vincula con haberlo reprobado, aunque ambas tasas se miden en momentos distintos. Los registros con reprobación igual a cero, que en los primeros años podrían corresponder a datos no reportados, pueden debilitar esta relación.
+
+#### Deserción y repitencia
+
+```{r scatter-desercion-repitencia}
+# Diagrama de dispersión: Deserción vs. Repitencia
+ggplot(educacion_limpio, aes(x = DESERCIÓN, y = REPITENCIA)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre deserción y repitencia",
+    subtitle = "Registros municipio-año",
+    x = "Deserción (% de estudiantes)",
+    y = "Repitencia (% de estudiantes)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("DESERCIÓN", "REPITENCIA")`** y el de Spearman es **`r r_s("DESERCIÓN", "REPITENCIA")`**, lo que indica una asociación `r d_p("DESERCIÓN", "REPITENCIA")`. Los municipios con mayor deserción no presentan sistemáticamente mayor repitencia. Además, como la repitencia presenta niveles más altos desde 2020, este análisis agrupa periodos distintos, lo que puede influir en el valor del coeficiente.
+
+#### Aprobación y repitencia
+
+```{r scatter-aprobacion-repitencia}
+# Diagrama de dispersión: Aprobación vs. Repitencia
+ggplot(educacion_limpio, aes(x = APROBACIÓN, y = REPITENCIA)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre aprobación y repitencia",
+    subtitle = "Registros municipio-año",
+    x = "Aprobación (% de estudiantes)",
+    y = "Repitencia (% de estudiantes)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Pearson es **r = `r r_p("APROBACIÓN", "REPITENCIA")`** y el de Spearman es **`r r_s("APROBACIÓN", "REPITENCIA")`**, lo que indica una asociación `r d_p("APROBACIÓN", "REPITENCIA")`. Al igual que en el caso anterior, el cambio de nivel de la repitencia desde 2020 puede influir en el coeficiente.
+
+### Tamaño del municipio
+
+#### Población y cobertura neta
+
+```{r scatter-poblacion-neta}
+# Diagrama de dispersión con escala logarítmica en el eje horizontal
+ggplot(educacion_limpio, aes(x = POBLACIÓN_5_16, y = COBERTURA_NETA)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_log10(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre población y cobertura neta",
+    subtitle = "Registros municipio-año",
+    x = "Población de 5 a 16 años (habitantes, escala logarítmica)",
+    y = "Cobertura neta (% de la población en edad escolar)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Spearman es **`r r_s("POBLACIÓN_5_16", "COBERTURA_NETA")`** (Pearson: `r r_p("POBLACIÓN_5_16", "COBERTURA_NETA")`), lo que indica una asociación `r d_s("POBLACIÓN_5_16", "COBERTURA_NETA")`. Dado que la población presenta una fuerte asimetría, el eje horizontal usa escala logarítmica y la asociación se interpreta con el coeficiente de Spearman, que no depende de la escala. Los municipios más poblados tienden a presentar una cobertura neta algo mayor, aunque la asociación es débil y el coeficiente de Pearson, cercano a cero, indica que no hay una relación lineal.
+
+#### Población y deserción
+
+```{r scatter-poblacion-desercion}
+# Diagrama de dispersión con escala logarítmica para Población vs. Deserción
+ggplot(educacion_limpio, aes(x = POBLACIÓN_5_16, y = DESERCIÓN)) +
+  geom_point(alpha = 0.25) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#c0392b") +
+  scale_x_log10(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Relación entre población y deserción",
+    subtitle = "Registros municipio-año",
+    x = "Población de 5 a 16 años (habitantes, escala logarítmica)",
+    y = "Deserción (% de estudiantes)"
+  ) +
+  theme_minimal()
+```
+
+El coeficiente de Spearman es **`r r_s("POBLACIÓN_5_16", "DESERCIÓN")`** (Pearson: `r r_p("POBLACIÓN_5_16", "DESERCIÓN")`), lo que indica una asociación `r d_s("POBLACIÓN_5_16", "DESERCIÓN")`. Al igual que en el caso anterior, se utiliza escala logarítmica y el coeficiente de Spearman. Los municipios más poblados tienden a presentar una deserción algo mayor, aunque la asociación es débil y el coeficiente de Pearson es prácticamente nulo.
+
+## Matriz de correlación
+
+Se calculó la matriz de correlación de Pearson sobre el conjunto completo de `r length(variables_numericas)` variables numéricas del dataset depurado ($N = 13.802$). Para la representación visual se emplea un mapa de calor con agrupamiento jerárquico (`hclust`), evitando la impresión de tablas crudas de gran dimensión que dificultan la lectura.
+
+```{r matriz-correlacion-y-heatmap, fig.width = 10, fig.height = 10, out.width = "90%", fig.align = "center"}
+# Cálculo interno de la matriz de correlación de Pearson
+matriz_cor <- cor(
+  educacion_limpio[variables_numericas],
+  method = "pearson",
+  use = "pairwise.complete.obs"
+)
+
+# Control de estabilidad para potenciales varianzas nulas
+matriz_cor[!is.finite(matriz_cor)] <- 0
+
+# Visualización mediante mapa de calor con ordenamiento jerárquico
+corrplot(
+  matriz_cor,
+  method = "color",
+  type = "upper",
+  order = "hclust",
+  hclust.method = "complete",
+  tl.col = "black",
+  tl.cex = 0.55,
+  number.cex = 0.40,
+  addCoef.col = "black",
+  title = "Mapa de calor de correlaciones de Pearson (Agrupamiento Jerárquico)",
+  mar = c(0, 0, 2, 0)
+)
+```
+
+En el mapa de calor, los tonos azules representan asociaciones positivas, los rojos asociaciones negativas y las celdas claras corresponden a coeficientes cercanos a cero. El agrupamiento jerárquico evidencia bloques con alta coherencia interna, principalmente entre los indicadores de cobertura por nivel y entre la familia de métricas de eficiencia escolar (aprobación, reprobación, deserción y repitencia).
+
+## Relación entre niveles educativos de un mismo indicador
+
+Para cada dimensión educativa se analizó la submatriz de correlación entre el indicador general y sus componentes por nivel (transición, primaria, secundaria y media). Dado que la relación con la variable general es en parte estructural por agregar a los niveles, la atención analítica se centra en la correlación entre niveles contiguos y distantes.
+
+```{r funciones_familias}
+# Identifica las variables pertenecientes a un mismo indicador
+vars_familia <- function(base) {
+  v <- c(base, paste0(base, c("_TRANSICIÓN", "_PRIMARIA", "_SECUNDARIA", "_MEDIA")))
+  v[v %in% names(educacion_limpio)]
+}
+
+# Genera etiquetas cortas para los ejes del corrplot
+etiqueta_var <- function(v, base) {
+  suf <- sub(paste0("^", base), "", v)
+  nivel <- tolower(sub("^_", "", suf))
+  ifelse(suf == "", "General", paste0(toupper(substr(nivel, 1, 1)), substr(nivel, 2, nchar(nivel))))
+}
+
+# Extrae la matriz de correlación parametrizada por familia
+matriz_familia <- function(base) {
+  v <- vars_familia(base)
+  m <- cor(educacion_limpio[v], method = "pearson")
+  dimnames(m) <- list(etiqueta_var(v, base), etiqueta_var(v, base))
+  m
+}
+
+# Graficación optimizada en tamaño para no saturar el reporte
+graficar_familia <- function(base, titulo) {
+  corrplot(
+    matriz_familia(base),
+    method = "color", type = "upper",
+    addCoef.col = "black", number.cex = 0.8,
+    tl.col = "black", tl.srt = 45, tl.cex = 0.8,
+    col = colorRampPalette(c("#c0392b", "white", "#2980b9"))(200),
+    cl.lim = c(-1, 1), title = titulo, mar = c(0, 0, 2, 0)
+  )
+}
+
+# Resumen dinámico de las asociaciones extremas entre niveles (excluyendo el general)
+resumen_familia <- function(base) {
+  m <- matriz_familia(base)
+  idx <- which(upper.tri(m), arr.ind = TRUE)
+  d <- data.frame(a = rownames(m)[idx[, 1]], b = colnames(m)[idx[, 2]], r = m[idx])
+  d <- d[d$a != "General", ]
+  mx <- d[which.max(d$r), ]
+  mn <- d[which.min(d$r), ]
+  paste0(
+    "Entre niveles, la correlación más alta se registra entre ", tolower(mx$a), " y ", tolower(mx$b),
+    " (r = ", format(round(mx$r, 2), decimal.mark = ","), "), mientras que la menor se da entre ",
+    tolower(mn$a), " y ", tolower(mn$b),
+    " (r = ", format(round(mn$r, 2), decimal.mark = ","), ")."
+  )
+}
+```
+
+### Cobertura Neta y Cobertura Bruta por Nivel
+
+```{r matriz-cobertura-neta-bruta, fig.width = 6, fig.height = 6}
+graficar_familia("COBERTURA_NETA", "Cobertura Neta por Nivel")
+
+graficar_familia("COBERTURA_BRUTA", "Cobertura Bruta por Nivel")
+```
+
+**Cobertura neta.** `r resumen_familia("COBERTURA_NETA")`
+
+**Cobertura bruta.** `r resumen_familia("COBERTURA_BRUTA")`
+
+### Eficiencia Escolar por Nivel
+
+```{r matriz-eficiencia-escolar, fig.width = 6, fig.height = 6}
+graficar_familia("DESERCIÓN", "Deserción por Nivel")
+
+graficar_familia("APROBACIÓN", "Aprobación por Nivel")
+
+graficar_familia("REPROBACIÓN", "Reprobación por Nivel")
+
+graficar_familia("REPITENCIA", "Repitencia por Nivel")
+```
+
+**Deserción.** `r resumen_familia("DESERCIÓN")`
+
+**Aprobación.** `r resumen_familia("APROBACIÓN")`
+
+**Reprobación.** `r resumen_familia("REPROBACIÓN")`
+
+**Repitencia.** `r resumen_familia("REPITENCIA")`
+
+En la mayoría de los indicadores la correlación más intensa ocurre entre niveles contiguos (Secundaria y Media), mientras que las asociaciones se debilitan al comparar niveles distantes (Transición o Primaria frente a Media). La deserción constituye una excepción, presentando su acoplamiento más alto entre Primaria y Secundaria.
+
+## Clasificación de la Fuerza y Análisis de Redundancia
+
+### Clasificación Global de Pares de Variables
+
+Se evaluaron las `r choose(length(variables_numericas), 2)` parejas únicas de variables numéricas agrupándolas bajo la escala estandarizada del estudio:
+
+```{r clasificacion_correlaciones}
+# Inicialización de la estructura de datos para almacenar resultados de asociación
+resultado_correlaciones <- data.frame()
+
+# Evaluación pareada entre todas las combinaciones numéricas sin repetición
+for (i in 1:(length(variables_numericas) - 1)) {
+  for (j in (i + 1):length(variables_numericas)) {
+    
+    # Prueba de correlación de Pearson para la pareja de variables
+    prueba <- cor.test(
+      educacion_limpio[[variables_numericas[i]]],
+      educacion_limpio[[variables_numericas[j]]],
+      method = "pearson"
+    )
+
+    # Consolidación de estimaciones y p-valores
+    resultado_correlaciones <- rbind(
+      resultado_correlaciones,
+      data.frame(
+        Variable_1 = variables_numericas[i],
+        Variable_2 = variables_numericas[j],
+        Correlacion = unname(prueba$estimate),
+        P_valor = prueba$p.value
+      )
+    )
+  }
+}
+
+# Categorización de la significancia estadística a un nivel alpha = 0,05
+resultado_correlaciones$Significativa <- ifelse(resultado_correlaciones$P_valor < 0.05, "Sí", "No")
+
+# Clasificación cualitativa de la intensidad según la escala estandarizada (escala_cortes)
+resultado_correlaciones$Fuerza <- cut(
+  abs(resultado_correlaciones$Correlacion),
+  breaks = escala_cortes,
+  labels = escala_etiquetas,
+  right = FALSE,
+  include.lowest = TRUE
+)
+
+# Renderizado de la tabla de frecuencias de parejas por categoría de intensidad
+kable(
+  as.data.frame(table(Clasificación = resultado_correlaciones$Fuerza)),
+  col.names = c("Clasificación de Fuerza", "Número de pares"),
+  caption = "Distribución de los pares de variables según su fuerza de correlación"
+)
+```
+
+El conteo confirma que cerca de tres cuartas partes de las parejas presentan relaciones prácticamente nulas (**`r sum(resultado_correlaciones$Fuerza == "Prácticamente nula")`**) o débiles (**`r sum(resultado_correlaciones$Fuerza == "Débil")`**), lo que indica que las diferentes dimensiones del dataset capturan aspectos diferenciados del fenómeno educativo municipal.
+
+### Evaluación Unificada de Redundancias y Asociaciones Fuertes (|r| ≥ 0,70)
+
+Para identificar posibles colinealidades o duplicidades de información, se analizaron los pares que superan el umbral de $\vert{}r\vert{} \ge 0,70$, señalando los de mayor magnitud.
+
+```{r redundancias}
+# Extracción de la matriz triangular superior de valores absolutos para evitar duplicados
+matriz_cor_abs <- abs(matriz_cor)
+matriz_cor_abs[lower.tri(matriz_cor_abs, diag = TRUE)] <- NA
+
+# Filtrado de parejas con coeficientes de correlación iguales o superiores a 0,70
+pares_fuertes <- which(matriz_cor_abs >= 0.70, arr.ind = TRUE)
+
+# Construcción de la tabla de correlaciones de alta intensidad
+tabla_fuertes <- data.frame(
+  Variable_1 = rownames(matriz_cor)[pares_fuertes[, 1]],
+  Variable_2 = colnames(matriz_cor)[pares_fuertes[, 2]],
+  Correlacion = matriz_cor[pares_fuertes]
+)
+
+# Ordenamiento descendente según el valor absoluto del coeficiente de correlación
+tabla_fuertes <- tabla_fuertes[order(-abs(tabla_fuertes$Correlacion)), ]
+
+# Despliegue de los 10 pares con mayor magnitud de correlación
+kable(
+  head(tabla_fuertes, 10),
+  digits = 4,
+  row.names = FALSE,
+  caption = "Principales correlaciones de mayor magnitud en el dataset (|r| ≥ 0,70)"
+)
+```
+
+#### Hallazgos de Redundancia
+
+**Pares fuertes:** `r nrow(tabla_fuertes)` pares superan $\vert{}r\vert{} \ge 0,70$, y el mayor es $r = `r format(round(max(abs(tabla_fuertes$Correlacion)), 4), decimal.mark = ",")`$. Los más altos corresponden a dependencias mecánicas entre un indicador agregado y su desagregación por nivel, o entre cobertura neta y bruta. Ningún par alcanza $\vert{}r\vert{} \ge 0,99$ ni hay variables idénticas en la base depurada: la única identidad detectada (`APROBACIÓN_TRANSICIÓN` y `REPROBACIÓN_TRANSICIÓN`) se eliminó en la depuración.
+
+**Manejo para el Análisis Multivariado:** El análisis multivariado emplea las `r length(variables_numericas)` variables numéricas, por lo que estas redundancias se conservan en los datos. Se diagnostican en el condicionamiento de la matriz de correlación y se abordarán en la etapa de reducción de dimensionalidad mediante Análisis de Componentes Principales (PCA), que concentra la varianza compartida en componentes ortogonales no correlacionados.
+
+### Análisis de Significancia Estadística
+
+Se probó la significancia probabilística de las correlaciones mediante la prueba de hipótesis del coeficiente de Pearson ($\alpha = 0,05$).
+
+```{r significancia}
+# Resumen de frecuencias de significancia estadística a un nivel alpha de 0,05
+tabla_significancia <- resultado_correlaciones %>% 
+  count(Significativa)
+
+# Presentación formateada de la distribución de p-valores
+kable(
+  tabla_significancia,
+  col.names = c("Significativo (p < 0,05)", "Número de pares"),
+  caption = "Significancia estadística de las correlaciones de Pearson"
+)
+
+# Identificación del par con significancia estadística pero de menor intensidad numérica
+ejemplo_min_signif <- resultado_correlaciones %>%
+  filter(Significativa == "Sí") %>%
+  slice_min(abs(Correlacion), n = 1)
+```
+
+En conjuntos de datos panel de gran escala ($N = 13.802$), la alta potencia estadística provoca que coeficientes de magnitud despreciable resulten estadísticamente significativos. Por ejemplo, el par entre **`r ejemplo_min_signif$Variable_1`** y **`r ejemplo_min_signif$Variable_2`** presenta un p-valor inferior a 0,05 a pesar de registrar un coeficiente de **$r = `r format(round(ejemplo_min_signif$Correlacion, 4), decimal.mark = ",")`$**.
+
+Por esta razón, sumada a la estructura de panel de los datos y al riesgo de falsos positivos por comparaciones múltiples, la interpretación del estudio prioriza la magnitud del efecto ($r$, $\rho$) y la coherencia del dominio educativo sobre los p-valores.
