@@ -2647,3 +2647,246 @@ ejemplo_min_signif <- resultado_correlaciones %>%
 En conjuntos de datos panel de gran escala ($N = 13.802$), la alta potencia estadística provoca que coeficientes de magnitud despreciable resulten estadísticamente significativos. Por ejemplo, el par entre **`r ejemplo_min_signif$Variable_1`** y **`r ejemplo_min_signif$Variable_2`** presenta un p-valor inferior a 0,05 a pesar de registrar un coeficiente de **$r = `r format(round(ejemplo_min_signif$Correlacion, 4), decimal.mark = ",")`$**.
 
 Por esta razón, sumada a la estructura de panel de los datos y al riesgo de falsos positivos por comparaciones múltiples, la interpretación del estudio prioriza la magnitud del efecto ($r$, $\rho$) y la coherencia del dominio educativo sobre los p-valores.
+
+# Análisis Multivariado
+
+## Construcción de la matriz de datos, centrado $X - G$ y matriz de covarianzas
+
+Para el análisis multivariado se emplean las `r length(variables_numericas)` variables numéricas del dataset depurado, de modo que la estructura conjunta del sistema educativo se estudia sin una selección previa. Esto implica trabajar con indicadores muy redundantes (agregados y sus desagregaciones por nivel, y pares muy correlacionados como la cobertura neta y la cobertura bruta), por lo que la matriz de covarianzas puede estar mal condicionada. Este punto se diagnostica antes de calcular las distancias.
+
+```{r construccion_X}
+# Uso de todas las variables numéricas del dataset depurado
+variables_seleccionadas <- variables_numericas
+
+# Construcción de la matriz multivariada X libre de valores faltantes
+X <- educacion_limpio %>%
+  select(all_of(variables_seleccionadas)) %>%
+  na.omit() %>%
+  as.matrix()
+
+# Vector de medias y matriz G (centroide repetido por filas)
+medias <- colMeans(X)
+G <- matrix(medias, nrow = nrow(X), ncol = ncol(X), byrow = TRUE)
+
+# Matriz centrada (X - G) y matriz de varianzas-covarianzas S
+X_centrada <- X - G
+S <- (t(X_centrada) %*% X_centrada) / (nrow(X) - 1)
+
+dim(X)
+```
+
+La matriz centrada $X - G$ expresa la desviación de cada registro municipio-año respecto al promedio de cada variable. La matriz de covarianzas $S$ es de `r nrow(S)` × `r ncol(S)`. Dado que conserva las unidades originales, su magnitud está dominada por `POBLACIÓN_5_16`, cuya varianza difiere en varios órdenes de magnitud de la de los indicadores acotados entre $0$ y $1$. Por ello la estructura de asociación se interpreta con la matriz de correlación (sección bivariada) y no con un mapa de calor de covarianzas. A continuación se diagnostica el condicionamiento de la matriz.
+
+```{r diagnostico_matriz_correlacion}
+# Diagnóstico de condicionamiento sobre la matriz de correlación
+R <- cor(X)
+valores_propios <- eigen(R, symmetric = TRUE, only.values = TRUE)$values
+
+kable(
+  data.frame(
+    Variables = ncol(X),
+    Rango = qr(R)$rank,
+    Valor_propio_minimo = formatC(min(valores_propios), format = "e", digits = 2),
+    Numero_de_condicion = formatC(max(valores_propios) / min(valores_propios), format = "e", digits = 2)
+  ),
+  caption = paste0("Diagnóstico de condicionamiento de la matriz de correlación (", ncol(X), " variables)")
+)
+```
+
+La matriz de correlación tiene rango completo (`r qr(R)$rank`), pero su valor propio mínimo es `r formatC(min(valores_propios), format = "e", digits = 2, decimal.mark = ",")` y su número de condición es `r formatC(max(valores_propios)/min(valores_propios), format = "e", digits = 2, decimal.mark = ",")`. Es invertible, pero está cerca de la singularidad por la redundancia entre indicadores (por ejemplo, aprobación, reprobación y deserción deberían sumar cerca de 1 en cada nivel), por lo que las distancias de Mahalanobis son sensibles a pequeñas violaciones de esas relaciones casi exactas.
+
+## Estandarización e invertibilidad
+
+Dado que las diferencias de escala dificultan la comparación entre variables e impiden invertir con precisión la matriz de covarianzas original, se aplica una estandarización a la matriz $X$ mediante el vector de medias y las desviaciones estándar muestrales ($\mathbf{Z} = \mathbf{X}_{centrada} \mathbf{D}^{-1/2}$).
+
+```{r estandarizacion}
+# Extracción de las desviaciones estándar muestrales (raíz de la diagonal de S)
+desviaciones <- sqrt(diag(S))
+
+# Transformación Z-score de la matriz de datos
+Z <- scale(X, center = medias, scale = desviaciones)
+
+# Se considera invertible si el rango es completo y el valor propio mínimo no es numéricamente nulo
+matriz_invertible <- qr(cov(Z))$rank == ncol(Z) &&
+  min(eigen(cov(Z), symmetric = TRUE, only.values = TRUE)$values) > 1e-8
+
+matriz_invertible
+```
+
+La matriz estandarizada $Z$ asigna a cada variable una media cero y varianza unitaria, de modo que su matriz de covarianzas coincide con la matriz de correlación. En teoría, la distancia de Mahalanobis es invariante ante cambios lineales de escala y arrojaría los mismos valores sobre $X$. En la práctica, la enorme diferencia de magnitud entre la varianza de `POBLACIÓN_5_16` y la de los indicadores acotados entre $0$ y $1$ hace que la matriz de covarianzas de $X$ sea numéricamente singular y no pueda invertirse con precisión de máquina estándar (número de condición recíproco ≈ $10^{-19}$). La estandarización es por tanto necesaria para el cálculo numérico, y no solo una cuestión de comparabilidad entre variables.
+
+## Distancias de Mahalanobis y Detección de Atípicos Multivariados
+
+La distancia de Mahalanobis cuantifica la separación entre cada observación y el centroide multivariado ($\mathbf{\bar{x}}$), ponderando la variabilidad e intercorrelaciones entre las variables. A diferencia de las distancias euclidianas, detecta registros con combinaciones inusuales de indicadores, aun cuando sus valores univariados no resulten atípicos por separado.
+
+```{r mahalanobis-calculo}
+# Parámetros de la prueba y cálculo de la distancia de Mahalanobis sobre Z
+p <- ncol(X)
+umbral <- qchisq(0.99, df = p)
+
+if (matriz_invertible) {
+  distancias <- mahalanobis(Z, center = colMeans(Z), cov = cov(Z))
+} else {
+  distancias <- NULL
+}
+```
+
+Bajo la hipótesis de normalidad multivariada, las distancias de Mahalanobis se distribuyen teóricamente según una variable $\chi^2$ con $p$ grados de libertad (donde $p = `r p`$ es el número de variables). Se define como criterio de atipicidad multivariada el percentil $99\%$ de la distribución ($\alpha = 0,01$).
+
+```{r mahalanobis-tabla}
+if (matriz_invertible) {
+  # Resumen consolidado de las distancias de Mahalanobis
+  mahalanobis_resumen <- data.frame(
+    Filas_completas = length(distancias),
+    Minimo = min(distancias),
+    Mediana = median(distancias),
+    Maximo = max(distancias),
+    Umbral_chi2_99 = umbral,
+    Casos_sobre_umbral = sum(distancias > umbral)
+  )
+
+  kable(mahalanobis_resumen, digits = 3,
+        caption = paste0("Resumen de distancias de Mahalanobis (", p, " variables)"))
+} else {
+  cat("La matriz estandarizada no es invertible; no se calcularon distancias.")
+}
+```
+
+Con $p = `r p`$ grados de libertad, el umbral crítico $\chi^2_{0,99;\,`r p`}$ es de `r format(round(umbral, 2), decimal.mark = ",")`. Un total de `r format(sum(distancias > umbral), big.mark = ".")` registros municipio-año (`r format(round(sum(distancias > umbral)/length(distancias)*100, 2), decimal.mark = ",")`% del total) superan este límite. Bajo normalidad multivariada se esperaría cerca de un 1%, de modo que esta proporción indica colas más pesadas que las de la distribución teórica. La mediana de las distancias (`r format(round(median(distancias), 2), decimal.mark = ",")`) es inferior a la de una $\chi^2_{`r p`}$ (`r format(round(qchisq(0.5, p), 2), decimal.mark = ",")`), mientras que el máximo alcanza `r format(round(max(distancias), 1), decimal.mark = ",", big.mark = ".")`: la mayoría de los registros se concentra cerca del centroide y una minoría se aleja de forma extrema. Dada la casi singularidad de la matriz, una parte de estos registros puede señalar inconsistencias entre indicadores que deberían moverse juntos y no solo perfiles territoriales inusuales.
+
+```{r mahalanobis-representacion}
+# Estructuración de datos para las representaciones gráficas de Mahalanobis
+mahalanobis_df <- educacion_limpio %>%
+  select(AÑO, all_of(variables_seleccionadas)) %>%
+  na.omit() %>%
+  transmute(AÑO, Mahalanobis = distancias, Atipico = distancias > umbral) %>%
+  mutate(Fila = row_number())
+
+# 1. Gráfico de Índice de Distancias de Mahalanobis
+grafico_indice <- ggplot(mahalanobis_df, aes(x = Fila, y = Mahalanobis, color = Atipico)) +
+  geom_point(alpha = 0.6, size = 1) +
+  geom_hline(yintercept = umbral, linetype = "dashed", color = "#d1495b") +
+  scale_color_manual(values = c("FALSE" = "#1b4965", "TRUE" = "#d1495b"),
+                     labels = c("FALSE" = "Regular", "TRUE" = "Atípico")) +
+  theme_minimal() +
+  labs(title = "Distancias de Mahalanobis por observación municipio-año",
+       subtitle = paste0("Basado en las ", ncol(X), " variables numéricas del dataset depurado"),
+       x = "Índice de observación",
+       y = "Distancia de Mahalanobis", color = "Estado")
+
+grafico_indice
+
+ggsave(filename = "outputs/entrega-corte-1/mahalanobis_indice.png",
+       plot = grafico_indice, width = 10, height = 5.5, dpi = 300, bg = "white")
+
+# 2. Gráfico QQ frente a la distribución Chi-cuadrado teórica
+grafico_qq <- ggplot(mahalanobis_df, aes(sample = Mahalanobis)) +
+  stat_qq(distribution = qchisq, dparams = list(df = p), color = "#1b4965", alpha = 0.5) +
+  stat_qq_line(distribution = qchisq, dparams = list(df = p), color = "#d1495b", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Gráfico Q-Q: Distancia de Mahalanobis vs. Chi-cuadrado teórica",
+       subtitle = paste0("Evaluación de normalidad multivariada (p = ", p, " grados de libertad)"),
+       x = "Cuantiles teóricos (Chi-cuadrado)",
+       y = "Cuantiles observados (Mahalanobis)")
+
+grafico_qq
+
+ggsave(filename = "outputs/entrega-corte-1/mahalanobis.png",
+       plot = grafico_qq, width = 7, height = 7, dpi = 300, bg = "white")
+```
+
+El gráfico Q-Q contrasta las distancias observadas con la $\chi^2_{`r p`}$. En la zona central los puntos se ubican por debajo de la diagonal, es decir, la mayoría de los registros está más cerca del centroide de lo que predice la distribución teórica, mientras que en la cola superior la curva se separa de forma abrupta y llega a valores de varios miles. Este apartamiento confirma colas muy pesadas y la ausencia de normalidad multivariada.
+
+```{r chequeo-identidades}
+# Las filas de educacion_limpio deben coincidir con las de X (no hay NA)
+stopifnot(nrow(X) == nrow(educacion_limpio))
+
+# Verificación de la identidad contable: aprobación + reprobación + deserción ≈ 1 en cada nivel
+chequeo <- educacion_limpio %>%
+  transmute(
+    AÑO,
+    res_gen = APROBACIÓN + REPROBACIÓN + DESERCIÓN - 1,
+    res_pri = APROBACIÓN_PRIMARIA + REPROBACIÓN_PRIMARIA + DESERCIÓN_PRIMARIA - 1,
+    res_sec = APROBACIÓN_SECUNDARIA + REPROBACIÓN_SECUNDARIA + DESERCIÓN_SECUNDARIA - 1,
+    res_med = APROBACIÓN_MEDIA + REPROBACIÓN_MEDIA + DESERCIÓN_MEDIA - 1,
+    Atipico = distancias > umbral
+  ) %>%
+  mutate(viola = pmax(abs(res_gen), abs(res_pri), abs(res_sec), abs(res_med)) > 0.01)
+
+n_atipicos      <- sum(chequeo$Atipico)
+n_viola_atip    <- sum(chequeo$viola & chequeo$Atipico)
+pct_viola_atip  <- n_viola_atip / n_atipicos * 100
+pct_viola_resto <- sum(chequeo$viola & !chequeo$Atipico) / sum(!chequeo$Atipico) * 100
+
+kable(
+  as.data.frame.matrix(table(
+    `Viola la identidad` = ifelse(chequeo$viola, "Sí", "No"),
+    `Atípico multivariado` = ifelse(chequeo$Atipico, "Sí", "No")
+  )),
+  caption = "Registros atípicos según incumplan la identidad aprobación + reprobación + deserción ≈ 1 (tolerancia 0,01)"
+)
+
+# Los registros con mayor distancia
+top_mahalanobis <- educacion_limpio %>%
+  mutate(Mahalanobis = distancias) %>%
+  arrange(desc(Mahalanobis)) %>%
+  select(AÑO, MUNICIPIO, DEPARTAMENTO, Mahalanobis, POBLACIÓN_5_16, COBERTURA_NETA, APROBACIÓN) %>%
+  head(8)
+
+kable(top_mahalanobis, digits = 3, caption = "Los ocho registros con mayor distancia de Mahalanobis")
+```
+
+De los `r format(n_atipicos, big.mark = ".")` registros atípicos, `r format(n_viola_atip, big.mark = ".")` (`r format(round(pct_viola_atip, 1), decimal.mark = ",")`%) incumplen la identidad entre aprobación, reprobación y deserción en al menos un nivel, frente a `r format(round(pct_viola_resto, 1), decimal.mark = ",")`% entre los no atípicos. Romper la identidad basta para resultar atípico, porque es una casi-colinealidad de la matriz, pero explica solo una fracción pequeña de los atípicos; con este chequeo no se identifica la causa del resto.
+
+Entre los casos extremos, los cuatro registros con la mayor distancia compartida (≈ 3.449) corresponden a Papunaua (Vaupés) entre 2021 y 2024, con cobertura neta y aprobación iguales a cero, valores que probablemente reflejan datos no reportados y no un desempeño real. Sin embargo, solo cuatro registros del dataset tienen cobertura neta nula, por lo que este problema explica una fracción mínima de los atípicos. El máximo global (3.685,8) corresponde a Albania (La Guajira) en 2011, cuyos indicadores de secundaria suman más del 100% (aprobación + reprobación + deserción ≈ 102%).
+
+```{r mahalanobis-por-anio}
+tabla_anio <- mahalanobis_df %>%
+  group_by(AÑO) %>%
+  summarise(
+    Registros = n(),
+    Atipicos = sum(Atipico),
+    Porcentaje = round(mean(Atipico) * 100, 2)
+  ) %>%
+  left_join(
+    chequeo %>%
+      group_by(AÑO) %>%
+      summarise(Pct_viola_identidad = round(mean(viola) * 100, 2)),
+    by = "AÑO"
+  )
+
+kable(tabla_anio, caption = "Registros atípicos multivariados y violaciones de la identidad por año (%)")
+```
+
+La proporción de registros atípicos por año varía entre `r format(min(tabla_anio$Porcentaje), decimal.mark = ",")`% (`r tabla_anio$AÑO[which.min(tabla_anio$Porcentaje)]`) y `r format(max(tabla_anio$Porcentaje), decimal.mark = ",")`% (`r tabla_anio$AÑO[which.max(tabla_anio$Porcentaje)]`). La atipicidad aparece en todos los años, pero no se reparte de forma uniforme: 2014, 2018 y 2023 superan el 10%, mientras que 2015 es el año con menos casos. Las violaciones de la identidad (última columna) no siguen ese patrón: son nulas o casi nulas en 2014 y 2018, y se concentran en 2021–2024, por lo que no explican la concentración temporal. El salto entre 2014 y 2015 es abrupto y puede deberse a cambios en la captura o el reporte de los indicadores, pero esa hipótesis no se ha verificado. El eje de índice del primer gráfico solo refleja el orden de las filas, por lo que la lectura temporal se apoya en esta tabla.
+
+> **Consideración metodológica:**
+> Estos registros atípicos multivariados se conservan en el conjunto de datos, porque no es posible determinar con certeza cuáles corresponden a configuraciones territoriales reales y cuáles a inconsistencias de captura. Los casos con inconsistencias evidentes (ceros que parecen datos no reportados, identidades contables violadas) deberán marcarse o tratarse en las etapas siguientes. Además, el cálculo trata cada registro como independiente aunque un mismo municipio aparece hasta 14 veces en el panel, lo cual es una limitación del enfoque.
+
+# Resultados Principales
+
+El análisis exploratorio de los indicadores educativos municipales permitió identificar patrones estructurales de gran relevancia:
+
+* **Asimetría Demográfica:** La variable `POBLACIÓN_5_16` exhibe una marcada asimetría positiva hacia la derecha. La pronunciada diferencia entre la media aritmética y la mediana confirma la presencia de un grupo reducido de grandes centros urbanos y metrópolis con volúmenes poblacionales considerablemente superiores al promedio del país.
+
+* **Asociaciones de Alta Coherencia en Cobertura:** Los indicadores de acceso al sistema presentan relaciones lineales de gran magnitud. La correlación de Pearson entre `COBERTURA_NETA` y `COBERTURA_BRUTA` fue **$r = `r r_p("COBERTURA_NETA", "COBERTURA_BRUTA")`$** (asociación `r d_p("COBERTURA_NETA", "COBERTURA_BRUTA")`) y la de `TASA_MATRICULACIÓN_5_16` con `COBERTURA_NETA` fue **$r = `r r_p("TASA_MATRICULACIÓN_5_16", "COBERTURA_NETA")`$** (asociación `r d_p("TASA_MATRICULACIÓN_5_16", "COBERTURA_NETA")`).
+
+* **Mecánica y Dinámica de Eficiencia Escolar:**
+  * `APROBACIÓN` y `REPROBACIÓN` mostraron una asociación negativa de **$r = `r r_p("APROBACIÓN", "REPROBACIÓN")`$**, consecuencia del carácter composicional de la matrícula.
+  * Entre niveles, `APROBACIÓN` guarda una estrecha relación con `APROBACIÓN_PRIMARIA` (**$r = `r r_p("APROBACIÓN", "APROBACIÓN_PRIMARIA")`$**).
+  * `DESERCIÓN` y `REPITENCIA` presentaron una asociación `r d_p("DESERCIÓN", "REPITENCIA")` (**$r = `r r_p("DESERCIÓN", "REPITENCIA")`$**), igual que `COBERTURA_NETA` y `DESERCIÓN` (**$r = `r r_p("COBERTURA_NETA", "DESERCIÓN")`$**).
+  
+* **Distribución Global de Asociaciones:** La clasificación de las `r nrow(resultado_correlaciones)` parejas de variables numéricas evaluadas reveló que **`r sum(resultado_correlaciones$Fuerza == "Prácticamente nula")` relaciones son prácticamente nulas, `r sum(resultado_correlaciones$Fuerza == "Débil")` débiles, `r sum(resultado_correlaciones$Fuerza == "Moderada")` moderadas, `r sum(resultado_correlaciones$Fuerza == "Fuerte")` fuertes y `r sum(resultado_correlaciones$Fuerza == "Muy fuerte")` muy fuertes**. Este patrón evidencia que las diferentes dimensiones del conjunto de datos capturan facetas diferenciadas del sistema educativo, aunque las `r nrow(tabla_fuertes)` parejas con $\vert{}r\vert{} \ge 0,70$ señalan redundancias que se abordan en la sección de redundancias.
+
+* **Atipicidad Multivariada:** El análisis conjunto sobre las `r length(variables_numericas)` variables numéricas del dataset depurado permitió identificar **`r format(n_atipicos, big.mark = ".")` registros municipio-año (`r format(round(n_atipicos/length(distancias)*100, 2), decimal.mark = ",")`% del total)** que superan el umbral crítico de la distribución Chi-cuadrado al $99\%$ de confianza ($p = `r p`$, umbral = `r format(round(umbral, 2), decimal.mark = ",")`) mediante la distancia de Mahalanobis, cerca de ocho veces el 1% esperado bajo normalidad multivariada. La matriz de correlación es invertible pero casi singular (número de condición ≈ $9{,}5 \times 10^{6}$). Solo `r format(round(pct_viola_atip, 1), decimal.mark = ",")`% de los atípicos incumple la identidad aprobación + reprobación + deserción ≈ 1, de modo que la mayor parte de la atipicidad no se explica por ese tipo de inconsistencia. La proporción de atípicos varía entre 1,78% (2015) y 19,81% (2014), un patrón que no coincide con el de esas violaciones y cuya causa queda por investigar.
+
+# Conclusiones
+
+El estudio exploratorio de los indicadores educativos municipales en Colombia brindó una caracterización detallada de las disparidades territoriales, las dependencias estructurales y la calidad de la información del sector:
+
+1. **Heterogeneidad Territorial y Atípicos:** La marcada asimetría en la población escolar de 5 a 16 años refleja las brechas de escala entre los municipios colombianos. Los valores atípicos identificados mediante el criterio del Rango Intercuartílico ($IQR$) se mantuvieron dentro del conjunto de datos, porque pueden reflejar heterogeneidad territorial real; no obstante, el análisis multivariado mostró que una parte de los registros extremos obedece a inconsistencias de captura.
+2. **Estructura de Correlaciones y Redundancias:** Las asociaciones más altas se dan entre un indicador agregado y su desagregación por nivel (por ejemplo, `COBERTURA_NETA` con `COBERTURA_NETA_PRIMARIA`, $r = `r r_p("COBERTURA_NETA", "COBERTURA_NETA_PRIMARIA")`$) y entre cobertura neta y bruta ($r = `r r_p("COBERTURA_NETA", "COBERTURA_BRUTA")`$). En la dimensión de eficiencia, la aprobación y la reprobación presentaron una esperada relación inversa ($r = `r r_p("APROBACIÓN", "REPROBACIÓN")`$), mientras que la deserción y la repitencia mostraron una asociación `r d_p("DESERCIÓN", "REPITENCIA")` ($r = `r r_p("DESERCIÓN", "REPITENCIA")`$).
+3. **Escala Poblacional vs. Cobertura:** La relación entre el tamaño de la población escolar y la cobertura neta resultó `r d_s("POBLACIÓN_5_16", "COBERTURA_NETA")` en términos monótonos (Spearman $\rho = `r r_s("POBLACIÓN_5_16", "COBERTURA_NETA")`$) y `r d_p("POBLACIÓN_5_16", "COBERTURA_NETA")` en términos lineales (Pearson $r = `r r_p("POBLACIÓN_5_16", "COBERTURA_NETA")`$). Ambas son estadísticamente significativas ($p < 0,001$) debido al gran tamaño muestral, pero su magnitud es baja, lo que demuestra que el tamaño del municipio por sí solo no determina el nivel de acceso a la educación.
+4. **Calidad e Integridad de Datos:** Se detectó en la fuente original una identidad exacta entre `APROBACIÓN_TRANSICIÓN` y `REPROBACIÓN_TRANSICIÓN`, algo incoherente porque ambas tasas deberían ser complementarias y no iguales. Este hallazgo de calidad de datos justificó su exclusión antes del análisis, y en la base depurada ya no quedan variables idénticas.
+5. **Aporte del Análisis Multivariado:** La evaluación mediante distancias de Mahalanobis sobre las `r length(variables_numericas)` variables identificó **`r format(n_atipicos, big.mark = ".")` registros municipio-año (`r format(round(n_atipicos/length(distancias)*100, 2), decimal.mark = ",")`%)** con un perfil conjunto atípico, muy por encima del 1% esperado bajo normalidad multivariada. La matriz de correlación es casi singular por la redundancia entre indicadores, lo que hace las distancias muy sensibles. Algunos casos extremos son problemas de datos evidentes (Papunaua, Vaupés, 2021-2024, con ceros que probablemente son datos no reportados) y una fracción pequeña viola la identidad entre aprobación, reprobación y deserción, pero la mayoría no se explica por esas inconsistencias, y su concentración desigual por año (entre 1,78% y 19,81%) requiere más análisis.
+6. **Interpretación y Proyección:** Dado el carácter descriptivo y exploratorio de las asociaciones estadísticas calculadas, los resultados no implican causalidad. Sin embargo, establecen una base sólida para las siguientes etapas: la redundancia entre indicadores y la casi singularidad de la matriz de correlación justifican la reducción de dimensionalidad mediante PCA y el análisis factorial, mientras que los registros atípicos identificados deben revisarse (y eventualmente marcarse o tratarse) antes de modelar.
