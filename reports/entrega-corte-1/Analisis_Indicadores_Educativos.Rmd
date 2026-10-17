@@ -76,6 +76,7 @@ library(corrplot)
 library(knitr)
 library(DT)
 library(forcats)
+library(tidyr)
 
 # Cargar dataset
 datos <- read.csv(file.path(project_root, "data", "raw", "educacion.csv"),
@@ -94,7 +95,7 @@ dim(datos)
 
 El conjunto de datos original consta de 15.707 observaciones y 41 variables, consolidando información oficial del Ministerio de Educación Nacional sobre el comportamiento del sector educativo en los municipios de Colombia durante el periodo 2011–2024 (enfocado en la población de 5 a 16 años). La unidad de análisis corresponde a la relación panel municipio-año, lo que permite capturar tanto la heterogeneidad territorial como las dinámicas longitudinales de los indicadores.
 
-A continuación, se presenta la caracterización taxonómica de las variables agrupadas en cinco dimensiones metodológicas. La columna Tipo Original especifica la codificación inicial asignada por la lectura del motor de R, señalando en particular las variables porcentuales leídas como cadenas de texto (por ejemplo, "56,11%"), cuya conversión a escala numérica continua se aborda formalmente en la sección de Carga y Limpieza de Datos.
+A continuación, se presenta la caracterización taxonómica de las variables agrupadas en cinco dimensiones metodológicas. La columna Tipo Original especifica la codificación inicial asignada por la lectura del motor de R, señalando en particular las variables porcentuales leídas como cadenas de texto (por ejemplo, “56,11%”), cuya conversión a escala numérica continua se aborda formalmente en la sección de Carga y Limpieza de Datos.
 
 ```{r estructura}
 str(datos)
@@ -205,7 +206,7 @@ El análisis temporal revela que el vacío de información no es aleatorio: entr
 
 ## 2. Criterios de Exclusión de Variables
 
-Con base en la evaluación de calidad de datos y los objetivos analíticos del estudio, se establecieron tres criterios de exclusión:
+Con base en la evaluación de calidad de datos y los objetivos analíticos del estudio, se establecieron cuatro criterios de exclusión:
 
 * **Identificadores Redundantes:** Se prescinde de CÓDIGO_MUNICIPIO y CÓDIGO_DEPARTAMENTO, dado que la identificación territorial se realiza directamente mediante los nombres de las entidades (MUNICIPIO y DEPARTAMENTO).
 
@@ -233,13 +234,13 @@ variables_a_excluir <- c(
 
 Para adecuar las variables a los algoritmos de cálculo matricial, covarianza y correlación, se aplicaron las siguientes funciones de transformación:
 
-* **Escala Porcentual a Decimal:** Conversión de cadenas de texto con formato porcentual (por ejemplo, "56,11%") a valores numéricos continuos en escala proporcional (0,5611). Las coberturas brutas superiores al 100% conservan su magnitud proporcional ($>1.0$).
+* **Escala Porcentual a Decimal:** Conversión de cadenas de texto con formato porcentual (por ejemplo, “56,11%”) a valores numéricos continuos en escala proporcional (0,5611). Las coberturas brutas superiores al 100% conservan su magnitud proporcional ($>1.0$).
 
 * **Reclasificación de la Variable Temporal:** La variable AÑO se transformó de entero a carácter/factor, permitiendo su uso como variable categórica de agrupación y evitando su inclusión en cálculos numéricos absolutos.
 
 * **Corrección Estructural de Población:** Se implementó un algoritmo de parseo para la variable POBLACIÓN_5_16 debido a discontinuidades en la captura del año 2021 (uso inconsistente de puntos decimales y omisión de ceros a la derecha).
 
-```{r transformación_datos}
+```{r transformacion_datos}
 # Función para convertir porcentajes en texto a proporciones numéricas
 limpiar_porcentajes <- function(x) {
   if (is.character(x)) {
@@ -305,3 +306,1784 @@ dim(educacion_limpio)
 
 > **Nota Metodológica sobre la Muestra Resultante:**
 > La aplicación del criterio de eliminación completa (listwise deletion) redujo el dataset operativo de 15.707 a 13.802 observaciones (pérdida del 12,13% del total). Esta pérdida no es totalmente homogénea: se concentra en el quinquenio 2011–2015 (donde se descartó entre el 27,5% y el 40,0% de los registros anuales), mientras que el periodo 2016–2024 conserva una completitud casi perfecta (solo 37 descartes). Esta subrepresentación inicial se considerará al interpretar las tendencias temporales. La matriz resultante consolidó 33 variables operativas.
+
+# Análisis Univariado
+
+En todas las visualizaciones y cálculos de esta sección, la unidad de observación corresponde al registro panel **municipio-año** (con una muestra operativa de 13.802 observaciones).
+
+> **Nota Metodológica sobre Indicadores Porcentuales ($>100\%$):**
+> Por definición teórica, la cobertura bruta puede superar el 100% debido a la inclusión de estudiantes en condición de extraedad o procedentes de otros municipios. Por el contrario, la cobertura neta y la tasa de matriculación están acotadas conceptualmente al intervalo $[0, 1]$; los valores observados que exceden dicho tope responden a desajustes entre los registros administrativos de matrícula (SIMAT) y las proyecciones de población municipal del DANE. Su caracterización detallada se aborda en la subsección de *Análisis de Valores Atípicos*.
+
+```{r carpetas, echo=FALSE}
+# Carpetas de exportación de figuras
+dir.create(file.path("outputs", "entrega-corte-1", "histogramas"), recursive = TRUE)
+dir.create(file.path("outputs", "entrega-corte-1", "boxplots"), recursive = TRUE)
+```
+
+## 1. Caracterización de Variables Categóricas
+
+### 1. Frecuencia Temporal (`AÑO`)
+
+```{r anio}
+# Generación del gráfico de barras para visualizar la distribución de registros por año
+p_01 <- educacion_limpio %>%
+  ggplot(aes(x = AÑO)) +
+  geom_bar(fill = "#e67e22", color = "white") +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3) +
+  theme_minimal() +
+  labs(
+    title = "Frecuencia de Registros por Año",
+    subtitle = "Análisis univariado de la variable categórica AÑO (2011-2024)",
+    x = "Año",
+    y = "Cantidad de registros (Frecuencia)"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    panel.grid.minor = element_blank()
+  )
+
+p_01
+
+# Exportación de la figura a alta resolución
+ggsave("outputs/entrega-corte-1/histogramas/01_ANIO.png", p_01,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+El gráfico de barras muestra dos bloques claramente diferenciados. Entre 2016 y 2024 los años tienen una cantidad de registros casi idéntica, lo que equivale a un registro por municipio en cada año. En 2011-2015, en cambio, las barras son más bajas y variables, porque en esos años una proporción importante de municipios tenía indicadores incompletos y fue eliminada al depurar los datos. Por tanto, el conjunto no está balanceado en el tiempo y los primeros años quedan subrepresentados.
+
+### 2. Aparición Municipal (`MUNICIPIO`)
+
+```{r municipio}
+# Conteos del número de años observados por cada combinación única de municipio y departamento
+apariciones_mun <- educacion_limpio %>%
+  count(MUNICIPIO, DEPARTAMENTO, name = "n_anios")
+
+# Gráfico de barras para la frecuencia de municipios según la cantidad de años en los que registran datos
+p_02 <- apariciones_mun %>%
+  ggplot(aes(x = factor(n_anios, levels = 1:14))) +
+  geom_bar(fill = "#3498db", color = "white") +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5, size = 3) +
+  scale_x_discrete(drop = FALSE) +
+  theme_minimal() +
+  labs(
+    title = "Número de Años de Aparición por Municipio",
+    subtitle = "Análisis univariado de la variable categórica MUNICIPIO",
+    x = "Años en que aparece el municipio (de 14 posibles)",
+    y = "Cantidad de municipios"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    panel.grid.minor = element_blank()
+  )
+
+p_02
+
+# Exportación de la figura a alta resolución
+ggsave("outputs/entrega-corte-1/histogramas/02_MUNICIPIOS.png", p_02,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+El gráfico muestra que la mayoría de los municipios aparece en casi todos los años, con una barra dominante en los valores altos y una cola corta hacia los municipios con pocas apariciones. Como cada municipio aporta a lo sumo un registro por año, no existe concentración de registros en unos pocos municipios. Las apariciones faltantes se explican por los datos incompletos eliminados en la limpieza y, en casos puntuales como Nuevo Belén de Bajirá, por la creación reciente del municipio.
+
+### 3. Distribución Territorial (`DEPARTAMENTO`)
+
+```{r departamento}
+# Gráfico de barras horizontal ordenado por frecuencia descendente de registros por departamento
+p_03 <- educacion_limpio %>%
+  ggplot(aes(x = fct_infreq(DEPARTAMENTO))) +
+  geom_bar(fill = "#8e44ad", color = "white") +
+  coord_flip() +
+  theme_minimal() +
+  labs(
+    title = "Frecuencia de Registros por Departamento",
+    subtitle = "Registros municipio-año del dataset limpio (2011-2024)",
+    x = "Departamento",
+    y = "Cantidad de registros (municipio-año)"
+  ) +
+  theme(
+    axis.text.y = element_text(size = 8, face = "bold"),
+    plot.title = element_text(face = "bold", size = 14),
+    panel.grid.minor = element_blank()
+  )
+
+p_03
+
+# Exportación de la figura a alta resolución
+ggsave("outputs/entrega-corte-1/histogramas/03_DEPARTAMENTOS.png", p_03,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma presenta una distribución muy desigual: unos pocos departamentos, como Antioquia, Cundinamarca, Boyacá y Santander, concentran una proporción alta de los registros, mientras que Bogotá D.C., el Archipiélago de San Andrés y los departamentos amazónicos tienen barras muy cortas. Esta diferencia se debe al número de municipios de cada territorio, ya que cada municipio aporta un registro por año, y no a una mayor importancia educativa. Por ello, las comparaciones entre departamentos deben hacerse con indicadores y no con conteos.
+
+## 2. Distribución de Variables Numéricas Continuas
+
+### 4. POBLACIÓN_5_16: Numérica
+
+#### Histograma
+
+```{r hist_04}
+# Histograma con filtro visual para municipios con menos de 50.000 habitantes
+p_04 <- educacion_limpio %>%
+  filter(POBLACIÓN_5_16 < 50000) %>%
+  ggplot(aes(x = POBLACIÓN_5_16)) +
+  # Histograma con ancho de bin de 2.000 habitantes
+  geom_histogram(binwidth = 2000, boundary = 0, fill = "seagreen", color = "white", linewidth = 0.15) +
+  # Estimación de densidad de kernel ajustada a la escala de frecuencias del histograma
+  geom_density(aes(y = after_stat(count) * 2000), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  # Formato numérico con punto para miles
+  scale_x_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la población de 5 a 16 años por municipio",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 2.000 habitantes",
+    x = "Población de 5 a 16 años (habitantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "Se excluyen los registros con 50.000 habitantes o más. La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_04
+
+# Exportación de la figura a alta resolución
+ggsave("outputs/entrega-corte-1/histogramas/04_poblacion_5_16.png", p_04,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_04}
+# Boxplot con filtro visual para municipios con menos de 50.000 habitantes
+b_04 <- educacion_limpio %>%
+  filter(POBLACIÓN_5_16 < 50000) %>%
+  ggplot(aes(y = POBLACIÓN_5_16)) +
+  # Caja mediana e intervalo intercuartílico
+  geom_boxplot(fill = "tomato", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Boxplot de la población de 5 a 16 años",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Población de 5 a 16 años (habitantes)",
+    caption = "Se excluyen los registros con 50.000 habitantes o más."
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_04
+
+ggsave("outputs/entrega-corte-1/boxplots/04_poblacion_5_16.png", b_04,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma presenta una asimetría marcada hacia la derecha: la
+gran mayoría de los registros corresponde a municipios con poblaciones
+pequeñas de 5 a 16 años, y la frecuencia, al igual que la curva de
+densidad, disminuye rápidamente a medida que aumenta la población. El
+boxplot refleja lo mismo, con una caja baja y numerosos puntos atípicos
+hacia arriba, que corresponden a los municipios más grandes. Este
+comportamiento responde a la estructura territorial del país, con muchos
+municipios rurales de poca población y pocas ciudades grandes, que
+además se excluyen de estas dos gráficas (50.000 habitantes o más) para
+no comprimir el resto de la distribución.
+
+### 5. TASA_MATRICULACIÓN_5_16: Numérica
+
+#### Histograma
+
+```{r hist_05}
+# Histograma con el rango completo de la variable
+p_05 <- educacion_limpio %>%
+  ggplot(aes(x = TASA_MATRICULACIÓN_5_16)) +
+  # Intervalos de 5 puntos porcentuales (binwidth = 0.05)
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "mediumseagreen", color = "white", linewidth = 0.15) +
+  # Curva de densidad de kernel escalada
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  # Formateo del eje horizontal como porcentaje
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de matriculación de 5 a 16 años",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Tasa de matriculación (% de la población de 5 a 16 años)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_05
+
+ggsave("outputs/entrega-corte-1/histogramas/05_tasa_matriculacion.png", p_05,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_05}
+# Boxplot de la tasa de matriculación general
+b_05 <- educacion_limpio %>%
+  ggplot(aes(y = TASA_MATRICULACIÓN_5_16)) +
+  geom_boxplot(fill = "orange", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de matriculación de 5 a 16 años",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de matriculación (% de la población de 5 a 16 años)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_05
+
+ggsave("outputs/entrega-corte-1/boxplots/05_tasa_matriculacion.png", b_05,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma muestra una distribución unimodal, con su moda en la parte alta de la escala (entre el 85% y el 90%), y la curva de densidad sigue esa misma forma: la mayoría de los municipios matricula a una gran proporción de su población de 5 a 16 años. Hacia la izquierda, la frecuencia desciende de forma gradual y forma una cola larga, que corresponde a municipios con menor acceso al sistema educativo, por ejemplo por la dispersión de su población o las dificultades de acceso a la oferta escolar. Hacia la derecha, la frecuencia desciende con mayor rapidez, pero la distribución continúa por encima del 100% y termina en una cola de pocos registros con valores extremos; estos valores superan lo esperable para una tasa de matriculación (véase la nota inicial sobre valores superiores al 100%). El boxplot confirma una concentración en valores altos y presenta atípicos en ambos extremos, con los altos mucho más alejados de la caja que los bajos.
+
+### 6. COBERTURA_NETA: Numérica
+
+#### Histograma
+
+```{r hist_06}
+# Histograma de cobertura neta general
+p_06 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_NETA)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "dodgerblue", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura neta",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura neta (% de la población en edad escolar matriculada en el nivel correspondiente)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_06
+
+ggsave("outputs/entrega-corte-1/histogramas/06_cobertura_neta.png", p_06,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_06}
+# Boxplot con el rango completo de la variable
+b_06 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_NETA)) +
+  geom_boxplot(fill = "gold", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura neta",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura neta (% de la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_06
+
+ggsave("outputs/entrega-corte-1/boxplots/06_cobertura_neta.png", b_06,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma muestra una distribución unimodal con su moda en la parte alta de la escala (entre el 85% y el 90%), y la curva de densidad confirma esa forma: la mayoría de los municipios tiene a gran parte de su población en edad escolar matriculada en el nivel que le corresponde. Hacia la izquierda, la frecuencia desciende de forma gradual y forma una cola larga, correspondiente a municipios con menor cobertura, por ejemplo por la dispersión de su población o las dificultades de acceso a la oferta escolar. Hacia la derecha, la frecuencia desciende con mayor rapidez, pero continúa por encima del 100% y termina en una cola de pocos registros con valores extremos; estos valores superan lo esperable para una cobertura neta (véase la nota inicial sobre valores superiores al 100%). El boxplot confirma una concentración en valores altos, con atípicos en ambos extremos y los altos mucho más alejados de la caja.
+
+### 7. COBERTURA_NETA_TRANSICIÓN: Numérica
+
+#### Histograma
+
+```{r hist_07}
+# Histograma de cobertura neta en transición (preescolar)
+p_07 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_NETA_TRANSICIÓN)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "orchid", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura neta en transición",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura neta en transición (% de la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_07
+
+ggsave("outputs/entrega-corte-1/histogramas/07_cobertura_neta_transicion.png", p_07,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_07}
+# Boxplot con el rango completo de la variable
+b_07 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_NETA_TRANSICIÓN)) +
+  geom_boxplot(fill = "turquoise", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura neta en transición",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura neta en transición (% de la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_07
+
+ggsave("outputs/entrega-corte-1/boxplots/07_cobertura_neta_transicion.png", b_07,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución es unimodal y aproximadamente simétrica, con la moda en valores medios (entre el 55% y el 60%), claramente por debajo de los de primaria, y la curva de densidad dibuja una campana regular. Esto es coherente con que la cobertura neta solo cuenta a los niños que cursan transición a la edad esperada, de modo que quienes ingresan antes o después, o permanecen en programas de primera infancia fuera del sistema, no se incluyen. Son muy pocos los registros que superan el 100%, y el boxplot muestra atípicos en ambos extremos.
+
+### 8. COBERTURA_NETA_PRIMARIA: Numérica
+
+#### Histograma
+
+```{r hist_08}
+# Histograma con el rango completo de la variable
+p_08 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_NETA_PRIMARIA)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "coral", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura neta en primaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura neta en primaria (% de la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_08
+
+ggsave("outputs/entrega-corte-1/histogramas/08_cobertura_neta_primaria.png", p_08,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_08}
+# Boxplot con el rango completo de la variable
+b_08 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_NETA_PRIMARIA)) +
+  geom_boxplot(fill = "lightgreen", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura neta en primaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura neta en primaria (% de la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_08
+
+ggsave("outputs/entrega-corte-1/boxplots/08_cobertura_neta_primaria.png", b_08,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma se concentra en valores altos, con la moda entre el 80% y el 85% y una cola moderada hacia las coberturas bajas, y la curva de densidad sigue esa forma. Hacia la derecha supera el 100% (véase la nota inicial sobre valores superiores al 100%) y termina en una cola de pocos registros con valores extremos. Primaria es el nivel con mayor cobertura, lo que es coherente con la mayor presencia de oferta escolar en el territorio. El boxplot muestra atípicos en ambos extremos, con los altos mucho más alejados de la caja; los bajos pueden corresponder a municipios con dificultades de acceso o con inconsistencias en la población estimada.
+
+### 9. COBERTURA_NETA_SECUNDARIA: Numérica
+
+#### Histograma
+
+```{r hist_09}
+# Histograma con el rango completo de la variable
+p_09 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_NETA_SECUNDARIA)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "slateblue", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura neta en secundaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura neta en secundaria (% de la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_09
+
+ggsave("outputs/entrega-corte-1/histogramas/09_cobertura_neta_secundaria.png", p_09,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_09}
+# Boxplot con el rango completo de la variable
+b_09 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_NETA_SECUNDARIA)) +
+  geom_boxplot(fill = "khaki", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura neta en secundaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura neta en secundaria (% de la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_09
+
+ggsave("outputs/entrega-corte-1/boxplots/09_cobertura_neta_secundaria.png", b_09,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución es unimodal, con la moda entre el 70% y el 75%, por debajo de la de primaria, y una cola hacia la izquierda más visible, con un pequeño grupo de registros en cero. Es coherente con que en este nivel aumentan el abandono, el ingreso tardío y el rezago, y los estudiantes con extraedad no cuentan en la cobertura neta. Hacia la derecha, unos pocos registros superan el 100% hasta valores extremos. La curva de densidad confirma la forma de campana, y el boxplot tiene una amplitud similar a la de primaria y muestra atípicos en ambos extremos.
+
+### 10. COBERTURA_NETA_MEDIA: Numérica
+
+#### Histograma
+
+```{r hist_10}
+# Histograma con el rango completo de la variable
+p_10 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_NETA_MEDIA)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "firebrick", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura neta en educación media",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura neta en media (% de la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_10
+
+ggsave("outputs/entrega-corte-1/histogramas/10_cobertura_neta_media.png", p_10,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_10}
+# Boxplot con el rango completo de la variable
+b_10 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_NETA_MEDIA)) +
+  geom_boxplot(fill = "pink", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura neta en educación media",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura neta en media (% de la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_10
+
+ggsave("outputs/entrega-corte-1/boxplots/10_cobertura_neta_media.png", b_10,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma es unimodal, con la moda entre el 40% y el 45%, por debajo de los demás niveles, una cola hacia la derecha y un pequeño grupo de registros cerca de cero. Esto es consistente con que la educación media es el último tramo del sistema, donde se acumulan la deserción y el rezago, y con que en algunos municipios la oferta de este nivel puede ser limitada. Son muy pocos los registros por encima del 100%, y la curva de densidad refleja la cola derecha. El boxplot muestra atípicos principalmente hacia arriba y algunos en cero.
+
+### 11. COBERTURA_BRUTA: Numérica
+
+#### Histograma
+
+```{r hist_11}
+# Histograma con el rango completo de la variable
+p_11 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_BRUTA)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "darkcyan", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura bruta",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura bruta (% frente a la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_11
+
+ggsave("outputs/entrega-corte-1/histogramas/11_cobertura_bruta.png", p_11,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_11}
+# Boxplot con el rango completo de la variable
+b_11 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_BRUTA)) +
+  geom_boxplot(fill = "plum", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura bruta",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura bruta (% frente a la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_11
+
+ggsave("outputs/entrega-corte-1/boxplots/11_cobertura_bruta.png", b_11,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución es unimodal, con la moda cerca del 100%, y la curva de densidad es aproximadamente simétrica, con una cola izquierda algo más poblada y una cola derecha que termina en pocos registros con valores extremos. Su dispersión es mayor que la de la cobertura neta. A diferencia de esta, la cobertura bruta puede superar el 100% por definición, ya que incluye a estudiantes fuera de la edad teórica, de modo que gran parte de los registros se ubica cerca o por encima de ese valor. Los valores extremos altos corresponden a municipios con una gran cantidad de estudiantes extraedad o que atraen matrícula de otros territorios, y el boxplot muestra atípicos en ambos extremos.
+
+### 12. COBERTURA_BRUTA_TRANSICIÓN: Numérica
+
+#### Histograma
+
+```{r hist_12}
+# Histograma con el rango completo de la variable
+p_12 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_BRUTA_TRANSICIÓN)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "hotpink", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura bruta en transición",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura bruta en transición (% frente a la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_12
+
+ggsave("outputs/entrega-corte-1/histogramas/12_cobertura_bruta_transicion.png", p_12,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_12}
+# Boxplot con el rango completo de la variable
+b_12 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_BRUTA_TRANSICIÓN)) +
+  geom_boxplot(fill = "hotpink", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura bruta en transición",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura bruta en transición (% frente a la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_12
+
+ggsave("outputs/entrega-corte-1/boxplots/12_cobertura_bruta_transicion.png", b_12,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma es amplio y sesgado hacia la derecha, con la moda en torno al 85%, por debajo del 100%, y la curva de densidad refleja una cola derecha larga. Es coherente con que en transición no toda la población de la edad está escolarizada, a diferencia de la primaria. Los valores altos, hasta cifras extremas, reflejan municipios donde ingresan niños de edades distintas a la esperada. El boxplot presenta una dispersión grande y atípicos en ambos extremos, con los superiores más numerosos.
+
+### 13. COBERTURA_BRUTA_PRIMARIA: Numérica
+
+#### Histograma
+
+```{r hist_13}
+# Histograma con el rango completo de la variable
+p_13 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_BRUTA_PRIMARIA)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "coral", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura bruta en primaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura bruta en primaria (% frente a la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_13
+
+ggsave("outputs/entrega-corte-1/histogramas/13_cobertura_bruta_primaria.png", p_13,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_13}
+# Boxplot con el rango completo de la variable
+b_13 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_BRUTA_PRIMARIA)) +
+  geom_boxplot(fill = "lightgreen", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura bruta en primaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura bruta en primaria (% frente a la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_13
+
+ggsave("outputs/entrega-corte-1/boxplots/13_cobertura_bruta_primaria.png", b_13,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución es casi simétrica y se centra alrededor del 100%, con una parte importante de los registros por encima de ese valor, y la curva de densidad es una campana regular. Esto es coherente con la extraedad, ya que los estudiantes mayores a la edad teórica o que repiten grado aumentan la matrícula total frente a la población esperada. La cola derecha es más larga que la de la cobertura neta y termina en pocos registros con valores extremos, y el boxplot muestra atípicos en ambos extremos.
+
+### 14. COBERTURA_BRUTA_SECUNDARIA: Numérica
+
+#### Histograma
+
+```{r hist_14}
+# Histograma con el rango completo de la variable
+p_14 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_BRUTA_SECUNDARIA)) +
+  geom_histogram(binwidth = 0.05, boundary = 0, fill = "slateblue", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.05), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura bruta en secundaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 5 puntos porcentuales",
+    x = "Cobertura bruta en secundaria (% frente a la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_14
+
+ggsave("outputs/entrega-corte-1/histogramas/14_cobertura_bruta_secundaria.png", p_14,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_14}
+# Boxplot con el rango completo de la variable
+b_14 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_BRUTA_SECUNDARIA)) +
+  geom_boxplot(fill = "khaki", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura bruta en secundaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura bruta en secundaria (% frente a la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_14
+
+ggsave("outputs/entrega-corte-1/boxplots/14_cobertura_bruta_secundaria.png", b_14,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma es unimodal y centrado alrededor del 100%, con colas hacia ambos lados: la izquierda es más extendida y presenta un pequeño grupo de registros en cero, y la derecha termina en pocos valores extremos. Al igual que en primaria, los valores superiores al 100% reflejan estudiantes por fuera de la edad teórica. La dispersión es algo mayor que en primaria, lo que apunta a diferencias entre municipios en la permanencia y el rezago escolar, y el boxplot muestra atípicos en ambos extremos.
+
+### 15. COBERTURA_BRUTA_MEDIA: Numérica
+
+#### Histograma
+
+```{r hist_15}
+# Histograma con el rango completo de la variable
+p_15 <- educacion_limpio %>%
+  ggplot(aes(x = COBERTURA_BRUTA_MEDIA)) +
+  geom_histogram(binwidth = 0.1, boundary = 0, fill = "firebrick", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.1), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la cobertura bruta en educación media",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 10 puntos porcentuales",
+    x = "Cobertura bruta en media (% frente a la población en edad escolar)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_15
+
+ggsave("outputs/entrega-corte-1/histogramas/15_cobertura_bruta_media.png", p_15,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_15}
+# Boxplot con el rango completo de la variable
+b_15 <- educacion_limpio %>%
+  ggplot(aes(y = COBERTURA_BRUTA_MEDIA)) +
+  geom_boxplot(fill = "pink", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la cobertura bruta en educación media",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Cobertura bruta en media (% frente a la población en edad escolar)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_15
+
+ggsave("outputs/entrega-corte-1/boxplots/15_cobertura_bruta_media.png", b_15,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución es más baja y dispersa que la de los niveles previos, con la moda entre el 70% y el 80%, por debajo del 100%. Presenta una cola derecha que llega a los valores extremos más altos de todas las coberturas y un pequeño grupo de registros en cero. Es consistente con que la media es el nivel con menor acceso y mayor abandono, y con que en algunos municipios la oferta es limitada. El boxplot es ancho, con atípicos superiores que corresponden a municipios con matrícula elevada frente a su población de referencia y unos pocos en cero.
+
+### 16. DESERCIÓN: Numérica
+
+#### Histograma
+
+```{r hist_16}
+# Histograma con el rango completo de la variable
+p_16 <- educacion_limpio %>%
+  ggplot(aes(x = DESERCIÓN)) +
+  geom_histogram(binwidth = 0.005, boundary = 0, fill = "gray40", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.005), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de deserción total",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 0,5 puntos porcentuales",
+    x = "Tasa de deserción total (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_16
+
+ggsave("outputs/entrega-corte-1/histogramas/16_desercion.png", p_16,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_16}
+# Boxplot con el rango completo de la variable
+b_16 <- educacion_limpio %>%
+  ggplot(aes(y = DESERCIÓN)) +
+  geom_boxplot(fill = "darkred", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de deserción total",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de deserción total (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_16
+
+ggsave("outputs/entrega-corte-1/boxplots/16_desercion.png", b_16,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma muestra una asimetría fuerte hacia la derecha, con la moda entre el 2% y el 3%: la mayoría de los municipios tiene tasas bajas y pocos presentan valores altos, y la curva de densidad dibuja una cola derecha larga. Esto es natural en una tasa que no puede ser menor que cero, de modo que los datos se apilan cerca de ese límite y la cola se extiende hacia arriba, hasta terminar en pocos registros con valores extremos. El boxplot presenta una caja baja y numerosos atípicos superiores, correspondientes a municipios con problemas de permanencia escolar.
+
+### 17. DESERCIÓN_TRANSICIÓN: Numérica
+
+#### Histograma
+
+```{r hist_17}
+# Histograma con el rango completo de la variable
+p_17 <- educacion_limpio %>%
+  ggplot(aes(x = DESERCIÓN_TRANSICIÓN)) +
+  geom_histogram(binwidth = 0.005, boundary = 0, fill = "gray50", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.005), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de deserción en transición",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 0,5 puntos porcentuales",
+    x = "Tasa de deserción en transición (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_17
+
+ggsave("outputs/entrega-corte-1/histogramas/17_desercion_transicion.png", p_17,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_17}
+# Boxplot con el rango completo de la variable
+b_17 <- educacion_limpio %>%
+  ggplot(aes(y = DESERCIÓN_TRANSICIÓN)) +
+  geom_boxplot(fill = "indianred", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de deserción en transición",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de deserción en transición (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_17
+
+ggsave("outputs/entrega-corte-1/boxplots/17_desercion_transicion.png", b_17,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución combina una barra muy alta en cero y una campana sesgada a la derecha, con su moda en torno al 3%; la curva de densidad suaviza esa barra y no refleja su altura real. En transición hay pocos estudiantes por municipio, y con cohortes pequeñas la tasa tiende a tomar valores extremos (cero o muy alta) por efecto del azar. La cola derecha llega hasta algunos registros con valores extremos. El boxplot tiene una caja baja y atípicos superiores.
+
+### 18. DESERCIÓN_PRIMARIA: Numérica
+
+#### Histograma
+
+```{r hist_18}
+# Histograma con el rango completo de la variable
+p_18 <- educacion_limpio %>%
+  ggplot(aes(x = DESERCIÓN_PRIMARIA)) +
+  geom_histogram(binwidth = 0.005, boundary = 0, fill = "gray60", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.005), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de deserción en primaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 0,5 puntos porcentuales",
+    x = "Tasa de deserción en primaria (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_18
+
+ggsave("outputs/entrega-corte-1/histogramas/18_desercion_primaria.png", p_18,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_18}
+# Boxplot con el rango completo de la variable
+b_18 <- educacion_limpio %>%
+  ggplot(aes(y = DESERCIÓN_PRIMARIA)) +
+  geom_boxplot(fill = "salmon", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de deserción en primaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de deserción en primaria (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_18
+
+ggsave("outputs/entrega-corte-1/boxplots/18_desercion_primaria.png", b_18,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma presenta un pico entre el 1% y el 3%, con una asimetría
+hacia la derecha y una cola corta, que termina en valores más bajos que
+los de los demás niveles; la curva de densidad sigue esa forma. Primaria
+es el nivel con menor abandono, lo que es coherente con la menor edad de
+los estudiantes, que dependen de sus familias. El boxplot es bajo, pero
+presenta un grupo numeroso de atípicos superiores, correspondientes a
+municipios con tasas de abandono muy superiores a las del resto.
+
+### 19. DESERCIÓN_SECUNDARIA: Numérica
+
+#### Histograma
+
+```{r hist_19}
+# Histograma con el rango completo de la variable
+p_19 <- educacion_limpio %>%
+  ggplot(aes(x = DESERCIÓN_SECUNDARIA)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "gray70", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de deserción en secundaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de deserción en secundaria (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_19
+
+ggsave("outputs/entrega-corte-1/histogramas/19_desercion_secundaria.png", p_19,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_19}
+# Boxplot con el rango completo de la variable
+b_19 <- educacion_limpio %>%
+  ggplot(aes(y = DESERCIÓN_SECUNDARIA)) +
+  geom_boxplot(fill = "lightcoral", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de deserción en secundaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de deserción en secundaria (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_19
+
+ggsave("outputs/entrega-corte-1/boxplots/19_desercion_secundaria.png", b_19,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución es sesgada hacia la derecha y más dispersa que la de primaria, con la moda entre el 3% y el 4% y una cola larga que llega a valores extremos. Es coherente con que en la adolescencia aumentan las presiones para abandonar los estudios, como el trabajo, la distancia a la institución y la desmotivación. La curva de densidad confirma la asimetría, y el boxplot es más amplio y presenta atípicos superiores.
+
+### 20. DESERCIÓN_MEDIA: Numérica
+
+#### Histograma
+
+```{r hist_20}
+# Histograma con el rango completo de la variable
+p_20 <- educacion_limpio %>%
+  ggplot(aes(x = DESERCIÓN_MEDIA)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "gray80", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de deserción en educación media",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de deserción en media (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_20
+
+ggsave("outputs/entrega-corte-1/histogramas/20_desercion_media.png", p_20,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_20}
+# Boxplot con el rango completo de la variable
+b_20 <- educacion_limpio %>%
+  ggplot(aes(y = DESERCIÓN_MEDIA)) +
+  geom_boxplot(fill = "tomato", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de deserción en educación media",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de deserción en media (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_20
+
+ggsave("outputs/entrega-corte-1/boxplots/20_desercion_media.png", b_20,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma está sesgado a la derecha, con la moda entre el 2% y el 2,5%, una barra algo elevada cerca de cero y una cola larga que llega a los valores extremos más altos de todos los niveles. Con pocos estudiantes por municipio, las tasas son muy variables, lo que se ve en un boxplot con una dispersión grande y numerosos atípicos superiores. Los valores altos señalan municipios donde el abandono en los últimos grados es especialmente frecuente.
+
+### 21. APROBACIÓN: Numérica
+
+#### Histograma
+
+```{r hist_21}
+# Histograma con el rango completo de la variable
+p_21 <- educacion_limpio %>%
+  ggplot(aes(x = APROBACIÓN)) +
+  geom_histogram(binwidth = 0.02, boundary = 0, fill = "forestgreen", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.02), bounds = c(0, 1), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de aprobación total",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 2 puntos porcentuales",
+    x = "Tasa de aprobación total (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_21
+
+ggsave("outputs/entrega-corte-1/histogramas/21_aprobacion.png", p_21,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_21}
+# Boxplot con el rango completo de la variable
+b_21 <- educacion_limpio %>%
+  ggplot(aes(y = APROBACIÓN)) +
+  geom_boxplot(fill = "palegreen", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de aprobación total",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de aprobación total (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_21
+
+ggsave("outputs/entrega-corte-1/boxplots/21_aprobacion.png", b_21,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma presenta una asimetría marcada hacia la izquierda: la mayoría de los registros se agrupa en la parte alta de la escala, con la moda entre el 91% y el 93%, y una cola larga hacia las tasas bajas que alcanza, con muy pocos registros, valores cercanos a cero. Esto se explica porque la aprobación está limitada por arriba en 100%, de modo que los municipios con buen desempeño se acumulan cerca de ese tope. La curva de densidad confirma esa concentración, y el boxplot es compacto y solo presenta atípicos en el extremo inferior.
+
+### 22. APROBACIÓN_PRIMARIA: Numérica
+
+#### Histograma
+
+```{r hist_22}
+# Histograma con el rango completo de la variable
+p_22 <- educacion_limpio %>%
+  ggplot(aes(x = APROBACIÓN_PRIMARIA)) +
+  geom_histogram(binwidth = 0.02, boundary = 0, fill = "seagreen", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.02), bounds = c(0, 1), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de aprobación en primaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 2 puntos porcentuales",
+    x = "Tasa de aprobación en primaria (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_22
+
+ggsave("outputs/entrega-corte-1/histogramas/22_aprobacion_primaria.png", p_22,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_22}
+# Boxplot con el rango completo de la variable
+b_22 <- educacion_limpio %>%
+  ggplot(aes(y = APROBACIÓN_PRIMARIA)) +
+  geom_boxplot(fill = "mediumseagreen", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de aprobación en primaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de aprobación en primaria (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_22
+
+ggsave("outputs/entrega-corte-1/boxplots/22_aprobacion_primaria.png", b_22,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución se concentra con mucha fuerza cerca del máximo, con la moda entre el 93% y el 96%, una cola izquierda corta con muy pocos valores bajos y una caja muy estrecha. Es el nivel con mayor y más homogénea aprobación, lo que es coherente con las políticas de promoción en los primeros grados. La curva de densidad refleja esa concentración, y los atípicos inferiores son relativamente escasos y corresponden a municipios con un desempeño particularmente débil.
+
+### 23. APROBACIÓN_SECUNDARIA: Numérica
+
+#### Histograma
+
+```{r hist_23}
+# Histograma con el rango completo de la variable
+p_23 <- educacion_limpio %>%
+  ggplot(aes(x = APROBACIÓN_SECUNDARIA)) +
+  geom_histogram(binwidth = 0.02, boundary = 0, fill = "mediumaquamarine", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.02), bounds = c(0, 1), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de aprobación en secundaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 2 puntos porcentuales",
+    x = "Tasa de aprobación en secundaria (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_23
+
+ggsave("outputs/entrega-corte-1/histogramas/23_aprobacion_secundaria.png", p_23,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_23}
+# Boxplot con el rango completo de la variable
+b_23 <- educacion_limpio %>%
+  ggplot(aes(y = APROBACIÓN_SECUNDARIA)) +
+  geom_boxplot(fill = "aquamarine", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de aprobación en secundaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de aprobación en secundaria (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_23
+
+ggsave("outputs/entrega-corte-1/boxplots/23_aprobacion_secundaria.png", b_23,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma es sesgado a la izquierda, pero menos concentrado en el tope que el de primaria, con valores más bajos y dispersos, una forma algo irregular con dos máximos suaves y un pequeño grupo de registros en cero. Esto es coherente con la mayor exigencia académica y con el aumento de la reprobación en la adolescencia. El boxplot es más ancho, con atípicos inferiores más frecuentes.
+
+### 24. APROBACIÓN_MEDIA: Numérica
+
+#### Histograma
+
+```{r hist_24}
+# Histograma con el rango completo de la variable
+p_24 <- educacion_limpio %>%
+  ggplot(aes(x = APROBACIÓN_MEDIA)) +
+  geom_histogram(binwidth = 0.02, boundary = 0, fill = "lightseagreen", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.02), bounds = c(0, 1), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de aprobación en educación media",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 2 puntos porcentuales",
+    x = "Tasa de aprobación en media (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_24
+
+ggsave("outputs/entrega-corte-1/histogramas/24_aprobacion_media.png", p_24,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_24}
+# Boxplot con el rango completo de la variable
+b_24 <- educacion_limpio %>%
+  ggplot(aes(y = APROBACIÓN_MEDIA)) +
+  geom_boxplot(fill = "turquoise", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de aprobación en educación media",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de aprobación en media (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_24
+
+ggsave("outputs/entrega-corte-1/boxplots/24_aprobacion_media.png", b_24,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución presenta un sesgo hacia la izquierda, con una concentración en valores altos, con un pico cercano al 95%, y una cola hacia las tasas bajas que incluye un pequeño grupo de registros en cero. La caja es estrecha y existen atípicos inferiores, correspondientes a municipios con tasas de aprobación bajas. Cuando un municipio tiene pocos estudiantes, un cambio pequeño en las cifras altera mucho la tasa, lo que puede contribuir a esos valores.
+
+### 25. REPROBACIÓN: Numérica
+
+#### Histograma
+
+```{r hist_25}
+# Histograma con el rango completo de la variable
+p_25 <- educacion_limpio %>%
+  ggplot(aes(x = REPROBACIÓN)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "orange", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de reprobación total",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de reprobación total (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_25
+
+ggsave("outputs/entrega-corte-1/histogramas/25_reprobacion.png", p_25,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_25}
+# Boxplot con el rango completo de la variable
+b_25 <- educacion_limpio %>%
+  ggplot(aes(y = REPROBACIÓN)) +
+  geom_boxplot(fill = "gold", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de reprobación total",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de reprobación total (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_25
+
+ggsave("outputs/entrega-corte-1/boxplots/25_reprobacion.png", b_25,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma combina dos grupos: una barra muy alta en cero y una distribución en forma de campana, sesgada a la derecha, con su moda entre el 5% y el 7%. La curva de densidad suaviza la barra en cero y no refleja su altura real. Esa barra, por su tamaño, sugiere que parte de esos registros podrían ser datos no reportados y no ausencia real de reprobación. La cola derecha termina en pocos valores extremos, y el boxplot presenta una caja baja que llega hasta cero y atípicos superiores.
+
+### 26. REPROBACIÓN_PRIMARIA: Numérica
+
+#### Histograma
+
+```{r hist_26}
+# Histograma con el rango completo de la variable
+p_26 <- educacion_limpio %>%
+  ggplot(aes(x = REPROBACIÓN_PRIMARIA)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "chocolate", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de reprobación en primaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de reprobación en primaria (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_26
+
+ggsave("outputs/entrega-corte-1/histogramas/26_reprobacion_primaria.png", p_26,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_26}
+# Boxplot con el rango completo de la variable
+b_26 <- educacion_limpio %>%
+  ggplot(aes(y = REPROBACIÓN_PRIMARIA)) +
+  geom_boxplot(fill = "bisque", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de reprobación en primaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de reprobación en primaria (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_26
+
+ggsave("outputs/entrega-corte-1/boxplots/26_reprobacion_primaria.png", b_26,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución muestra una barra dominante en cero, seguida de un grupo en forma de campana sesgada a la derecha, con su moda entre el 4% y el 5%; la curva de densidad suaviza esa barra. La reprobación en primaria es baja, coherente con las políticas de promoción de los primeros grados, y la acumulación en cero puede reflejar tanto ausencia de reprobados como datos no reportados. El boxplot muestra una caja baja y atípicos superiores.
+
+### 27. REPROBACIÓN_SECUNDARIA: Numérica
+
+#### Histograma
+
+```{r hist_27}
+# Histograma con el rango completo de la variable
+p_27 <- educacion_limpio %>%
+  ggplot(aes(x = REPROBACIÓN_SECUNDARIA)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "sienna", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de reprobación en secundaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de reprobación en secundaria (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_27
+
+ggsave("outputs/entrega-corte-1/histogramas/27_reprobacion_secundaria.png", p_27,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_27}
+# Boxplot con el rango completo de la variable
+b_27 <- educacion_limpio %>%
+  ggplot(aes(y = REPROBACIÓN_SECUNDARIA)) +
+  geom_boxplot(fill = "peachpuff", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de reprobación en secundaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de reprobación en secundaria (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_27
+
+ggsave("outputs/entrega-corte-1/boxplots/27_reprobacion_secundaria.png", b_27,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma está sesgado a la derecha y es más disperso y con una cola más larga que el de primaria, con la moda entre el 7% y el 9%, y llega a los valores extremos más altos de la reprobación. Esto es coherente con que la exigencia académica y la reprobación aumentan en la secundaria. Se aprecia una barra dominante en cero que puede incluir datos no reportados, y el boxplot es más ancho, con atípicos superiores.
+
+### 28. REPROBACIÓN_MEDIA: Numérica
+
+#### Histograma
+
+```{r hist_28}
+# Histograma con el rango completo de la variable
+p_28 <- educacion_limpio %>%
+  ggplot(aes(x = REPROBACIÓN_MEDIA)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "peru", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de reprobación en educación media",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de reprobación en media (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_28
+
+ggsave("outputs/entrega-corte-1/histogramas/28_reprobacion_media.png", p_28,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_28}
+# Boxplot con el rango completo de la variable
+b_28 <- educacion_limpio %>%
+  ggplot(aes(y = REPROBACIÓN_MEDIA)) +
+  geom_boxplot(fill = "wheat", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de reprobación en educación media",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de reprobación en media (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_28
+
+ggsave("outputs/entrega-corte-1/boxplots/28_reprobacion_media.png", b_28,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución es asimétrica hacia la derecha: una barra dominante en cero va seguida de un descenso gradual hacia las tasas altas, y la curva de densidad suaviza esa barra. Con pocos estudiantes en cada municipio, las tasas son muy variables, lo que se ve en un boxplot con numerosos atípicos hacia arriba. Estos reflejan municipios con una proporción elevada de estudiantes que pierden el año.
+
+### 29. REPITENCIA: Numérica
+
+#### Histograma
+
+```{r hist_29}
+# Histograma con el rango completo de la variable
+p_29 <- educacion_limpio %>%
+  ggplot(aes(x = REPITENCIA)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "mediumpurple", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de repitencia total",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de repitencia total (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_29
+
+ggsave("outputs/entrega-corte-1/histogramas/29_repitencia.png", p_29,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_29}
+# Boxplot con el rango completo de la variable
+b_29 <- educacion_limpio %>%
+  ggplot(aes(y = REPITENCIA)) +
+  geom_boxplot(fill = "thistle", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de repitencia total",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de repitencia total (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_29
+
+ggsave("outputs/entrega-corte-1/boxplots/29_repitencia.png", b_29,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma está sesgado a la derecha: una barra marcada en cero va seguida de un descenso continuo hacia las tasas altas, con una cola que termina en pocos valores extremos, y la curva de densidad suaviza esa barra. La cola puede estar ensanchada porque el indicador agrupa periodos con niveles distintos, ya que sus valores son más altos en los últimos años. El boxplot muestra una caja baja y atípicos superiores.
+
+### 30. REPITENCIA_TRANSICIÓN: Numérica
+
+#### Histograma
+
+```{r hist_30}
+# Histograma con escala Y acotada mediante coord_cartesian
+p_30 <- educacion_limpio %>%
+  ggplot(aes(x = REPITENCIA_TRANSICIÓN)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "purple", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  coord_cartesian(ylim = c(0, 2000)) +
+  labs(
+    title = "Distribución de la tasa de repitencia en transición",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de repitencia en transición (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros. Eje Y acotado a 2.000 registros para mejorar la visibilidad."
+  ) +
+  theme_minimal()
+
+p_30
+
+ggsave("outputs/entrega-corte-1/histogramas/30_repitencia_transicion.png", p_30,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_30}
+# Boxplot con el rango completo de la variable
+b_30 <- educacion_limpio %>%
+  ggplot(aes(y = REPITENCIA_TRANSICIÓN)) +
+  geom_boxplot(fill = "plum", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de repitencia en transición",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de repitencia en transición (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_30
+
+ggsave("outputs/entrega-corte-1/boxplots/30_repitencia_transicion.png", b_30,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución se concentra en cero: cerca de la mitad de los registros tiene tasa nula y el resto desciende rápidamente hacia la derecha, hasta algunos valores extremos; la curva de densidad suaviza la barra en cero. El boxplot tiene la caja colapsada en cero y una columna continua de atípicos superiores. Es el nivel con mayor proporción de registros en cero, lo que es esperable porque en preescolar no se reprueban grados ni actividades (Decreto 2247 de 1997, art. 10), de modo que casi no hay razones académicas para repetir. Los valores positivos corresponden a municipios donde, aun así, hay estudiantes que cursan de nuevo el grado.
+
+### 31. REPITENCIA_PRIMARIA: Numérica
+
+#### Histograma
+
+```{r hist_31}
+# Histograma con el rango completo de la variable
+p_31 <- educacion_limpio %>%
+  ggplot(aes(x = REPITENCIA_PRIMARIA)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "darkviolet", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de repitencia en primaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de repitencia en primaria (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_31
+
+ggsave("outputs/entrega-corte-1/histogramas/31_repitencia_primaria.png", p_31,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_31}
+# Boxplot con el rango completo de la variable
+b_31 <- educacion_limpio %>%
+  ggplot(aes(y = REPITENCIA_PRIMARIA)) +
+  geom_boxplot(fill = "orchid", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de repitencia en primaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de repitencia en primaria (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_31
+
+ggsave("outputs/entrega-corte-1/boxplots/31_repitencia_primaria.png", b_31,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma está sesgado a la derecha, con la mayoría de los municipios con repitencia baja y una cola larga que termina en pocos valores extremos. La barra marcada en cero indica registros sin repitentes, y la cola alta señala municipios donde repetir es frecuente; la curva de densidad suaviza esa barra. Los valores del indicador son más altos en los últimos años, lo que ensancha la cola. El boxplot muestra atípicos superiores.
+
+### 32. REPITENCIA_SECUNDARIA: Numérica
+
+#### Histograma
+
+```{r hist_32}
+# Histograma con el rango completo de la variable
+p_32 <- educacion_limpio %>%
+  ggplot(aes(x = REPITENCIA_SECUNDARIA)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, fill = "blueviolet", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.01), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de repitencia en secundaria",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 1 punto porcentual",
+    x = "Tasa de repitencia en secundaria (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_32
+
+ggsave("outputs/entrega-corte-1/histogramas/32_repitencia_secundaria.png", p_32,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_32}
+# Boxplot con el rango completo de la variable
+b_32 <- educacion_limpio %>%
+  ggplot(aes(y = REPITENCIA_SECUNDARIA)) +
+  geom_boxplot(fill = "mediumorchid", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de repitencia en secundaria",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de repitencia en secundaria (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_32
+
+ggsave("outputs/entrega-corte-1/boxplots/32_repitencia_secundaria.png", b_32,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+La distribución es sesgada a la derecha, más dispersa que la de primaria, con una cola más larga, una barra marcada en cero y una caja más amplia. Es coherente con que la repitencia aumenta en la adolescencia, cuando la mayor exigencia académica y las dificultades de permanencia incrementan la probabilidad de repetir. La curva de densidad suaviza la barra en cero, y los atípicos superiores señalan municipios con una carga elevada de repitentes.
+
+### 33. REPITENCIA_MEDIA: Numérica
+
+#### Histograma
+
+```{r hist_33}
+# Histograma con el rango completo de la variable
+p_33 <- educacion_limpio %>%
+  ggplot(aes(x = REPITENCIA_MEDIA)) +
+  geom_histogram(binwidth = 0.005, boundary = 0, fill = "blue", color = "white", linewidth = 0.15) +
+  geom_density(aes(y = after_stat(count) * 0.005), bounds = c(0, Inf), color = "black", linewidth = 0.8) +
+  scale_x_continuous(labels = scales::label_percent(accuracy = 1)) +
+  scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Distribución de la tasa de repitencia en educación media",
+    subtitle = "Cada barra agrupa registros municipio-año en intervalos de 0,5 puntos porcentuales",
+    x = "Tasa de repitencia en media (% de estudiantes)",
+    y = "Número de registros (municipio-año)",
+    caption = "La curva negra es la densidad de kernel, escalada al número de registros."
+  ) +
+  theme_minimal()
+
+p_33
+
+ggsave("outputs/entrega-corte-1/histogramas/33_repitencia_media.png", p_33,
+       width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+#### Boxplot
+
+```{r box_33}
+# Boxplot con el rango completo de la variable
+b_33 <- educacion_limpio %>%
+  ggplot(aes(y = REPITENCIA_MEDIA)) +
+  geom_boxplot(fill = "violet", color = "black", alpha = 0.7) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1)) +
+  labs(
+    title = "Boxplot de la tasa de repitencia en educación media",
+    subtitle = "La caja contiene el 50% central de los registros; los puntos son valores atípicos",
+    y = "Tasa de repitencia en media (% de estudiantes)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+b_33
+
+ggsave("outputs/entrega-corte-1/boxplots/33_repitencia_media.png", b_33,
+       width = 6, height = 6, dpi = 300, bg = "white")
+```
+
+El histograma se concentra cerca de cero, con una barra muy alta en ese valor y una cola hacia la derecha que termina en pocos valores extremos; la curva de densidad suaviza esa barra. El boxplot es bajo y estrecho, pero presenta un grupo numeroso de atípicos superiores. Es coherente con que, en los últimos grados, muchos estudiantes que no aprueban abandonan en lugar de repetir, de modo que la repitencia es baja frente a la reprobación. Los valores altos corresponden a municipios con una alta proporción de estudiantes que repiten.
+
+## 3. Análisis Descriptivo y Medidas de Tendencia Central
+
+Se calcularon el mínimo, primer cuartil ($Q_1$), mediana, media, tercer cuartil ($Q_3$), máximo y desviación estándar para la totalidad de las variables numéricas. Estos estadísticos se obtienen a partir de la muestra completa del conjunto de datos limpio ($N = 13.802$), sin aplicar los filtros o recortes visuales empleados en las gráficas de población, lo que garantiza una caracterización fiel de las distribuciones poblacionales e indicadores del sector.
+
+```{r estadisticos_descriptivos}
+# Construcción de la tabla de estadísticos descriptivos agregados mediante dplyr y tidyr
+tabla_descriptiva <- educacion_limpio %>%
+  # Selección de columnas numéricas continuas
+  select(where(is.numeric)) %>%
+  # Transposición de formato ancho a largo para facilitar el agrupamiento
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Valor") %>%
+  # Agrupamiento por variable analizada
+  group_by(Variable) %>%
+  # Cálculo de estadísticos descriptivos robustos y paramétricos
+  summarise(
+    Minimo = min(Valor, na.rm = TRUE),
+    Q1 = quantile(Valor, 0.25, na.rm = TRUE),
+    Mediana = median(Valor, na.rm = TRUE),
+    Media = mean(Valor, na.rm = TRUE),
+    Q3 = quantile(Valor, 0.75, na.rm = TRUE),
+    Maximo = max(Valor, na.rm = TRUE),
+    Desviacion_Estandar = sd(Valor, na.rm = TRUE)
+  )
+
+# Renderizado de la tabla descriptiva formateada con kable
+kable(
+  tabla_descriptiva,
+  digits = 3,
+  row.names = FALSE,
+  col.names = c("Variable", "Mínimo", "Q1", "Mediana", "Media", "Q3", "Máximo", "Desviación Estándar"),
+  caption = "Estadísticos descriptivos de los indicadores educativos"
+)
+```
+
+La variable POBLACIÓN_5_16 exhibe una discrepancia severa entre sus medidas de tendencia central: la mediana se ubica en aproximadamente 3.242 habitantes, mientras que la media aritmética asciende a 9.399. Esta divergencia evidencia una asimetría positiva muy pronunciada hacia la derecha, impulsada por un grupo reducido de nodos urbanos y capitales de gran tamaño poblacional que desplazan el promedio aritmético.
+
+En los indicadores de cobertura se aprecian brechas estructurales a medida que se avanza en la trayectoria académica. Mientras la cobertura neta general presenta una mediana del 86,2%, la cobertura neta en educación media cae a una mediana del 42,0%, confirmando la pérdida progresiva de absorción del sistema educativo en los últimos grados.
+
+Respecto a las métricas de eficiencia escolar, las medianas de deserción (3,2%), reprobación (4,9%) y repitencia (2,7%) se mantienen en niveles moderados frente a la tasa de aprobación (91,6%). En las tasas de ineficiencia (deserción, reprobación y repitencia), la media supera sistemáticamente a la mediana, validando la asimetría hacia la derecha observada en los histogramas. Por el contrario, en las coberturas netas y en la tasa de aprobación, la media es ligeramente menor que la mediana a causa de la cola extendida hacia valores bajos.
+
+Finalmente, los valores máximos de varias coberturas superan el 100%, y las tasas de ineficiencia registran máximos atípicos sustancialmente alejados de la masa central. Esta presencia de registros extremos justifica el uso de la mediana y del rango intercuartílico ($IQR$) como estimadores robustos de localización y dispersión para los análisis subsiguientes.
+
+## 4. Análisis de Valores Atípicos
+
+Para la detección de observaciones atípicas en el plano univariado, se aplicó la regla del rango intercuartílico ($IQR$). Bajo este criterio, un registro se clasifica como atípico si se localiza por debajo de $Q_1 - 1,5 \times IQR$ (atípico inferior) o por encima de $Q_3 + 1,5 \times IQR$ (atípico superior). Estos umbrales coinciden conceptualmente con los bigotes de los diagramas de caja presentados previamente, evaluados sobre la muestra completa sin filtros.
+
+```{r atipicos_iqr}
+# Identificación de los nombres de todas las variables numéricas del dataset limpio
+variables_numericas <- educacion_limpio %>% 
+  select(where(is.numeric)) %>% 
+  names()
+
+# Función iterativa para calcular límites IQR y contar valores atípicos inferiores y superiores
+atipicos_iqr <- sapply(
+  educacion_limpio[variables_numericas],
+  function(x) {
+    q1 <- quantile(x, 0.25, na.rm = TRUE)
+    q3 <- quantile(x, 0.75, na.rm = TRUE)
+    iqr <- q3 - q1
+    limite_inferior <- q1 - 1.5 * iqr
+    limite_superior <- q3 + 1.5 * iqr
+
+    c(
+      Inferiores = sum(x < limite_inferior, na.rm = TRUE),
+      Superiores = sum(x > limite_superior, na.rm = TRUE)
+    )
+  }
+)
+
+# Estructuración de los resultados en un data.frame consolidado
+tabla_atipicos_indicadores <- data.frame(
+  Variable = colnames(atipicos_iqr),
+  Inferiores = atipicos_iqr["Inferiores", ],
+  Superiores = atipicos_iqr["Superiores", ]
+)
+
+# Cálculo del conteo total de atípicos y del porcentaje sobre la muestra operativa
+tabla_atipicos_indicadores$N_atipicos <-
+  tabla_atipicos_indicadores$Inferiores + tabla_atipicos_indicadores$Superiores
+tabla_atipicos_indicadores$Porcentaje <-
+  round(tabla_atipicos_indicadores$N_atipicos / nrow(educacion_limpio) * 100, 2)
+
+# Ordenamiento descendente según la cantidad total de valores atípicos
+tabla_atipicos_indicadores <- tabla_atipicos_indicadores[
+  order(-tabla_atipicos_indicadores$N_atipicos),
+]
+
+# Impresión formateada de la tabla con kable
+kable(
+  tabla_atipicos_indicadores,
+  col.names = c("Variable", "Inferiores", "Superiores", "N.º de atípicos", "Porcentaje (%)"),
+  format.args = list(decimal.mark = ","),
+  row.names = FALSE,
+  caption = "Cantidad de valores atípicos por variable según el criterio IQR"
+)
+```
+
+La proporción de valores atípicos varía entre el 0,75% y el 10,91% de los registros según la variable analizada. Las concentraciones más altas corresponden a la repitencia en transición (10,91%) y a la población de 5 a 16 años (9,65%), caracterizadas por presentar atípicos exclusivamente en el extremo superior. En la repitencia en transición, dado que cerca del 50% de los registros toma el valor cero, el límite superior teórico se comprime cerca del 3%, provocando que valores moderados sean catalogados formalmente como atípicos. En la dimensión demográfica, los atípicos identifican la jerarquía de las grandes metrópolis colombianas.
+
+En los indicadores de cobertura y matriculación, la incidencia de atípicos oscila entre el 1,5% y el 4,4%, distribuyéndose en ambos extremos. En la cobertura neta general y en secundaria predominan los atípicos inferiores (municipios con rezago severo de acceso), mientras que en la cobertura bruta de transición, primaria y media prevalecen los atípicos superiores, reflejando el volumen de estudiantes en extraedad que sobrepasan la población teórica de referencia. En contraste, en los indicadores de aprobación, la totalidad de atípicos es inferior (0,75% a 2,37%), dado el límite natural del 100% en la cota superior.
+
+En las tasas de deserción, reprobación y repitencia, todos los atípicos detectados son superiores (entre 0,81% y 3,85%, salvo transición), registrándose la máxima frecuencia en la deserción de educación media. Como patrón general, los indicadores desagregados por nivel educativo presentan mayor dispersión y número de atípicos que sus agregados totales, consecuencia del menor tamaño muestral por municipio en cada nivel.
+
+### Consideraciones Metodológicas sobre los Atípicos
+
+* **Conservación de Observaciones:** Ningún registro atípico fue removido del conjunto de datos. En analítica territorial, la heterogeneidad poblacional y los picos de ineficiencia suelen corresponder a realidades socioeconómicas válidas, aunque algunos valores (ceros que parecen datos no reportados, coberturas superiores al 100%) pueden ser errores de registro. Esta distinción se retoma en el análisis multivariado
+
+* **Limitaciones del Límite Inferior:** En las tasas acotadas en cero (deserción, reprobación y repitencia), el cálculo del límite inferior ($Q_1 - 1,5 \times IQR$) resulta negativo. Esto impide identificar estadísticamente los valores nulos (`0%`) como atípicos inferiores, a pesar de que algunos responden a vacíos en el reporte administrativo.
+
+* **Lectura Longitudinal:** Al aplicar el criterio IQR sobre la muestra panel consolidada (2011–2024), parte de la atipicidad observada se explica por transformaciones estructurales a lo largo del tiempo y no únicamente por variabilidad transversal entre municipios.
+
+* **Inconsistencias y Valores $>100\%$:** Como se estableció en el marco inicial, los registros donde la cobertura neta o la tasa de matriculación superan el 100% responden a desfases entre el SIMAT y las proyecciones poblacionales del DANE. Dado que no es posible atribuir con certeza la inconsistencia al numerador o al denominador, se conservan intactos para preservar la integridad de la serie histórica.
+
