@@ -98,7 +98,7 @@ write.csv(
 
 **Cliente:** Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.  
 **Decisión estratégica:** Clasificar y priorizar municipios para la asignación de fondos extraordinarios de infraestructura y programas de tutoría.  
-**Pregunta de fondo:** ¿Basta un único índice sintético ($PC_1$) para rankear los territorios, o se pierden realidades críticas al mezclar escala demográfica, cobertura y rezago académico?  
+**Pregunta de fondo:** ¿Basta un único índice sintético ($PC_1$) para rankear los territorios, o se pierden realidades críticas, como un municipio con buen acceso y mala permanencia, o el tamaño del municipio?  
 **Datos:** `data/raw/educacion_limpio.csv` — 13.802 registros municipio-año (2011–2024), 33 columnas, sin valores faltantes.  
 **Grupo de interés (costo de error):** registros con **alta deserción escolar** (`DESERCIÓN` > 0,065, que deja al 8,3 % de los registros con mayor deserción) o **baja cobertura neta** (`COBERTURA_NETA` ≤ 0,60).
 
@@ -394,7 +394,7 @@ knitr::kable(
 
 **Qué ve:** En $PC_1$ todas las variables de desempeño pesan en la misma dirección: cobertura neta media (0,52), aprobación (0,50) y cobertura neta (0,41) en positivo; deserción (-0,49) y repitencia (-0,29) en negativo; la población casi no pesa (0,06). En $PC_2$ la cobertura neta (-0,59), la cobertura neta media (-0,46) y la deserción (-0,39) van en un sentido y la aprobación (0,47) en el contrario. En $PC_3$ pesa casi solo la población (0,98).
 
-**Qué significa para el cliente:** $PC_1$ se puede leer como el **funcionamiento educativo general**: sube cuando hay más acceso y más aprobación, y baja cuando hay más deserción y repitencia. $PC_2$ contrapone el **acceso frente a la permanencia y la aprobación**: separa a los municipios con mucha cobertura pero también mucha deserción de los que tienen poca cobertura pero buena aprobación. $PC_3$ es el **tamaño del municipio**: no mide desempeño, y por sí sola explica el `r fnum(varianza_df$pct_varianza[3])` % de la información. El signo de cada componente es arbitrario; aquí $PC_1$ quedó con el signo en que positivo es mejor.
+**Qué significa para el cliente:** $PC_1$ se puede leer como el **funcionamiento educativo general**: sube cuando hay más acceso y más aprobación, y baja cuando hay más deserción y repitencia. $PC_2$ contrapone el **acceso frente a la permanencia y la aprobación**: separa a los municipios con mucha cobertura pero también mucha deserción de los que tienen poca cobertura pero buena aprobación. $PC_3$ es el **tamaño del municipio**: no mide desempeño, y por sí sola explica el `r fnum(varianza_df$pct_varianza[3])` % de la información. El signo de cada componente es arbitrario; aquí $PC_1$ quedó con el signo en que positivo es mejor. Los nombres los pusimos nosotros mirando los pesos: otro analista podría nombrarlos distinto, y no dicen que exista una causa detrás, solo que las variables se mueven juntas. $PC_2$ es un contraste entre dos grupos de variables (cobertura y deserción de un lado, aprobación del otro), no una variable por su cuenta.
 
 **Qué decide él:** Usa $PC_1$ para ordenar el desempeño general, $PC_2$ para encontrar municipios donde el acceso y la permanencia van en direcciones opuestas, y $PC_3$ solo como contexto de tamaño, nunca para decir que un municipio está mejor o peor. No debe promediar los componentes en un único índice, porque cada uno responde una pregunta distinta.
 
@@ -515,3 +515,253 @@ Entre los `r n_falsos_negativos` que se escapan hay dos tipos de casos. Unos tie
 **Qué decide él:** Un solo número no le basta si solo puede atender a un grupo del tamaño del de interés: `r round(100 - pct_igual)` de cada 100 quedarían por fuera. Debe reportar al menos dos: PC1, el funcionamiento general, y PC2, que contrapone el acceso con la permanencia (punto 5) y es el segundo componente que retiene Kaiser (punto 4). Para los registros cercanos al límite de 60 % de cobertura, debe revisar directamente la cobertura neta, sin depender de ningún componente.
 
 ---
+
+### Costo por criterio: ¿a quiénes deja por fuera PC1 en cada fondo?
+
+El cliente tiene dos fondos: infraestructura, que responde al acceso (cobertura), y tutoría, que responde a la permanencia (deserción, aprobación y repitencia). Para cada criterio se toma el 20 % peor de los registros y se cuenta cuántos de ellos están también en el 20 % más bajo de PC1, que es el mismo tamaño.
+
+```{r costo-criterios, fig.show='hide'}
+peor20 <- function(v, alto_es_malo) {
+  if (alto_es_malo) v >= quantile(v, 0.80) else v <= quantile(v, 0.20)
+}
+criterios <- data.frame(
+  variable  = c("COBERTURA_NETA", "COBERTURA_NETA_MEDIA", "DESERCIÓN", "APROBACIÓN", "REPITENCIA"),
+  alto_malo = c(FALSE, FALSE, TRUE, FALSE, TRUE),
+  fondo     = c("Infraestructura (acceso)", "Infraestructura (acceso)",
+                "Tutoría (permanencia)", "Tutoría (permanencia)", "Tutoría (permanencia)"),
+  stringsAsFactors = FALSE
+)
+pc1_bajo <- educ_scores$PC1 <= quantile(educ_scores$PC1, 0.20)
+
+costo_criterios <- do.call(rbind, lapply(seq_len(nrow(criterios)), function(i) {
+  necesita <- peor20(educ_scores[[criterios$variable[i]]], criterios$alto_malo[i])
+  data.frame(
+    variable     = criterios$variable[i],
+    fondo        = criterios$fondo[i],
+    lo_necesitan = sum(necesita),
+    pc1_los_ve   = sum(necesita & pc1_bajo),
+    por_fuera    = sum(necesita & !pc1_bajo),
+    de_cada_100  = round(100 * sum(necesita & !pc1_bajo) / sum(necesita), 1)
+  )
+}))
+write.csv(costo_criterios, file.path(dir_tablas, "costo_por_criterio.csv"), row.names = FALSE)
+```
+
+```{r kable-costo-criterios}
+knitr::kable(
+  costo_criterios,
+  format = "pipe",
+  col.names = c("Criterio (el 20 % peor)", "Fondo", "Lo necesitan", "PC1 los ve",
+                "Se quedan por fuera", "De cada 100 por fuera"),
+  format.args = list(big.mark = ".", decimal.mark = ","),
+  caption = "Del 20 % peor de cada indicador, cuántos están en el 20 % más bajo de PC1 y cuántos se quedan por fuera."
+)
+```
+
+**Qué ve:** Si se toma el 20 % peor de cada indicador, PC1 deja por fuera entre `r fnum(min(costo_criterios$de_cada_100), 0)` y `r fnum(max(costo_criterios$de_cada_100), 0)` de cada 100: lo más alto en `r costo_criterios$variable[which.max(costo_criterios$de_cada_100)]` (`r fnum(max(costo_criterios$de_cada_100), 0)` de cada 100) y lo más bajo en `r costo_criterios$variable[which.min(costo_criterios$de_cada_100)]` (`r fnum(min(costo_criterios$de_cada_100), 0)` de cada 100).
+
+**Qué significa para el cliente:** En los indicadores de acceso (infraestructura) se quedan por fuera `r fnum(costo_criterios$de_cada_100[1], 0)` y `r fnum(costo_criterios$de_cada_100[2], 0)` de cada 100; en los de permanencia (tutoría), `r fnum(costo_criterios$de_cada_100[3], 0)`, `r fnum(costo_criterios$de_cada_100[4], 0)` y `r fnum(costo_criterios$de_cada_100[5], 0)` de cada 100. Es la información que un solo número esconde, y el costo no es el mismo en todos los criterios.
+
+**Qué decide él:** Si asignara un fondo mirando solo PC1, dejaría por fuera al menos `r fnum(min(costo_criterios$de_cada_100), 0)` de cada 100 de quienes más lo necesitan según ese criterio. Para decidir quién recibe cada fondo debe mirar directamente el indicador de ese fondo, y usar PC1 solo para ordenar el funcionamiento general.
+
+---
+
+## 7. Con y sin one-hot para variables categóricas
+
+One-hot de los más de mil municipios es pesado y probablemente poco útil, así que se prueban tres caminos y se comparan con la versión sin categóricas. Todas están estandarizadas (`scale. = TRUE`, la misma decisión del punto 3), y en las tres con categóricas el año entra en one-hot (14 columnas):
+
+- **Sin categóricas:** solo las 6 variables numéricas, la versión de los puntos 1 a 6.
+- **Departamentos y municipios en one-hot:** una columna por cada departamento y por cada municipio.
+- **Departamentos en one-hot y municipio con su código:** una columna por departamento y una sola columna con el código DANE del municipio, estandarizada.
+- **Códigos de departamento y de municipio:** dos columnas, los códigos DANE estandarizados.
+
+Estandarizar un código no lo vuelve una cantidad: el código sigue siendo una etiqueta y estandarizarlo le inventa un orden. Se incluye porque es una de las alternativas pedidas y porque comparar es la forma de ver cuánto cuesta.
+
+El Corte 1 descartó los códigos DANE al limpiar los datos, así que aquí se recuperan del archivo crudo con la misma normalización de nombres.
+
+```{r one-hot, fig.show='hide'}
+# ---- Códigos DANE: se recuperan del archivo crudo (el Corte 1 los descartó) ----
+crudo <- read.csv(file.path(project_root, "data", "raw", "educacion.csv"),
+                  check.names = FALSE, stringsAsFactors = FALSE)
+
+codigos <- crudo %>%
+  mutate(
+    DEPARTAMENTO = case_when(
+      grepl("^Bogot", DEPARTAMENTO)   ~ "Bogotá D.C.",
+      grepl("^Archipi", DEPARTAMENTO) ~ "Archipiélago de San Andrés, Providencia y Santa Catalina",
+      TRUE ~ DEPARTAMENTO
+    ),
+    MUNICIPIO = if_else(MUNICIPIO == "Bogotá, D.C.", "Bogotá D.C.", MUNICIPIO)
+  ) %>%
+  distinct(DEPARTAMENTO, MUNICIPIO, CÓDIGO_DEPARTAMENTO, CÓDIGO_MUNICIPIO)
+
+# Cada pareja departamento-municipio debe tener un solo código
+stopifnot(!anyDuplicated(codigos[, c("DEPARTAMENTO", "MUNICIPIO")]))
+
+educ_cod <- educ %>% left_join(codigos, by = c("DEPARTAMENTO", "MUNICIPIO"))
+stopifnot(nrow(educ_cod) == nrow(educ), !anyNA(educ_cod$CÓDIGO_MUNICIPIO))
+
+n_municipios <- dplyr::n_distinct(educ_cod$CÓDIGO_MUNICIPIO)
+n_deptos     <- dplyr::n_distinct(educ_cod$CÓDIGO_DEPARTAMENTO)
+
+# ---- Matrices de cada versión ----
+cats <- data.frame(
+  anio      = factor(educ_cod$AÑO),
+  depto     = factor(educ_cod$CÓDIGO_DEPARTAMENTO),
+  municipio = factor(educ_cod$CÓDIGO_MUNICIPIO)
+)
+
+# One-hot con todos los niveles (una columna por categoría)
+one_hot <- function(df) {
+  model.matrix(~ . - 1, data = df, contrasts.arg = lapply(df, contrasts, contrasts = FALSE))
+}
+
+X_num  <- as.matrix(sub)
+X_anio <- one_hot(cats["anio"])
+
+X_v1 <- cbind(X_num, X_anio, one_hot(cats["depto"]), one_hot(cats["municipio"]))
+X_v2 <- cbind(X_num, X_anio, one_hot(cats["depto"]), cod_municipio = educ_cod$CÓDIGO_MUNICIPIO)
+X_v3 <- cbind(X_num, X_anio, cod_departamento = educ_cod$CÓDIGO_DEPARTAMENTO,
+              cod_municipio = educ_cod$CÓDIGO_MUNICIPIO)
+for (nm in c("X_v1", "X_v2", "X_v3")) {
+  m <- get(nm); rownames(m) <- NULL; assign(nm, m)
+}
+
+# Este bloque puede tardar: la primera versión tiene más de mil columnas
+pcas <- list(
+  `Sin categóricas`                      = pca_scale,
+  `Deptos y municipios en one-hot`       = prcomp(X_v1, center = TRUE, scale. = TRUE),
+  `Deptos en one-hot, municipio con código` = prcomp(X_v2, center = TRUE, scale. = TRUE),
+  `Códigos de depto y municipio`         = prcomp(X_v3, center = TRUE, scale. = TRUE)
+)
+
+# ---- Métricas de cada versión ----
+grupo <- educ$DESERCIÓN > 0.065 | educ$COBERTURA_NETA <= 0.60   # mismo grupo del punto 6
+n_vuln_oh <- sum(grupo)
+
+# Signo: COBERTURA_NETA con peso positivo en cada componente, como en el resto del taller
+score_de <- function(p, k) p$x[, k] * (if (p$rotation["COBERTURA_NETA", k] < 0) -1 else 1)
+pc1_base <- score_de(pcas[[1]], 1)
+pc2_base <- score_de(pcas[[1]], 2)
+
+metricas_version <- function(p) {
+  ev  <- p$sdev^2
+  pct <- ev / sum(ev) * 100
+  ac  <- cumsum(pct)
+  pc1 <- score_de(p, 1)
+  corte_igual <- sort(pc1)[n_vuln_oh]
+  data.frame(
+    columnas  = length(ev),
+    pct_pc1   = pct[1],
+    pct_pc12  = ac[2],
+    n80       = which(ac >= 80)[1],
+    n_kaiser  = sum(ev > 1),
+    peso_num1 = sum(p$rotation[vars, 1]^2) * 100,
+    peso_num2 = sum(p$rotation[vars, 2]^2) * 100,
+    cor_pc1   = abs(cor(pc1, pc1_base)),
+    cor_pc2   = abs(cor(score_de(p, 2), pc2_base)),
+    pct_enc   = sum(grupo & pc1 <= 0) / n_vuln_oh * 100,
+    marcados  = sum(pc1 <= 0),
+    pct_igual = sum(grupo & pc1 <= corte_igual) / n_vuln_oh * 100
+  )
+}
+res <- do.call(rbind, lapply(pcas, metricas_version))
+res$version <- names(pcas)
+write.csv(res, file.path(dir_tablas, "comparacion_one_hot.csv"), row.names = FALSE)
+
+# Mejor y peor de las tres versiones con categóricas (índices 2 a 4)
+con_cat   <- 2:4
+i_menos   <- con_cat[which.min(res$columnas[con_cat])]    # menos columnas
+i_mas_inf <- con_cat[which.max(res$pct_pc12[con_cat])]    # más información en PC1 y PC2
+i_mas_col <- con_cat[which.max(res$columnas[con_cat])]    # más columnas
+
+# Pesos de las 6 numéricas en PC1 de cada versión
+pesos_pc1 <- sapply(pcas, function(p) {
+  p$rotation[vars, 1] * (if (p$rotation["COBERTURA_NETA", 1] < 0) -1 else 1)
+})
+colnames(pesos_pc1) <- c("Sin categóricas", "Deptos y municipios one-hot",
+                         "Deptos one-hot + código municipio", "Códigos depto y municipio")
+write.csv(pesos_pc1, file.path(dir_tablas, "pesos_pc1_one_hot.csv"))
+
+# Información acumulada por número de componentes
+acum_df <- do.call(rbind, lapply(names(pcas), function(k) {
+  ev <- pcas[[k]]$sdev^2
+  data.frame(version = k, componente = seq_along(ev), acumulado = cumsum(ev / sum(ev) * 100))
+}))
+acum_df$version <- factor(acum_df$version, levels = names(pcas))
+
+fig_oh <- file.path(dir_figuras, "comparacion_one_hot.png")
+p_oh <- ggplot(acum_df, aes(x = componente, y = acumulado, color = version)) +
+  geom_line(linewidth = 1) +
+  geom_hline(yintercept = 80, linetype = "dashed", color = "#c44e52") +
+  scale_x_log10() +
+  scale_color_brewer(palette = "Dark2", name = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom", legend.direction = "vertical") +
+  labs(
+    title = "Cuántos componentes hacen falta en cada versión",
+    subtitle = "Línea punteada: 80 % de la información. El eje horizontal está en escala logarítmica",
+    x = "Número de componentes (escala logarítmica)",
+    y = "% de información acumulado"
+  )
+ggsave(fig_oh, plot = p_oh, width = 8, height = 6.5, dpi = 150)
+```
+
+```{r kable-one-hot}
+tabla_oh <- data.frame(
+  Métrica = c("Columnas que entran al PCA",
+              "% de información de PC1",
+              "% de información de PC1 y PC2",
+              "Componentes para llegar al 80 %",
+              "Componentes con autovalor mayor que 1 (criterio de Kaiser)",
+              "% de PC1 que viene de las 6 variables numéricas",
+              "% de PC2 que viene de las 6 variables numéricas",
+              "Correlación de PC1 con el PC1 sin categóricas",
+              "Correlación de PC2 con el PC2 sin categóricas",
+              "Del grupo de interés, encontrados con PC1 ≤ 0 (%)",
+              "Registros marcados «en atención» con PC1 ≤ 0",
+              "A igual tamaño del grupo, encontrados (%)"),
+  check.names = FALSE
+)
+for (i in seq_len(nrow(res))) {
+  r <- res[i, ]
+  tabla_oh[[r$version]] <- c(
+    fint(r$columnas), fnum(r$pct_pc1, 2), fnum(r$pct_pc12, 2), fint(r$n80), fint(r$n_kaiser),
+    fnum(r$peso_num1, 1), fnum(r$peso_num2, 1), fnum(r$cor_pc1, 2), fnum(r$cor_pc2, 2),
+    fnum(r$pct_enc, 1), fint(r$marcados), fnum(r$pct_igual, 1)
+  )
+}
+knitr::kable(
+  tabla_oh,
+  format = "pipe",
+  align = "lrrrr",
+  caption = "Las cuatro versiones del PCA: cuántas columnas usan, cuánta información guardan y cuántos del grupo de interés encuentran con un solo número."
+)
+
+knitr::kable(
+  pesos_pc1,
+  format = "pipe",
+  digits = 3,
+  caption = "Peso de las 6 variables numéricas en PC1 de cada versión (COBERTURA_NETA con signo positivo)."
+)
+```
+
+![Información acumulada según el número de componentes en cada versión.](../../../outputs/taller-pca/componentes-principales-i/figures/comparacion_one_hot.png)
+
+**Qué ve:** Sin categóricas, el PCA usa `r res$columnas[1]` columnas y PC1 guarda `r fnum(res$pct_pc1[1])` % de la información (PC1 y PC2, `r fnum(res$pct_pc12[1])` %); bastan `r res$n80[1]` componentes para pasar del 80 %. Con deptos y municipios en one-hot, usa `r fint(res$columnas[2])` columnas, PC1 guarda `r fnum(res$pct_pc1[2], 2)` % y hacen falta `r fint(res$n80[2])` componentes. Con deptos en one-hot y el código del municipio, usa `r fint(res$columnas[3])` columnas, PC1 guarda `r fnum(res$pct_pc1[3], 2)` % y hacen falta `r fint(res$n80[3])`. Con solo los códigos, usa `r fint(res$columnas[4])` columnas, PC1 guarda `r fnum(res$pct_pc1[4], 2)` % y hacen falta `r fint(res$n80[4])`. La correlación de PC1 con el PC1 sin categóricas es `r fnum(res$cor_pc1[2], 2)`, `r fnum(res$cor_pc1[3], 2)` y `r fnum(res$cor_pc1[4], 2)` en las tres versiones con categóricas. Con PC1 ≤ 0 se encuentra el `r fnum(res$pct_enc[1])` % del grupo de interés sin categóricas y el `r fnum(res$pct_enc[2])` %, `r fnum(res$pct_enc[3])` % y `r fnum(res$pct_enc[4])` % con las tres versiones con categóricas; a igual tamaño del grupo, `r fnum(res$pct_igual[1])` % frente a `r fnum(res$pct_igual[2])` %, `r fnum(res$pct_igual[3])` % y `r fnum(res$pct_igual[4])` %. De PC1, solo entre el `r fnum(min(res$peso_num1[2:4]), 0)` % y el `r fnum(max(res$peso_num1[2:4]), 0)` % viene de las 6 variables educativas, y PC2 se parece poco al original (correlación de `r fnum(min(res$cor_pc2[2:4]), 2)` a `r fnum(max(res$cor_pc2[2:4]), 2)`). Los pesos de las 6 variables en PC1 mantienen sus signos, pero bajan: la cobertura neta pasa de `r fnum(pesos_pc1["COBERTURA_NETA", 1], 2)` a entre `r fnum(min(pesos_pc1["COBERTURA_NETA", 2:4]), 2)` y `r fnum(max(pesos_pc1["COBERTURA_NETA", 2:4]), 2)`.
+
+**Qué significa para el cliente:** Agregar categóricas no solo reparte la información en más componentes: cambia lo que miden. Parte de PC1 pasa a las columnas de año, departamento y municipio, y PC2 deja de ser el mismo componente, por eso se encuentran menos casos del grupo de interés. Entre las tres versiones con categóricas, la de códigos es la que pierde menos con menos columnas (`r fint(res$columnas[4])` columnas y `r fnum(res$pct_pc12[4])` % en PC1 y PC2), pero es la que peor encuentra al grupo y trata un código como si fuera una cantidad; la de municipios en one-hot es la peor relación (`r fint(res$columnas[2])` columnas para `r fnum(res$pct_pc12[2], 2)` %). `r ifelse(all(res$pct_pc12[con_cat] < res$pct_pc12[1]) && all(res$columnas[con_cat] > res$columnas[1]), "Ninguna de las tres supera a la versión sin categóricas: todas usan más columnas y guardan menos información en los dos primeros componentes.", "Alguna versión con categóricas se acerca o supera a la versión sin categóricas en la tabla: revisar cuál y por qué.")`
+
+**Qué decide él:** Decide con el PCA sin categóricas, que resume en pocos números con la menor cantidad de columnas. Si necesita ver cómo cambia el desempeño entre años o territorios, los usa como grupos para comparar sobre ese mismo mapa y no como columnas del PCA.
+
+---
+
+## 8. Conclusión para el cliente
+
+**Un solo número ordena, pero no basta para rankear.** PC1 guarda `r round(varianza_df$pct_varianza[1])` de cada 100 partes de la información (`r round(varianza_df$pct_acumulado[2])` con dos componentes) y hacen falta `r n_comp_80` componentes para pasar de 80.
+
+**Lo que deja por fuera tiene nombre.** Es el contraste entre acceso y permanencia (PC2) y el tamaño del municipio (PC3), que no se mezcla con las tasas porque viene en su propio componente.
+
+**El costo es concreto.** De los `r fint(n_vuln)` registros del grupo de interés, PC1 ≤ 0 encuentra `r fint(n_encontrados)` (`r fnum(100 - pct_fn)` %), pero marca `r fint(n_marcados)` registros (`r fnum(n_marcados / n_total * 100)` % del total). Si solo pudiera atender a tantos registros como tiene el grupo, encontraría `r round(pct_igual)` de cada 100 y se le escaparían `r round(100 - pct_igual)`; y por criterio, PC1 deja por fuera entre `r fnum(min(costo_criterios$de_cada_100), 0)` y `r fnum(max(costo_criterios$de_cada_100), 0)` de cada 100 del 20 % peor.
+
+**La decisión.** PC1 para ordenar el funcionamiento general; cobertura neta y deserción, y los demás indicadores de cada fondo, revisados directamente para asignar infraestructura y tutoría; y PC2 como segundo número cuando se quiera ver si el problema está en el acceso o en la permanencia. Agregar las categóricas al PCA no mejora el resumen (punto 7), así que la decisión se toma con el PCA de las 6 variables numéricas.
