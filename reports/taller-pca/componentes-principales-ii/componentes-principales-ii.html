@@ -1,0 +1,313 @@
+<hr />
+<h2>title: &quot;Taller II – El mapa de su negocio&quot;
+subtitle: &quot;Plano factorial y biplot del Análisis de Componentes Principales (PCA) – Indicadores Educativos Municipales de Colombia (2011–2024)&quot;
+author: &quot;Equipo de trabajo: Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva&quot;
+cliente: &quot;Dirección de Cobertura y Equidad Territorial, Ministerio de Educación Nacional&quot;
+fecha: &quot;Octubre de 2026&quot;
+output: html_document</h2>
+<h1>Taller II – El mapa de su negocio</h1>
+<p><strong>Cliente:</strong> Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.<br />
+<strong>Decisión estratégica:</strong> Ubicar en un mapa factorial los 13.802 registros municipio-año, interpretar las direcciones de los componentes, evaluar si existen grupos naturales o un continuo, verificar si los territorios que el cliente ya conoce se separan, y tomar una decisión operativa por cuadrante.<br />
+<strong>Datos:</strong> mismos 6 variables y 13.802 registros del Taller I, PCA estandarizado (<code>scale. = TRUE</code>).<br />
+<strong>Alerta:</strong> los cuatro registros de Papunaua (Vaupés, 2021–2024) con cobertura neta y aprobación en 0,0 % son fallas de reporte administrativo; se señalan explícitamente en el mapa para no distorsionar la interpretación.</p>
+<hr />
+<h2>1. El mapa y sus direcciones (Plano factorial PC1 vs PC2)</h2>
+<pre><code class="language-r">fig_mapa &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-ii&quot;, &quot;figures&quot;, &quot;mapa_pc1_pc2.png&quot;
+)
+
+p_mapa &lt;- ggplot(educ_scores, aes(x = PC1, y = PC2)) +
+  geom_point(data = subset(educ_scores, !papunaua),
+             aes(color = grupo_vulnerable), alpha = 0.2, size = 0.7) +
+  geom_point(data = subset(educ_scores, papunaua),
+             color = &quot;#d73027&quot;, size = 1.6, shape = 17) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray60&quot;) +
+  geom_hline(yintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray60&quot;) +
+  scale_color_manual(values = c(&quot;FALSE&quot; = &quot;#4c72b0&quot;, &quot;TRUE&quot; = &quot;#c44e52&quot;),
+                     name = &quot;Grupo vulnerable&quot;,
+                     labels = c(&quot;No&quot;, &quot;Sí&quot;)) +
+  theme_minimal() +
+  labs(
+    title = &quot;Plano factorial PC1 vs PC2 – 13.802 registros municipio-año (2011–2024)&quot;,
+    subtitle = &quot;Triángulos rojos: Papunaua (Vaupés), fallas de reporte administrativo 2021–2024&quot;,
+    x = &quot;PC1 – Rendimiento y acceso general (+ mejores condiciones)&quot;,
+    y = &quot;PC2 – Brecha de nivel medio y rezago escolar vs escala demográfica&quot;
+  ) +
+  guides(color = guide_legend(override.aes = list(alpha = 0.8, size = 3)))
+
+ggsave(fig_mapa, plot = p_mapa, width = 8, height = 6, dpi = 150)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  signos_df,
+  format = &quot;pipe&quot;,
+  digits = c(0, 0, 0),
+  caption = &quot;Definición formal del signo de cada componente (+ / -) y la dirección de su polo positivo en el plano factorial.&quot;
+)
+</code></pre>
+<p>Table: Definición formal del signo de cada componente (+ / -) y la dirección de su polo positivo en el plano factorial.</p>
+<p>|componente | signo_aplicado|orientacion_positiva                                                                              |
+|:----------|--------------:|:-------------------------------------------------------------------------------------------------|
+|PC1        |              1|Mejores condiciones educativas: alta cobertura neta y aprobacion, baja desercion y repeticion     |
+|PC2        |             -1|Brecha de nivel medio (cobertura neta media) y rezago escolar contrastados con escala demografica |</p>
+<p><strong>Qué ve:</strong> El plano factorial ubica a los 13.802 registros municipio-año como una nube de puntos centrada en el origen; el eje horizontal es PC1 (rendimiento y acceso general: valores altos = mejor cobertura neta y aprobación, menor deserción y repetición) y el eje vertical es PC2 (brecha de cobertura en grados 10°–11° y rezago escolar contrastados con el tamaño de la población). Los triángulos rojos marcan los cuatro registros de Papunaua (Vaupés, 2021–2024), que caen en el extremo de baja cobertura y aprobación por falla de reporte administrativo, no por desempeño real.</p>
+<p><strong>Qué significa para el cliente:</strong> El cliente tiene un mapa donde cada punto es un municipio en un año concreto (registro municipio-año, no un municipio único). La dirección de cada eje le dice qué mejora o empeora al moverse hacia ese polo, y los casos de Papunaua se identifican visualmente para no confundirlos con municipios de bajo desempeño genuino.</p>
+<p><strong>Qué decide él:</strong> El cliente aprueba la orientación de los ejes (PC1+ = mejores condiciones educativas) y pide que, en toda presentación, se aclare que los puntos son registros municipio-año y que Papunaua se trata de fallas de reporte, para evitar concluir erróneamente que Vaupés es el peor territorio del país por problemas administrativos.</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-ii/figures/mapa_pc1_pc2.png" alt="Plano factorial de observaciones: PC1 vs PC2 de los 13.802 registros municipio-año." /></p>
+<p><strong>Qué ve:</strong> La nube de puntos se extiende más horizontalmente que verticalmente, con concentración cerca del origen y algunos puntos en los extremos. Los puntos rojos (grupo vulnerable) no están confinados a una esquina: aparecen tanto a la izquierda (bajo PC1) como dispersos hacia la derecha, y los triángulos de Papunaua se ubican en el extremo inferior-izquierdo.</p>
+<p><strong>Qué significa para el cliente:</strong> No hay dos nubes separadas y limpias: los municipios buenos y los vulnerables se solapan en buena parte del plano, y la posición de un registro depende de la combinación de sus seis variables, no de una sola etiqueta.</p>
+<p><strong>Qué decide él:</strong> El cliente no asume que el mapa separa automáticamente &quot;buenos municipios&quot; de &quot;malos municipios&quot;; antes de decidir, pide ver el análisis de grupos versus continuo (sección 3) y los cuadrantes de decisión (sección 5).</p>
+<hr />
+<h2>2. El biplot (Vectores de variables + observaciones)</h2>
+<pre><code class="language-r"># Escala de los vectores de variables para que quepan en el plano de los puntos
+scala &lt;- (max(abs(educ_scores$PC1), abs(educ_scores$PC2)) /
+          max(abs(loadings_oriented))) * 0.85
+
+vec_df &lt;- data.frame(
+  variable = rownames(loadings_oriented),
+  x = loadings_oriented[, &quot;PC1&quot;] * scala,
+  y = loadings_oriented[, &quot;PC2&quot;] * scala,
+  check.names = FALSE
+)
+
+fig_biplot &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-ii&quot;, &quot;figures&quot;, &quot;biplot.png&quot;
+)
+
+p_biplot &lt;- ggplot(educ_scores, aes(x = PC1, y = PC2)) +
+  geom_point(alpha = 0.12, size = 0.6, color = &quot;#888888&quot;) +
+  geom_segment(data = vec_df, aes(x = 0, y = 0, xend = x, yend = y),
+               arrow = arrow(length = unit(0.3, &quot;cm&quot;)), color = &quot;#c44e52&quot;, linewidth = 0.9) +
+  geom_text(data = vec_df, aes(x = x, y = y, label = variable),
+            color = &quot;#c44e52&quot;, size = 3.5, vjust = -0.8, fontface = &quot;bold&quot;) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray60&quot;) +
+  geom_hline(yintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray60&quot;) +
+  theme_minimal() +
+  labs(
+    title = &quot;Biplot del PCA estandarizado: vectores de variables y observaciones&quot;,
+    subtitle = &quot;El coseno del ángulo entre vectores aproxima la correlación entre variables&quot;,
+    x = &quot;PC1 – Rendimiento y acceso general&quot;,
+    y = &quot;PC2 – Brecha de nivel medio y rezago escolar vs escala demográfica&quot;
+  )
+ggsave(fig_biplot, plot = p_biplot, width = 8, height = 6, dpi = 150)
+</code></pre>
+<p><strong>Qué ve:</strong> El biplot muestra los vectores de las seis variables (flechas rojas desde el origen) superpuestos a la nube de los 13.802 registros. Los vectores de <code>COBERTURA_NETA</code> y <code>APROBACIÓN</code> apuntan hacia el mismo lado positivo de PC1; los de <code>DESERCIÓN</code> y <code>REPITENCIA</code> apuntan hacia el lado opuesto (PC1 negativo); <code>COBERTURA_NETA_MEDIA</code> y <code>POBLACIÓN_5_16</code> definen principalmente la dirección de PC2.</p>
+<p><strong>Qué significa para el cliente:</strong> El ángulo entre dos vectores aproxima su correlación: vectores que apuntan en la misma dirección se mueven juntos (cobertura neta y aprobación asocian positivamente), vectores opuestos se mueven en sentidos contrarios (deserción se asocia inversamente con aprobación), y vectores ortogonales son aproximadamente independientes (población vs tasas educativas).</p>
+<p><strong>Qué decide él:</strong> El cliente interpreta el biplot como una brújula: al moverse en una dirección del plano está mejorando simultáneamente en las variables cuyos vectores apuntan allí, y empeorando en las de los vectores opuestos. Esto le permite explicar a sus equipos por qué subir cobertura no necesariamente baja deserción en la misma proporción.</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-ii/figures/biplot.png" alt="Biplot del PCA estandarizado: vectores de variables y nube de observaciones." /></p>
+<p><strong>Qué ve:</strong> Las flechas rojas tienen distintas longitudes y direcciones; <code>COBERTURA_NETA</code>, <code>APROBACIÓN</code>, <code>DESERCIÓN</code> y <code>REPITENCIA</code> están alineadas principalmente sobre el eje horizontal, mientras que <code>COBERTURA_NETA_MEDIA</code> y <code>POBLACIÓN_5_16</code> aportan la mayor parte del eje vertical. Ninguna flecha apunta exactamente en la misma dirección que otra, salvo pares casi paralelos.</p>
+<p><strong>Qué significa para el cliente:</strong> El biplot confirma que las seis variables no son equivalentes ni redundantes: cada una tira del plano en una dirección distinta, por lo que el cliente no puede sustituirlas por un solo indicador sin perder información.</p>
+<p><strong>Qué decide él:</strong> El cliente ordena que en los informes territoriales se cite el biplot como justificación visual de por qué se mantienen seis indicadores y no uno solo, y que las flechas se usen para explicar qué combina mejora o empeora al desplazarse en el mapa.</p>
+<hr />
+<h2>3. ¿Grupos o continuo? (Distribución de PC1 y elipses de grupo)</h2>
+<pre><code class="language-r"># Grafico de densidad de PC1 (orientado)
+fig_nube &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-ii&quot;, &quot;figures&quot;, &quot;nube_pc1.png&quot;
+)
+
+p_nube &lt;- ggplot(educ_scores, aes(x = PC1, fill = grupo_vulnerable, color = grupo_vulnerable)) +
+  geom_density(alpha = 0.35, linewidth = 0.9) +
+  geom_rug(data = subset(educ_scores, papunaua),
+           aes(x = PC1), color = &quot;#d73027&quot;, alpha = 0.6, length = unit(0.04, &quot;npc&quot;)) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray50&quot;) +
+  scale_fill_manual(values = c(&quot;FALSE&quot; = &quot;#4c72b0&quot;, &quot;TRUE&quot; = &quot;#c44e52&quot;),
+                    name = &quot;Grupo vulnerable&quot;, labels = c(&quot;No&quot;, &quot;Sí&quot;)) +
+  scale_color_manual(values = c(&quot;FALSE&quot; = &quot;#4c72b0&quot;, &quot;TRUE&quot; = &quot;#c44e52&quot;),
+                     name = &quot;Grupo vulnerable&quot;, labels = c(&quot;No&quot;, &quot;Sí&quot;)) +
+  theme_minimal() +
+  labs(
+    title = &quot;Distribución (densidad) de PC1 – continuo frente a grupos&quot;,
+    subtitle = &quot;Rug rojo: registros de Papunaua (Vaupés), fallas de reporte administrativo&quot;,
+    x = &quot;PC1 – Rendimiento y acceso general&quot;,
+    y = &quot;Densidad&quot;
+  )
+ggsave(fig_nube, plot = p_nube, width = 7, height = 5, dpi = 150)
+
+# Elipses al 90% por departamento (solo departamentos con suficientes registros)
+dept_counts &lt;- educ_scores %&gt;% count(DEPARTAMENTO)
+dept_suficientes &lt;- dept_counts$DEPARTAMENTO[dept_counts$n &gt;= 10]
+educ_elipse &lt;- subset(educ_scores, DEPARTAMENTO %in% dept_suficientes)
+
+fig_elipses &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-ii&quot;, &quot;figures&quot;, &quot;elipses_grupo.png&quot;
+)
+
+p_elipses &lt;- ggplot(educ_elipse, aes(x = PC1, y = PC2, group = DEPARTAMENTO, color = DEPARTAMENTO, fill = DEPARTAMENTO)) +
+  stat_ellipse(type = &quot;norm&quot;, level = 0.90, alpha = 0.12, linewidth = 0.6) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  geom_point(data = subset(educ_elipse, papunaua), color = &quot;#d73027&quot;, size = 1.5, shape = 17) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray60&quot;) +
+  geom_hline(yintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray60&quot;) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;) +
+  labs(
+    title = &quot;Proyección por departamento con elipses de grupo al 90 %&quot;,
+    subtitle = &quot;Triángulos rojos: Papunaua (Vaupés), fallas de reporte administrativo 2021–2024&quot;,
+    x = &quot;PC1 – Rendimiento y acceso general&quot;,
+    y = &quot;PC2 – Brecha de nivel medio y rezago escolar vs escala demográfica&quot;
+  )
+ggsave(fig_elipses, plot = p_elipses, width = 9, height = 6, dpi = 150)
+
+# Metricas de solapamiento de elipses (area de interseccion aproximada por pares cercanos)
+# Se usa la distancia entre centros y el área de cada elipse como metrica de solapamiento relativo.
+elipse_stats &lt;- educ_elipse %&gt;%
+  group_by(DEPARTAMENTO) %&gt;%
+  summarise(
+    n = n(),
+    centro_pc1 = mean(PC1),
+    centro_pc2 = mean(PC2),
+    sd_pc1 = sd(PC1),
+    sd_pc2 = sd(PC2),
+    .groups = &quot;drop&quot;
+  )
+
+# Solapamiento simplificado: par de departamentos con centro mas cercano (indicador de no-separacion)
+library(tidyr)
+pares &lt;- expand.grid(d1 = elipse_stats$DEPARTAMENTO, d2 = elipse_stats$DEPARTAMENTO, stringsAsFactors = FALSE)
+pares &lt;- pares[pares$d1 &lt; pares$d2, ]
+pares &lt;- merge(pares, elipse_stats[, c(&quot;DEPARTAMENTO&quot;, &quot;centro_pc1&quot;, &quot;centro_pc2&quot;)],
+               by.x = &quot;d1&quot;, by.y = &quot;DEPARTAMENTO&quot;)
+pares &lt;- merge(pares, elipse_stats[, c(&quot;DEPARTAMENTO&quot;, &quot;centro_pc1&quot;, &quot;centro_pc2&quot;)],
+               by.x = &quot;d2&quot;, by.y = &quot;DEPARTAMENTO&quot;,
+               suffixes = c(&quot;_1&quot;, &quot;_2&quot;))
+pares$dist_centros &lt;- sqrt((pares$centro_pc1_1 - pares$centro_pc1_2)^2 +
+                           (pares$centro_pc2_1 - pares$centro_pc2_2)^2)
+pares &lt;- pares %&gt;% arrange(dist_centros) %&gt;% head(10)
+pares &lt;- pares[, c(&quot;d1&quot;, &quot;d2&quot;, &quot;dist_centros&quot;)]
+colnames(pares) &lt;- c(&quot;departamento_1&quot;, &quot;departamento_2&quot;, &quot;distancia_entre_centros&quot;)
+
+write.csv(
+  pares,
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-ii&quot;, &quot;tables&quot;, &quot;separacion_grupos.csv&quot;),
+  row.names = FALSE
+)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  pares,
+  format = &quot;pipe&quot;,
+  digits = 3,
+  caption = &quot;Pares de departamentos con centros de elipse más cercanos (menor distancia entre centros): indicador de falta de separación entre grupos territoriales conocidos.&quot;
+)
+</code></pre>
+<p>Table: Pares de departamentos con centros de elipse más cercanos (menor distancia entre centros): indicador de falta de separación entre grupos territoriales conocidos.</p>
+<p>|departamento_1 |departamento_2     | distancia_entre_centros|
+|:--------------|:------------------|-----------------------:|
+|Boyacá         |Cundinamarca       |                   0.059|
+|Caldas         |Casanare           |                   0.059|
+|Sucre          |Tolima             |                   0.102|
+|Casanare       |Risaralda          |                   0.108|
+|Córdoba        |Magdalena          |                   0.112|
+|Atlántico      |Santander          |                   0.122|
+|Arauca         |Norte de Santander |                   0.132|
+|Antioquia      |Risaralda          |                   0.134|
+|Caldas         |Risaralda          |                   0.150|
+|Huila          |Valle del Cauca    |                   0.168|</p>
+<p><strong>Qué ve:</strong> La densidad de PC1 es una curva amplia y unimodal sin picos separados: los registros forman un continuo, no agrupamientos naturales bien definidos. Las elipses al 90 % por departamento se solapan extensamente entre sí, y los pares de departamentos con centros más cercanos (tabla de separación) confirman que los territorios que el cliente conoce no ocupan regiones excluyentes del plano. Los registros de Papunaua aparecen como rug rojo en la cola de baja PC1.</p>
+<p><strong>Qué significa para el cliente:</strong> Estadísticamente no hay grupos discretos &quot;descubiertos&quot; por el algoritmo: el sistema educativo municipal se distribuye como un continuo de desempeño, y los departamentos se superponen en gran medida. No es válido afirmar que el PCA encontró grupos de municipios.</p>
+<p><strong>Qué decide él:</strong> El cliente no debe diseñar políticas que asuman grupos naturales de municipios (por ejemplo, &quot;clúster A&quot; vs &quot;clúster B&quot;); en su lugar, usa umbrales operativos sobre los componentes (sección 5) para categorizar casos, sabiendo que la frontera entre categorías es una convención del analista, no un hallazgo del algoritmo.</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-ii/figures/nube_pc1.png" alt="Densidad de PC1: distribución continua de los registros municipio-año." /></p>
+<p><strong>Qué ve:</strong> La curva de densidad de PC1 es suave y de un solo modo, sin dos o más picos bien separados que indiquen grupos distintos; el rug rojo marca los registros de Papunaua concentrados en valores bajos de PC1 (extremo de bajo rendimiento y acceso).</p>
+<p><strong>Qué significa para el cliente:</strong> Los municipios no se dividen en dos o tres categorías naturales según su puntuación en PC1: la mayoría se concentra en el centro y las extremidades son continuas, por lo que cualquier corte en PC1 es una decisión administrativa, no una propiedad de los datos.</p>
+<p><strong>Qué decide él:</strong> El cliente acepta que no existen grupos naturales en PC1 y aprueba usar puntos de corte definidos por él (ej. PC1 = 0) para crear categorías de decisión, sin pretender que esos grupos existan de forma objetiva en los datos.</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-ii/figures/elipses_grupo.png" alt="Proyección por departamento con elipses de grupo al 90 % y Papunaua señalado." /></p>
+<p><strong>Qué ve:</strong> Cada elipse contiene el 90 % de los registros de un departamento en el plano PC1-PC2; las elipses se solapan ampliamente entre departamentos, y solo los extremos de la nube muestran alguna separación débil. Los triángulos rojos de Papunaua se sitúan en el borde inferior-izquierdo, fuera del núcleo de la mayoría de los departamentos.</p>
+<p><strong>Qué significa para el cliente:</strong> Conocer el departamento de un registro no permite predecir con fiabilidad su posición en el plano: dos departamentos cualquieros comparten gran parte del mismo territorio factorial. No hay evidencia de que &quot;pertenecer al departamento X&quot; posicione a un municipio en una zona distinta y excluyente.</p>
+<p><strong>Qué decide él:</strong> El cliente no atribuye a un departamento la causalidad de la baja cobertura: no dirá &quot;pertenecer a Vaupés causa baja cobertura&quot;, sino que &quot;los registros de Vaupés se proyectan hacia el extremo de baja cobertura debido a condiciones estructurales de conectividad y reporte administrativo&quot;, evitando atribuir causalidad a una mera coincidencia geográfica.</p>
+<hr />
+<h2>4. ¿Los grupos que el cliente conoce se separan?</h2>
+<p>El cliente conoce territorios por departamento, zona (rural/urbana implícita en la población) y condición de vulnerabilidad (alta deserción / baja cobertura). Esta sección verifica si esas etiquetas conocidas se separan en el mapa factorial.</p>
+<pre><code class="language-r"># Resumen por departamento: posicion promedio en el plano y proporcion de vulnerables
+resumen_depto &lt;- educ_scores %&gt;%
+  group_by(DEPARTAMENTO) %&gt;%
+  summarise(
+    n = n(),
+    pc1_medio = mean(PC1),
+    pc2_medio = mean(PC2),
+    prop_vulnerable = mean(grupo_vulnerable),
+    .groups = &quot;drop&quot;
+  ) %&gt;%
+  arrange(pc1_medio)
+
+# Extremos: departamentos con PC1 medio mas bajo y mas alto
+depto_peor &lt;- head(resumen_depto, 5)$DEPARTAMENTO
+depto_mejor &lt;- tail(resumen_depto, 5)$DEPARTAMENTO
+</code></pre>
+<p><strong>Qué ve:</strong> Al ordenar departamentos por su PC1 medio, los extremos muestran departamentos con bajo rendimiento y acceso (ej. Vaupés, por la falla de reporte de Papunaua y otras zonas con cobertura limitada) frente a departamentos con PC1 medio alto. Sin embargo, las elipses de la sección anterior confirman que no hay separación limpia: un departamento con PC1 medio bajo aún contiene registros en el centro e incluso a la derecha del plano.</p>
+<p><strong>Qué significa para el cliente:</strong> Los grupos que el cliente conoce (departamentos) no se separan en el mapa en categorías excluyentes: conocerse el departamento no es suficiente para saber si un municipio necesita fondos extraordinarios. La posición de cada registro depende más de su combinación particular de las seis variables que de su etiqueta departamental.</p>
+<p><strong>Qué decide él:</strong> El cliente no prioriza ni descarta fondos por departamento completo. Pide que la asignación de recursos se haga registro por registro (municipio-año) usando su posición en el plano y los cuadrantes de decisión de la siguiente sección, con atención especial a los casos vulnerables independientemente del departamento al que pertenezcan.</p>
+<hr />
+<h2>5. La decisión en el mapa (Cuadrantes de decisión)</h2>
+<pre><code class="language-r"># Cuadrantes definidos por umbrales del analista: PC1 = 0 y PC2 = 0
+educ_scores$cuadrante &lt;- with(educ_scores,
+  ifelse(PC1 &gt; 0 &amp; PC2 &gt; 0, &quot;Q1: PC1&gt;0, PC2&gt;0&quot;,
+  ifelse(PC1 &lt;= 0 &amp; PC2 &gt; 0, &quot;Q2: PC1&lt;=0, PC2&gt;0&quot;,
+  ifelse(PC1 &gt; 0 &amp; PC2 &lt;= 0, &quot;Q3: PC1&gt;0, PC2&lt;=0&quot;,
+                              &quot;Q4: PC1&lt;=0, PC2&lt;=0&quot;)))
+)
+
+cuadros &lt;- educ_scores %&gt;%
+  group_by(cuadrante) %&gt;%
+  summarise(
+    n = n(),
+    proporcion = n / nrow(educ_scores),
+    prop_vulnerable = mean(grupo_vulnerable),
+    n_vulnerable = sum(grupo_vulnerable),
+    .groups = &quot;drop&quot;
+  ) %&gt;%
+  arrange(desc(n))
+
+write.csv(
+  cuadros,
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-ii&quot;, &quot;tables&quot;, &quot;cortes_mapa.csv&quot;),
+  row.names = FALSE
+)
+
+fig_cortes &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-ii&quot;, &quot;figures&quot;, &quot;cortes_mapa.png&quot;
+)
+
+p_cortes &lt;- ggplot(educ_scores, aes(x = PC1, y = PC2, color = cuadrante)) +
+  geom_point(alpha = 0.15, size = 0.6) +
+  geom_point(data = subset(educ_scores, papunaua), color = &quot;#d73027&quot;, size = 1.6, shape = 17) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray50&quot;, linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray50&quot;, linewidth = 0.8) +
+  annotate(&quot;text&quot;, x = max(educ_scores$PC1) * 0.9, y = max(educ_scores$PC2) * 0.9,
+           label = &quot;Q1&quot;, fontface = &quot;bold&quot;, size = 6, alpha = 0.4) +
+  annotate(&quot;text&quot;, x = min(educ_scores$PC1) * 0.9, y = max(educ_scores$PC2) * 0.9,
+           label = &quot;Q2&quot;, fontface = &quot;bold&quot;, size = 6, alpha = 0.4) +
+  annotate(&quot;text&quot;, x = max(educ_scores$PC1) * 0.9, y = min(educ_scores$PC2) * 0.9,
+           label = &quot;Q3&quot;, fontface = &quot;bold&quot;, size = 6, alpha = 0.4) +
+  annotate(&quot;text&quot;, x = min(educ_scores$PC1) * 0.9, y = min(educ_scores$PC2) * 0.9,
+           label = &quot;Q4&quot;, fontface = &quot;bold&quot;, size = 6, alpha = 0.4) +
+  scale_color_brewer(palette = &quot;Set1&quot;, name = &quot;Cuadrante de decisión&quot;) +
+  theme_minimal() +
+  labs(
+    title = &quot;Mapa de 4 cuadrantes con umbrales operativos (PC1 = 0, PC2 = 0)&quot;,
+    subtitle = &quot;Triángulos rojos: Papunaua (Vaupés), fallas de reporte administrativo 2021–2024&quot;,
+    x = &quot;PC1 – Rendimiento y acceso general&quot;,
+    y = &quot;PC2 – Brecha de nivel medio y rezago escolar vs escala demográfica&quot;
+  )
+ggsave(fig_cortes, plot = p_cortes, width = 8, height = 6, dpi = 150)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  cuadros,
+  format = &quot;pipe&quot;,
+  digits = c(0, 3, 3, 0),
+  caption = &quot;Conteos y proporciones de registros por cuadrante de decisión (cortes en PC1 = 0 y PC2 = 0 definidos por el analista).&quot;
+)
+</code></pre>
+<p>Table: Conteos y proporciones de registros por cuadrante de decisión (cortes en PC1 = 0 y PC2 = 0 definidos por el analista).</p>
+<p>|cuadrante          |    n| proporcion| prop_vulnerable| n_vulnerable|
+|:------------------|----:|----------:|---------------:|------------:|
+|Q3: PC1&gt;0, PC2&lt;=0  | 4004|      0.290|               0|           58|
+|Q2: PC1&lt;=0, PC2&gt;0  | 3449|      0.250|               0|          932|
+|Q1: PC1&gt;0, PC2&gt;0   | 3390|      0.246|               0|           26|
+|Q4: PC1&lt;=0, PC2&lt;=0 | 2959|      0.214|               0|          767|</p>
+<p><strong>Qué ve:</strong> El mapa de 4 cuadrantes reparte los 13.802 registros en Q1 (PC1 &gt; 0, PC2 &gt; 0), Q2 (PC1 ≤ 0, PC2 &gt; 0), Q3 (PC1 &gt; 0, PC2 ≤ 0) y Q4 (PC1 ≤ 0, PC2 ≤ 0). Los cuadrantes con mayor concentración y su proporción de registros vulnerables se leen de la tabla. Los triángulos rojos de Papunaua caen principalmente en Q4 (bajo PC1, bajo PC2), coherente con su falla de reporte.</p>
+<p><strong>Qué significa para el cliente:</strong> Estos cuadrantes son definidos por umbrales arbitrarios del analista (PC1 = 0 y PC2 = 0), no grupos que el algoritmo &quot;encontró&quot; ni &quot;descubrió&quot;. Cada cuadrante combina un nivel de rendimiento y acceso general (PC1) con un nivel de brecha de nivel medio / rezago (PC2), lo que da al cliente cuatro zonas de acción diferenciadas.</p>
+<p><strong>Qué decide él:</strong> Al aplicar los cortes definidos en el valor cero, el cliente categoriza los casos en cuatro zonas y asigna prioridades distintas: Q1 (buen rendimiento, baja brecha de nivel medio) prioridad baja de intervención; Q2 (bajo rendimiento, alta brecha de nivel medio) y Q4 (bajo rendimiento, alta brecha) prioridad alta para fondos de infraestructura y tutoría; Q3 (buen rendimiento, alta brecha de nivel medio) atención focalizada en cobertura de grados 10°–11°.</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-ii/figures/cortes_mapa.png" alt="Mapa de 4 cuadrantes con umbrales operativos de decisión." /></p>
+<p><strong>Qué ve:</strong> La nube de puntos se divide por las líneas vertical y horizontal en cero en cuatro regiones con distinta densidad de puntos; los triángulos rojos de Papunaua se ubican en la zona de bajo PC1 y bajo PC2 (Q4). Cada región muestra una combinación distinta de rendimiento general y brecha de nivel medio.</p>
+<p><strong>Qué significa para el cliente:</strong> Visualmente, el cliente puede ubicar rápidamente dónde concentran más registros los territorios problemáticos y dónde hay municipios con buen rendimiento general pero alta brecha en educación media (Q3), que requieren un tipo de intervención diferente.</p>
+<p><strong>Qué decide él:</strong> El cliente aprueba los cuatro cuadrantes como herramienta operativa de decisión, con la advertencia explícita de que las fronteras son umbrales definidos por él (PC1 = 0, PC2 = 0) y no grupos descubiertos por el algoritmo; por tanto, revisará los puntos cercanos a las líneas de corte caso por caso antes de asignar fondos.</p>
+<hr />
+

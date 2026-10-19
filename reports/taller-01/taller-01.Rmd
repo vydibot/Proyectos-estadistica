@@ -79,6 +79,17 @@ datos$CÓDIGO_DEPARTAMENTO <- as.factor(datos$CÓDIGO_DEPARTAMENTO)
 
 # Filtramos estrictamente las variables numéricas (cuantitativas reales) para el análisis estadístico
 variables_numericas <- datos %>% select(where(is.numeric))
+columnas_constantes <- names(variables_numericas)[vapply(
+  variables_numericas,
+  function(x) length(unique(x[is.finite(x)])) <= 1,
+  logical(1)
+)]
+variables_numericas <- variables_numericas %>%
+  select(-any_of(columnas_constantes))
+
+cor_segura <- function(x, y) {
+  cor(x, y, use = "complete.obs", method = "pearson")
+}
 ```
 
 ---
@@ -252,7 +263,147 @@ ggsave(file.path(figures_dir, "Heatmap_Correlacion.png"), plot = p_corr,
 
 ---
 
-## 7. Conclusiones del Análisis
+## 7. Interpretación de las gráficas
+
+### 7.1 Variables categóricas
+
+Los códigos DANE se trataron como identificadores categóricos y no como
+medidas. Por ello, no se interpretan sus valores numéricos ni se incluyen
+en los histogramas, boxplots o correlaciones. La frecuencia de municipios
+y departamentos permite describir la cobertura territorial del registro,
+pero no debe confundirse con el tamaño de la población ni con el desempeño
+educativo.
+
+### 7.2 Histogramas de población y cobertura
+
+El histograma de `POBLACIÓN_5_16` muestra una distribución asimétrica a la
+derecha: la mayoría de los municipios concentra poblaciones relativamente
+pequeñas, mientras que unos pocos municipios presentan valores mucho más
+altos. Esta diferencia explica por qué la media puede superar claramente a
+la mediana y justifica complementar el histograma con el boxplot. Los
+municipios grandes no se consideran errores automáticamente; representan la
+heterogeneidad demográfica del país.
+
+Los histogramas de `TASA_MATRICULACIÓN_5_16` y de las coberturas netas
+tienden a concentrarse en valores altos, aunque la cobertura neta disminuye
+progresivamente entre primaria, secundaria y media. Las observaciones por
+encima de 1 representan coberturas superiores al 100 %, posibles cuando la
+matrícula registrada no coincide exactamente con la población de referencia.
+En consecuencia, estos valores deben revisarse, pero no eliminarse sin una
+justificación territorial o administrativa.
+
+En las coberturas brutas la dispersión es mayor y los valores superiores al
+100 % son más esperables, porque el indicador incluye estudiantes con
+extraedad. La diferencia entre cobertura bruta y neta permite identificar
+municipios donde la matrícula incluye estudiantes fuera de la edad teórica
+del nivel educativo.
+
+### 7.3 Histogramas de eficiencia educativa
+
+Las tasas de `DESERCIÓN`, `REPROBACIÓN` y `REPITENCIA` se concentran cerca
+de cero y presentan colas hacia la derecha. Esto significa que la situación
+habitual es de tasas bajas, pero existe un grupo de municipios con valores
+considerablemente mayores que requieren atención. La deserción secundaria
+tiende a ser más dispersa que la de transición y primaria, lo que es
+compatible con un mayor riesgo de abandono durante la adolescencia.
+
+Las variables de `APROBACIÓN` se concentran en valores altos, cercanos a
+uno. La cola hacia valores inferiores identifica municipios con resultados
+menos favorables. Esta lectura debe hacerse junto con reprobación y
+deserción: una aprobación alta no implica que todos los municipios tengan
+el mismo comportamiento ni que exista causalidad entre los indicadores.
+
+### 7.4 Boxplots normalizados
+
+La normalización Min-Max permite comparar la posición relativa de variables
+que originalmente están en escalas muy diferentes, especialmente población
+y tasas. Los boxplots muestran la mediana, el rango intercuartílico y los
+valores atípicos de cada indicador. Las variables de población presentan la
+mayor separación entre la zona central y los extremos, mientras que las
+tasas de eficiencia suelen agruparse cerca de sus límites naturales.
+
+Los puntos fuera de los bigotes son observaciones atípicas según la regla
+del rango intercuartílico; no son necesariamente errores. Los valores
+extremos de población pueden corresponder a municipios grandes y los
+valores altos de cobertura bruta pueden reflejar extraedad o flujos de
+matrícula. Por esta razón se conservan para el análisis exploratorio y se
+señalan para una revisión posterior.
+
+### 7.5 Gráficas de dispersión y asociaciones
+
+```{r correlaciones_clave, include=FALSE}
+pares_correlacion <- data.frame(
+  Relacion = c(
+    "Cobertura neta - cobertura bruta",
+    "Aprobación - reprobación",
+    "Deserción - repitencia",
+    "Cobertura neta - deserción",
+    "Aprobación - repitencia",
+    "Población - cobertura neta"
+  ),
+  r = c(
+    cor_segura(datos$COBERTURA_NETA, datos$COBERTURA_BRUTA),
+    cor_segura(datos$APROBACIÓN, datos$REPROBACIÓN),
+    cor_segura(datos$DESERCIÓN, datos$REPITENCIA),
+    cor_segura(datos$COBERTURA_NETA, datos$DESERCIÓN),
+    cor_segura(datos$APROBACIÓN, datos$REPITENCIA),
+    cor_segura(datos$POBLACIÓN_5_16, datos$COBERTURA_NETA)
+  )
+)
+```
+
+La relación entre cobertura neta y cobertura bruta presenta una asociación
+lineal positiva (`r round(pares_correlacion$r[1], 3)`). Los municipios con
+mayor cobertura neta suelen mostrar también mayor cobertura bruta, aunque la
+cobertura bruta puede aumentar por la presencia de estudiantes fuera de la
+edad teórica.
+
+La relación entre aprobación y reprobación es negativa
+(`r round(pares_correlacion$r[2], 3)`): cuando aumenta la proporción de
+estudiantes aprobados, tiende a disminuir la proporción reprobada. La
+relación entre deserción y repitencia es
+`r ifelse(pares_correlacion$r[3] >= 0, "positiva", "negativa")`
+(`r round(pares_correlacion$r[3], 3)`), pero su magnitud indica cuánto se
+mueven conjuntamente ambos fenómenos, no que uno cause al otro.
+
+La asociación entre cobertura neta y deserción es
+`r ifelse(abs(pares_correlacion$r[4]) < 0.2, "muy débil", "distinta de cero")`
+(`r round(pares_correlacion$r[4], 3)`). Esto sugiere que la cobertura
+agregada, por sí sola, no explica las diferencias municipales en deserción.
+La relación entre aprobación y repitencia es
+`r ifelse(pares_correlacion$r[5] < 0, "negativa", "positiva")`
+(`r round(pares_correlacion$r[5], 3)`), mientras que la relación entre
+población y cobertura neta es `r ifelse(abs(pares_correlacion$r[6]) < 0.2,
+"muy débil", "moderada o fuerte")`
+(`r round(pares_correlacion$r[6], 3)`). En ambos casos, el tamaño de la
+asociación es más informativo que su significancia aislada.
+
+### 7.6 Heatmap de correlaciones
+
+En el mapa de calor, los tonos rojos representan asociaciones positivas y
+los azules asociaciones negativas; los tonos próximos al blanco indican
+relaciones lineales débiles. Se observan bloques de alta asociación entre
+indicadores de cobertura, porque describen dimensiones relacionadas de la
+matrícula. También aparecen relaciones entre aprobación, reprobación,
+deserción y repitencia, aunque su intensidad cambia según el nivel educativo.
+
+Una correlación alta indica redundancia estadística potencial, no causalidad.
+Si dos coberturas se calculan a partir de componentes similares, su
+correlación puede ser elevada sin que una variable produzca a la otra.
+Antes de aplicar modelos multivariados conviene revisar las variables con
+correlaciones casi perfectas y las columnas constantes excluidas del heatmap.
+
+### 7.7 Lectura conjunta
+
+Consideradas en conjunto, las gráficas describen un sistema heterogéneo:
+la población está concentrada en municipios pequeños, las coberturas son
+generalmente altas pero caen en educación media, y los indicadores de
+deserción, reprobación y repitencia son bajos en la mayoría de municipios
+con algunos casos extremos. La interpretación adecuada combina forma de la
+distribución, valores atípicos y asociaciones bivariadas; ningún gráfico
+aislado permite establecer causas.
+
+## 8. Conclusiones del Análisis
 
 Con base en los gráficos y el modelo estadístico construido, se destaca lo siguiente:
 

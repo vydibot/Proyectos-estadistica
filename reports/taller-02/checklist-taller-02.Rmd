@@ -1,5 +1,5 @@
 ---
-title: "Checklist del dataset - Taller 2"
+title: "Taller 2.1 - Diagnóstico multivariado del dataset"
 author: "Luisa Fernanda Velasco López 20212020106
 Jairo Arturo Barrera Mosquera 20222020142
 David lugo Piñeros 20222020180
@@ -62,6 +62,16 @@ datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio.csv")
                   check.names = FALSE,
                   stringsAsFactors = FALSE)
 
+columnas_requeridas <- c(
+  "CÓDIGO_MUNICIPIO", "CÓDIGO_DEPARTAMENTO", "POBLACIÓN_5_16",
+  "COBERTURA_NETA", "COBERTURA_BRUTA", "DESERCIÓN", "APROBACIÓN",
+  "REPROBACIÓN", "REPITENCIA"
+)
+columnas_faltantes <- setdiff(columnas_requeridas, names(datos))
+if (length(columnas_faltantes) > 0) {
+  stop("Faltan columnas requeridas: ", paste(columnas_faltantes, collapse = ", "))
+}
+
 excluir <- c("CÓDIGO_MUNICIPIO", "CÓDIGO_DEPARTAMENTO")
 X <- datos[, vapply(datos, is.numeric, logical(1)), drop = FALSE]
 X <- X[, !names(X) %in% excluir, drop = FALSE]
@@ -74,7 +84,7 @@ X[] <- lapply(X, function(x) {
 
 es_constante <- vapply(X, function(x) {
   valores <- x[is.finite(x)]
-  length(valores) > 0 && length(unique(valores)) <= 1
+  length(valores) == 0 || length(unique(valores)) <= 1
 }, logical(1))
 
 columnas_constantes <- names(X)[es_constante]

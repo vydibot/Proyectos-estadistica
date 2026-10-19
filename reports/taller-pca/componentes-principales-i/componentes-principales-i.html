@@ -1,0 +1,410 @@
+<hr />
+<h2>title: &quot;Taller I – ¿Un número o varios? El resumen para su cliente&quot;
+subtitle: &quot;Análisis de Componentes Principales (PCA) – Indicadores Educativos Municipales de Colombia (2011–2024)&quot;
+author: &quot;Equipo de trabajo: Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva&quot;
+cliente: &quot;Dirección de Cobertura y Equidad Territorial, Ministerio de Educación Nacional&quot;
+fecha: &quot;Octubre de 2026&quot;
+output: html_document</h2>
+<h1>Taller I – ¿Un número o varios? El resumen para su cliente</h1>
+<p><strong>Cliente:</strong> Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.<br />
+<strong>Decisión estratégica:</strong> Clasificar y priorizar municipios para la asignación de fondos extraordinarios de infraestructura y programas de tutoría.<br />
+<strong>Pregunta de fondo:</strong> ¿Basta un único índice sintético ($PC_1$) para rankear los territorios, o se pierden realidades críticas al mezclar escala demográfica, cobertura y rezago académico?<br />
+<strong>Datos:</strong> <code>data/raw/educacion_limpio.csv</code> — 13.802 registros municipio-año (2011–2024), 33 columnas, sin valores faltantes.<br />
+<strong>Grupo de interés (costo de error):</strong> registros con <strong>alta deserción escolar</strong> (<code>DESERCIÓN</code> &gt; 0,065, decil superior nacional) o <strong>baja cobertura neta</strong> (<code>COBERTURA_NETA</code> ≤ 0,60).</p>
+<blockquote>
+<p><strong>Alerta de protección de datos:</strong> este reporte se calcula desde cero con las 13.802 filas de <code>educacion_limpio.csv</code>. No se vuelve a tejer el Corte 1 ni se usan tablas previas de <code>outputs/taller-02/</code>.</p>
+</blockquote>
+<hr />
+<h2>1. Encargo</h2>
+<p>La Dirección de Cobertura y Equidad Territorial solicita un resumen ejecutivo que le permita decidir si un solo número —el primer componente principal, $PC_1$— es suficiente para priorizar la entrega de fondos de infraestructura y tutoría en los municipios colombianos, o si ese único índice oculta situaciones críticas que justifican usar varios componentes. El análisis parte del archivo <code>data/raw/educacion_limpio.csv</code> con 13.802 registros municipio-año del periodo 2011–2024 y seis variables seleccionadas: <code>POBLACIÓN_5_16</code>, <code>COBERTURA_NETA</code>, <code>COBERTURA_NETA_MEDIA</code>, <code>DESERCIÓN</code>, <code>APROBACIÓN</code> y <code>REPITENCIA</code>. El entregable de esta sección es el encargo formal, el alcance y las alertas metodológicas que debe conocer el cliente antes de interpretar cualquier resultado.</p>
+<p><strong>Qué ve:</strong> El encargo define un cliente institucional (Ministerio de Educación Nacional), una decisión de asignación de recursos (fondos de infraestructura y tutoría), una base de 13.802 registros municipio-año 2011–2024 y seis variables candidatas, junto con la alerta de que cuatro registros de Papunaua (Vaupés, 2021–2024) presentan cobertura neta y aprobación en 0,0 % por falla de reporte administrativo, no por desempeño real.</p>
+<p><strong>Qué significa para el cliente:</strong> El cliente no recibirá un índice ciego: sabrá exactamente de qué datos parte, cuáles son sus limitaciones (registro municipio-año, no municipios únicos; casos de reporte fallido en Papunaua) y qué decisión se espera del análisis (si un solo número alcanza o se necesitan varios).</p>
+<p><strong>Qué decide él:</strong> Encargar o validar el cálculo de los componentes principales con las seis variables seleccionadas, mantener los registros de Papunaua por consistencia con el Corte 1 pero señalándolos, y usar este resumen como base para decidir si financia territorios con base en $PC_1$ solo o en un esquema multivariado.</p>
+<hr />
+<h2>2. ¿Se repiten? (Lectura de correlaciones y redundancias)</h2>
+<p>Antes de reducir dimensionalidad se inspecciona si las variables se repiten (correlaciones altas, $|r| &gt; 0,90$) o si existe una identidad contable casi exacta (<code>APROBACIÓN</code> + <code>REPROBACIÓN</code> + <code>DESERCIÓN</code> ≈ 1). Por eso <code>REPROBACIÓN</code> no se incluye entre las seis variables.</p>
+<pre><code class="language-r">cor_mat &lt;- cor(sub, use = &quot;complete.obs&quot;)
+cor_df &lt;- as.data.frame(cor_mat)
+cor_df$variable &lt;- rownames(cor_mat)
+cor_df &lt;- cor_df[, c(ncol(cor_df), 1:(ncol(cor_df) - 1))]
+
+write.csv(
+  cor_mat,
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;tables&quot;, &quot;correlaciones.csv&quot;),
+  row.names = TRUE
+)
+
+# Correlograma / mapa de calor de correlaciones
+cor_long &lt;- cor_mat %&gt;%
+  as.data.frame() %&gt;%
+  tibble::rownames_to_column(&quot;variable1&quot;) %&gt;%
+  pivot_longer(-variable1, names_to = &quot;variable2&quot;, values_to = &quot;r&quot;) %&gt;%
+  mutate(
+    variable1 = factor(variable1, levels = vars),
+    variable2 = factor(variable2, levels = vars)
+  )
+
+fig_corr &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;figures&quot;, &quot;matriz_correlaciones.png&quot;
+)
+ggplot(cor_long, aes(x = variable2, y = variable1, fill = r)) +
+  geom_tile(color = &quot;white&quot;) +
+  scale_fill_gradient2(low = &quot;#d73027&quot;, mid = &quot;#f7f7f7&quot;, high = &quot;#1a9850&quot;,
+                       midpoint = 0, limits = c(-1, 1), name = &quot;r de Pearson&quot;) +
+  geom_text(aes(label = sprintf(&quot;%.2f&quot;, r)), size = 2.8, color = &quot;black&quot;) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_blank(),
+        legend.position = &quot;right&quot;) +
+  labs(title = &quot;Matriz de correlaciones de Pearson entre las 6 variables seleccionadas&quot;)
+</code></pre>
+<pre><code class="language-r">ggsave(fig_corr, width = 7, height = 6, dpi = 150)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  round(cor_mat, 3),
+  format = &quot;pipe&quot;,
+  digits = 3,
+  caption = &quot;Matriz de coeficientes de correlación de Pearson (r) entre las 6 variables seleccionadas.&quot;
+)
+</code></pre>
+<p>Table: Matriz de coeficientes de correlación de Pearson (r) entre las 6 variables seleccionadas.</p>
+<p>|                     | POBLACIÓN_5_16| COBERTURA_NETA| COBERTURA_NETA_MEDIA| DESERCIÓN| APROBACIÓN| REPITENCIA|
+|:--------------------|--------------:|--------------:|--------------------:|---------:|----------:|----------:|
+|POBLACIÓN_5_16       |          1.000|          0.046|                0.053|    -0.006|     -0.004|      0.002|
+|COBERTURA_NETA       |          0.046|          1.000|                0.587|    -0.005|      0.008|     -0.094|
+|COBERTURA_NETA_MEDIA |          0.053|          0.587|                1.000|    -0.225|      0.134|     -0.045|
+|DESERCIÓN            |         -0.006|         -0.005|               -0.225|     1.000|     -0.530|      0.087|
+|APROBACIÓN           |         -0.004|          0.008|                0.134|    -0.530|      1.000|     -0.284|
+|REPITENCIA           |          0.002|         -0.094|               -0.045|     0.087|     -0.284|      1.000|</p>
+<p><strong>Qué ve:</strong> La matriz de correlaciones muestra que ninguna pareja de las seis variables supera $|r| = 0,90$; la correlación más fuerte es entre <code>COBERTURA_NETA</code> y <code>COBERTURA_NETA_MEDIA</code> ($r \approx 0,59$), seguida de la relación inversa entre <code>DESERCIÓN</code> y <code>APROBACIÓN</code> ($r \approx -0,53$). <code>POBLACIÓN_5_16</code> es prácticamente independiente de las tasas educativas ($|r| &lt; 0,06$ con todas).</p>
+<p><strong>Qué significa para el cliente:</strong> No hay redundancia de nivel ni identidades contables exactas entre las variables elegidas: cada una aporta información distinta, por lo que se justifica mantener las seis en el análisis en lugar de descartar algunas por repetirse.</p>
+<p><strong>Qué decide él:</strong> El cliente puede pedir el PCA con las seis variables sin temor a que dos de ellas estén diciendo lo mismo; el análisis no pierde información por redundancia entre escalas de cobertura y tasas de flujo escolar.</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-i/figures/matriz_correlaciones.png" alt="Matriz de correlaciones / correlograma de las 6 variables seleccionadas." /></p>
+<p><strong>Qué ve:</strong> El mapa de calor codifica por color la fuerza y el signo de cada correlación: celeste-verdoso para asociaciones positivas (cobertura neta con cobertura neta media) y rojizo para la inversa (deserción con aprobación). Las casillas de <code>POBLACIÓN_5_16</code> son casi neutras frente al resto.</p>
+<p><strong>Qué significa para el cliente:</strong> Gráficamente se confirma que las tasas de acceso, calidad y permanencia se mueven de forma relacionada entre sí pero independiente del tamaño de la población, por lo que el tamaño de ciudad no contamina la lectura de las tasas educativas.</p>
+<p><strong>Qué decide él:</strong> Al presentarle resultados al cliente, se puede separar la conversación del &quot;qué tan grande es el municipio&quot; de la conversación del &quot;qué tan bien funciona su sistema educativo&quot;, porque las dos cosas no se repiten en los datos.</p>
+<hr />
+<h2>3. ¿Estandarizar? (Justificación previa de <code>scale. = TRUE</code>)</h2>
+<p>La decisión de estandarizar se redige <strong>antes</strong> de correr el código de PCA. Se demuestra numéricamente que, sin estandarizar, <code>POBLACIÓN_5_16</code> absorbe el análisis por su escala numérica mucho mayor.</p>
+<pre><code class="language-r">desv_orig &lt;- sapply(sub, sd, na.rm = TRUE)
+desv_df &lt;- data.frame(
+  variable = names(desv_orig),
+  desviacion_estandar = as.numeric(desv_orig),
+  varianza = as.numeric(desv_orig^2),
+  check.names = FALSE
+)
+
+write.csv(
+  desv_df,
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;tables&quot;, &quot;desviaciones.csv&quot;),
+  row.names = FALSE
+)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  desv_df,
+  format = &quot;pipe&quot;,
+  digits = c(0, 4, 6),
+  caption = &quot;Desviaciones estándar y varianza de cada variable en su escala original (sin estandarizar).&quot;
+)
+</code></pre>
+<p>Table: Desviaciones estándar y varianza de cada variable en su escala original (sin estandarizar).</p>
+<p>|variable             | desviacion_estandar|    varianza|
+|:--------------------|-------------------:|-----------:|
+|POBLACIÓN_5_16       |          45008.4417| 2.02576e+09|
+|COBERTURA_NETA       |              0.1644| 2.70320e-02|
+|COBERTURA_NETA_MEDIA |              0.1522| 2.31730e-02|
+|DESERCIÓN            |              0.0207| 4.29000e-04|
+|APROBACIÓN           |              0.0493| 2.43000e-03|
+|REPITENCIA           |              0.0369| 1.36400e-03|</p>
+<pre><code class="language-r"># PCA SIN estandarizar
+pca_no_scale &lt;- prcomp(sub, center = TRUE, scale. = FALSE)
+# PCA CON estandarizar
+pca_scale &lt;- prcomp(sub, center = TRUE, scale. = TRUE)
+
+var_no_scale &lt;- pca_no_scale$sdev^2
+var_scale &lt;- pca_scale$sdev^2
+
+comp_exp_no &lt;- var_no_scale / sum(var_no_scale) * 100
+comp_exp_scale &lt;- var_scale / sum(var_scale) * 100
+
+comparacion &lt;- data.frame(
+  componente = paste0(&quot;PC&quot;, 1:length(var_no_scale)),
+  varianza_sin_estandarizar = as.numeric(var_no_scale),
+  pct_varianza_sin_estandarizar = as.numeric(comp_exp_no),
+  varianza_con_estandarizar = as.numeric(var_scale),
+  pct_varianza_con_estandarizar = as.numeric(comp_exp_scale),
+  check.names = FALSE
+)
+
+write.csv(
+  comparacion,
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;tables&quot;, &quot;comparacion_estandarizar.csv&quot;),
+  row.names = FALSE
+)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  comparacion,
+  format = &quot;pipe&quot;,
+  digits = c(0, 0, 2, 4, 2),
+  caption = &quot;Comparativa de varianza explicada por el primer componente: sin estandarizar (`scale. = FALSE`) vs con estandarizar (`scale. = TRUE`).&quot;
+)
+</code></pre>
+<p>Table: Comparativa de varianza explicada por el primer componente: sin estandarizar (<code>scale. = FALSE</code>) vs con estandarizar (<code>scale. = TRUE</code>).</p>
+<p>|componente | varianza_sin_estandarizar| pct_varianza_sin_estandarizar| varianza_con_estandarizar| pct_varianza_con_estandarizar|
+|:----------|-------------------------:|-----------------------------:|-------------------------:|-----------------------------:|
+|PC1        |                2025759822|                           100|                    1.8349|                         30.58|
+|PC2        |                         0|                             0|                    1.4216|                         23.69|
+|PC3        |                         0|                             0|                    0.9918|                         16.53|
+|PC4        |                         0|                             0|                    0.9480|                         15.80|
+|PC5        |                         0|                             0|                    0.4390|                          7.32|
+|PC6        |                         0|                             0|                    0.3647|                          6.08|</p>
+<p><strong>Qué ve:</strong> En la escala original, <code>POBLACIÓN_5_16</code> tiene una desviación estándar de unos 45.000 habitantes, mientras que las tasas educativas se mueven entre 0,02 y 0,16. Al no estandarizar, el primer componente concentra más del 99 % de la varianza total y su dirección equivale prácticamente al tamaño de la población; con estandarización, todas las variables tienen varianza unitaria ($\sigma^2 = 1$) y el primer componente explica una fracción mucho más moderada de la información.</p>
+<p><strong>Qué significa para el cliente:</strong> Sin estandarizar, el análisis se reduciría a un mero indicador de &quot;qué tan grande es el municipio&quot; y ocultaría el desempeño educativo real (cobertura, deserción, aprobación). Estandarizar pone a competir en igualdad de condiciones a la escala demográfica y a las tasas de acceso, calidad y permanencia.</p>
+<p><strong>Qué decide él:</strong> Se acuerda correr el PCA con <code>scale. = TRUE</code> (estandarizar). El cliente recibirá componentes que reflejan calidad, acceso y permanencia simultáneamente, no solo el tamaño demográfico de cada territorio.</p>
+<hr />
+<h2>4. Cuánta información guarda (Varianza explicada, scree plot, Kaiser y umbral 80 %)</h2>
+<p>Con <code>scale. = TRUE</code>, el total de la varianza es 6 (una por variable estandarizada).</p>
+<pre><code class="language-r">autovalores &lt;- pca_scale$sdev^2
+pct_var &lt;- autovalores / sum(autovalores) * 100
+pct_acum &lt;- cumsum(pct_var)
+
+varianza_df &lt;- data.frame(
+  componente = paste0(&quot;PC&quot;, 1:length(autovalores)),
+  autovalor = as.numeric(autovalores),
+  pct_varianza = as.numeric(pct_var),
+  pct_acumulado = as.numeric(pct_acum),
+  kaiser = as.numeric(autovalores) &gt; 1,
+  check.names = FALSE
+)
+
+write.csv(
+  varianza_df,
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;tables&quot;, &quot;varianza_explicada.csv&quot;),
+  row.names = FALSE
+)
+
+# Scree plot con umbral del 80 % acumulado
+fig_scree &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;figures&quot;, &quot;varianza_explicada.png&quot;
+)
+n_comp_80 &lt;- which(varianza_df$pct_acumulado &gt;= 80)[1]
+
+ggplot(varianza_df, aes(x = factor(componente, levels = componente), y = pct_varianza)) +
+  geom_col(fill = &quot;#4c72b0&quot;, alpha = 0.85) +
+  geom_line(aes(y = pct_acumulado, group = 1), color = &quot;#c44e52&quot;, linewidth = 1) +
+  geom_point(aes(y = pct_acumulado), color = &quot;#c44e52&quot;, size = 2) +
+  geom_hline(yintercept = 80, linetype = &quot;dashed&quot;, color = &quot;#c44e52&quot;) +
+  annotate(&quot;text&quot;, x = length(autovalores) + 0.4, y = 82,
+           label = &quot;Umbral 80 % acumulado&quot;, color = &quot;#c44e52&quot;, size = 3, hjust = 0) +
+  geom_hline(yintercept = 1, linetype = &quot;dotted&quot;, color = &quot;gray50&quot;) +
+  annotate(&quot;text&quot;, x = length(autovalores) + 0.4, y = 1.05,
+           label = &quot;Criterio Kaiser (autovalor = 1)&quot;, color = &quot;gray50&quot;, size = 3, hjust = 0) +
+  scale_y_continuous(sec.axis = sec_axis(~ ., name = &quot;% varianza acumulado&quot;)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0)) +
+  labs(
+    title = &quot;Gráfico de sedimentación (scree plot) del PCA estandarizado&quot;,
+    x = &quot;Componente principal&quot;,
+    y = &quot;% de varianza explicada&quot;
+  )
+</code></pre>
+<pre><code class="language-r">ggsave(fig_scree, width = 7, height = 5, dpi = 150)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  varianza_df,
+  format = &quot;pipe&quot;,
+  digits = c(0, 3, 2, 2, 0),
+  caption = &quot;Autovalores, porcentaje de varianza, porcentaje acumulado y criterio Kaiser (autovalor &gt; 1) del PCA estandarizado.&quot;
+)
+</code></pre>
+<p>Table: Autovalores, porcentaje de varianza, porcentaje acumulado y criterio Kaiser (autovalor &gt; 1) del PCA estandarizado.</p>
+<p>|componente | autovalor| pct_varianza| pct_acumulado|kaiser |
+|:----------|---------:|------------:|-------------:|:------|
+|PC1        |     1.835|        30.58|         30.58|TRUE   |
+|PC2        |     1.422|        23.69|         54.28|TRUE   |
+|PC3        |     0.992|        16.53|         70.81|FALSE  |
+|PC4        |     0.948|        15.80|         86.60|FALSE  |
+|PC5        |     0.439|         7.32|         93.92|FALSE  |
+|PC6        |     0.365|         6.08|        100.00|FALSE  |</p>
+<p><strong>Qué ve:</strong> El primer componente estandarizado explica aproximadamente el 30.6 % de la varianza, el segundo el 23.7 %, y el acumulado de los dos primeros roza el 54.3 %. Según el criterio Kaiser (autovalor &gt; 1) son 2 componentes relevantes; para cubrir el umbral del 80 % de la información se necesitan los primeros 4 componentes.</p>
+<p><strong>Qué significa para el cliente:</strong> Un solo número ($PC_1$) no se queda con la gran mayoría de la información: deja fuera entre el 69.4 % y el 13.4 % de la variabilidad. Para retener al menos el 80 % de la información el cliente necesita mirar al menos 4 componentes, no solo uno.</p>
+<p><strong>Qué decide él:</strong> El cliente no debe priorizar territorios únicamente con $PC_1$: se pierden matices relevantes de cobertura media, deserción y repetición. Se autoriza presentar y usar al menos los primeros 4 componentes en la clasificación de municipios.</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-i/figures/varianza_explicada.png" alt="Scree plot: varianza explicada por componente con umbral del 80 % acumulado y criterio Kaiser." /></p>
+<p><strong>Qué ve:</strong> Las barras muestran la varianza explicada por cada componente y la línea roja el porcentaje acumulado, que cruza el umbral del 80 % en el componente 4. La línea punteada marca el criterio Kaiser (autovalor = 1), cumplido por 2 componentes.</p>
+<p><strong>Qué significa para el cliente:</strong> Visualmente, la información se reparte en varios componentes y no se concentra en uno solo; la caída brusca ocurre tras el segundo componente, pero alcanzar el 80 % acumulado exige incluir hasta el 4°.</p>
+<p><strong>Qué decide él:</strong> El cliente pida reportes de al menos 4 componentes cuando quiera cubrir el 80 % de la variabilidad del sistema educativo municipal, en lugar de conformarse con el primer componente.</p>
+<hr />
+<h2>5. Qué mide cada una (Cargas factoriales y bautizo semántico)</h2>
+<pre><code class="language-r">loadings &lt;- pca_scale$rotation  # variables x PCs
+loadings_df &lt;- as.data.frame(loadings[, 1:3])
+loadings_df$variable &lt;- rownames(loadings)
+loadings_df &lt;- loadings_df[, c(ncol(loadings_df), 1:(ncol(loadings_df) - 1))]
+colnames(loadings_df)[2:4] &lt;- c(&quot;PC1&quot;, &quot;PC2&quot;, &quot;PC3&quot;)
+
+write.csv(
+  loadings_df,
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;tables&quot;, &quot;pesos_componentes.csv&quot;),
+  row.names = FALSE
+)
+
+# Grafico de barras horizontales de cargas por componente
+load_long &lt;- loadings_df %&gt;%
+  pivot_longer(-variable, names_to = &quot;componente&quot;, values_to = &quot;carga&quot;) %&gt;%
+  mutate(
+    componente = factor(componente, levels = c(&quot;PC1&quot;, &quot;PC2&quot;, &quot;PC3&quot;)),
+    variable = factor(variable, levels = vars)
+  )
+
+fig_cargas &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;figures&quot;, &quot;pesos_componentes.png&quot;
+)
+ggplot(load_long, aes(x = variable, y = carga, fill = componente)) +
+  geom_col(position = position_dodge(width = 0.7)) +
+  coord_flip() +
+  facet_wrap(~ componente, scales = &quot;free_x&quot;) +
+  geom_hline(yintercept = 0, linetype = &quot;solid&quot;, color = &quot;gray30&quot;) +
+  scale_fill_brewer(palette = &quot;Set2&quot;) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;, axis.title.y = element_blank()) +
+  labs(
+    title = &quot;Cargas factoriales (loadings) de las variables en PC1, PC2 y PC3&quot;,
+    x = &quot;Carga factorial&quot;,
+    y = &quot;Variable&quot;
+  )
+</code></pre>
+<pre><code class="language-r">ggsave(fig_cargas, width = 8, height = 6, dpi = 150)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  loadings_df,
+  format = &quot;pipe&quot;,
+  digits = 3,
+  caption = &quot;Cargas factoriales (correlación de cada variable con cada componente) de los tres primeros componentes principales.&quot;
+)
+</code></pre>
+<p>Table: Cargas factoriales (correlación de cada variable con cada componente) de los tres primeros componentes principales.</p>
+<p>|                     |variable             |    PC1|    PC2|    PC3|
+|:--------------------|:--------------------|------:|------:|------:|
+|POBLACIÓN_5_16       |POBLACIÓN_5_16       |  0.056| -0.123|  0.980|
+|COBERTURA_NETA       |COBERTURA_NETA       |  0.406| -0.593| -0.119|
+|COBERTURA_NETA_MEDIA |COBERTURA_NETA_MEDIA |  0.515| -0.461| -0.059|
+|DESERCIÓN            |DESERCIÓN            | -0.486| -0.385| -0.084|
+|APROBACIÓN           |APROBACIÓN           |  0.495|  0.474|  0.033|
+|REPITENCIA           |REPITENCIA           | -0.293| -0.218|  0.114|</p>
+<p><strong>Qué ve:</strong> La tabla de cargas muestra que PC1 carga positiva y fuertemente sobre <code>COBERTURA_NETA</code> y <code>APROBACIÓN</code> y negativa sobre <code>DESERCIÓN</code> y <code>REPITENCIA</code>; PC2 contrasta <code>COBERTURA_NETA_MEDIA</code> (brecha de grados 10°–11°) con <code>POBLACIÓN_5_16</code>; y PC3 se apoya principalmente en <code>POBLACIÓN_5_16</code> y <code>REPITENCIA</code>. Ninguna carga es trivial, lo que confirma que las seis variables participan.</p>
+<p><strong>Qué significa para el cliente:</strong> El autovalor (proporción de varianza o información total explicada por cada componente) no se cita aislado: cada componente mide una mezcla distinta de acceso, calidad y permanencia. PC1 mide el &quot;rendimiento y acceso general&quot;, PC2 la &quot;brecha crítica de nivel medio frente al tamaño del municipio&quot; y PC3 el &quot;rezago escolar asociado a la escala demográfica&quot;.</p>
+<p><strong>Qué decide él:</strong> El cliente bautiza semánticamente los componentes y los usa como etiquetas de gestión: PC1 para rankear desempeño educativo general, PC2 para detectar municipios donde la cobertura media es el cuello de botella independientemente de su tamaño, y PC3 para identificar rezago vinculado a población grande.</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-i/figures/pesos_componentes.png" alt="Cargas factoriales (loadings) de las seis variables en los tres primeros componentes principales." /></p>
+<p><strong>Qué ve:</strong> El gráfico de barras horizontales muestra, por componente, cuánto aporta cada variable: en PC1 predominan cobertura neta y aprobación en positivo y deserción y repetición en negativo; en PC2 destaca cobertura neta media; en PC3 destaca población y repetición.</p>
+<p><strong>Qué significa para el cliente:</strong> Cada componente tiene una &quot;huella&quot; distinta de variables, por lo que mide cosas distintas y no es válido tratarlos como equivalentes. PC1 es el resumen de buen funcionamiento educativo; PC2 y PC3 capturan dimensiones específicas que PC1 diluye.</p>
+<p><strong>Qué decide él:</strong> El cliente encarga a sus equipos técnicos interpretar cada componente con su bautizo semántico y no promediar los componentes en un único índice sin justificación, porque cada uno responde a una pregunta de gestión diferente.</p>
+<hr />
+<h2>6. El costo para su cliente (Grupo de interés y omisión con solo $PC_1$)</h2>
+<pre><code class="language-r"># Grupo de interés: alta desercion (&gt; 0.065) o baja cobertura neta (&lt;= 0.60)
+educ_sub &lt;- educ[, c(&quot;AÑO&quot;, &quot;MUNICIPIO&quot;, &quot;DEPARTAMENTO&quot;, vars)]
+educ_sub$grupo_vulnerable &lt;- with(educ_sub, DESERCIÓN &gt; 0.065 | COBERTURA_NETA &lt;= 0.60)
+
+# Scores del PCA estandarizado (orientacion: PC1+ = mejores condiciones educativas)
+scores &lt;- as.data.frame(pca_scale$x[, 1:3])
+scores$registro_id &lt;- 1:nrow(scores)
+educ_scores &lt;- bind_cols(educ_sub, scores)
+
+# Clasificacion &quot;buen estado&quot; usando SOLO PC1: PC1 &gt; 0 =&gt; buen estado (promedio)
+educ_scores$buen_estado_pc1 &lt;- educ_scores$PC1 &gt; 0
+
+# Matriz de omision / confusion
+tabla_costo &lt;- table(
+  Vulnerable = educ_scores$grupo_vulnerable,
+  `Clasificado como buen estado (solo PC1 &gt; 0)` = educ_scores$buen_estado_pc1
+)
+tabla_costo_df &lt;- as.data.frame.matrix(tabla_costo)
+tabla_costo_df$grupo &lt;- rownames(tabla_costo_df)
+tabla_costo_df &lt;- tabla_costo_df[, c(ncol(tabla_costo_df), 1:(ncol(tabla_costo_df) - 1))]
+
+n_vuln &lt;- sum(educ_scores$grupo_vulnerable)
+n_falsos_negativos &lt;- sum(educ_scores$grupo_vulnerable &amp; educ_scores$buen_estado_pc1)
+pct_fn &lt;- n_falsos_negativos / n_vuln * 100
+
+costo_resumen &lt;- data.frame(
+  metrica = c(
+    &quot;Registros totales&quot;,
+    &quot;Registros en grupo de interes (vulnerables)&quot;,
+    &quot;Vulnerables clasificados como BUEN estado solo por PC1 (falsos negativos)&quot;,
+    &quot;Porcentaje de vulnerables omitidos por solo PC1&quot;
+  ),
+  valor = c(
+    nrow(educ_scores),
+    n_vuln,
+    n_falsos_negativos,
+    round(pct_fn, 1)
+  ),
+  check.names = FALSE
+)
+
+write.csv(
+  educ_scores[, c(&quot;AÑO&quot;, &quot;MUNICIPIO&quot;, &quot;DEPARTAMENTO&quot;, vars, &quot;grupo_vulnerable&quot;, &quot;PC1&quot;, &quot;PC2&quot;, &quot;buen_estado_pc1&quot;)],
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;tables&quot;, &quot;costo_grupo_pc1.csv&quot;),
+  row.names = FALSE
+)
+write.csv(
+  costo_resumen,
+  file.path(project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;tables&quot;, &quot;costo_grupo_pc1_resumen.csv&quot;),
+  row.names = FALSE
+)
+
+# Figura: dispersión PC1 vs DESERCIÓN con línea de corte del grupo vulnerable
+fig_costo &lt;- file.path(
+  project_root, &quot;outputs&quot;, &quot;taller-pca&quot;, &quot;componentes-principales-i&quot;, &quot;figures&quot;, &quot;costo_pc1.png&quot;
+)
+ggplot(educ_scores, aes(x = PC1, y = DESERCIÓN, color = grupo_vulnerable)) +
+  geom_point(alpha = 0.25, size = 0.8) +
+  geom_vline(xintercept = 0, linetype = &quot;dashed&quot;, color = &quot;gray40&quot;) +
+  geom_hline(yintercept = 0.065, linetype = &quot;dashed&quot;, color = &quot;#c44e52&quot;) +
+  annotate(&quot;text&quot;, x = min(educ_scores$PC1), y = 0.07,
+           label = &quot;Corte desercion = 0,065&quot;, color = &quot;#c44e52&quot;, size = 3, hjust = 0) +
+  scale_color_manual(values = c(&quot;FALSE&quot; = &quot;#4c72b0&quot;, &quot;TRUE&quot; = &quot;#c44e52&quot;),
+                     name = &quot;Grupo vulnerable&quot;,
+                     labels = c(&quot;No&quot;, &quot;Sí&quot;)) +
+  theme_minimal() +
+  labs(
+    title = &quot;PC1 vs tasa de deserción: registros vulnerables y clasificación unidimensional (PC1 &gt; 0)&quot;,
+    x = &quot;PC1 (rendimiento y acceso general)&quot;,
+    y = &quot;Tasa de deserción&quot;
+  )
+</code></pre>
+<pre><code class="language-r">ggsave(fig_costo, width = 7, height = 5, dpi = 150)
+</code></pre>
+<pre><code class="language-r">knitr::kable(
+  costo_resumen,
+  format = &quot;pipe&quot;,
+  digits = c(0, 0),
+  caption = &quot;Resumen del costo de usar solo $PC_1$: registros vulnerables omitidos como falsos negativos.&quot;
+)
+</code></pre>
+<p>Table: Resumen del costo de usar solo $PC_1$: registros vulnerables omitidos como falsos negativos.</p>
+<p>|metrica                                                                   | valor|
+|:-------------------------------------------------------------------------|-----:|
+|Registros totales                                                         | 13802|
+|Registros en grupo de interes (vulnerables)                               |  1783|
+|Vulnerables clasificados como BUEN estado solo por PC1 (falsos negativos) |    84|
+|Porcentaje de vulnerables omitidos por solo PC1                           |     5|</p>
+<pre><code class="language-r">knitr::kable(
+  tabla_costo_df,
+  format = &quot;pipe&quot;,
+  digits = 0,
+  caption = &quot;Matriz de omisión: vulnerables vs. clasificados como 'buen estado' usando solo $PC_1 &gt; 0$.&quot;
+)
+</code></pre>
+<p>Table: Matriz de omisión: vulnerables vs. clasificados como 'buen estado' usando solo $PC_1 &gt; 0$.</p>
+<p>|      |grupo | FALSE| TRUE|
+|:-----|:-----|-----:|----:|
+|FALSE |FALSE |  4709| 7310|
+|TRUE  |TRUE  |  1699|   84|</p>
+<p><strong>Qué ve:</strong> De los 13802 registros, 1783 pertenecen al grupo de interés (deserción &gt; 6,5 % o cobertura neta ≤ 60 %). Si el cliente usa solo $PC_1$ y declara &quot;en buen estado&quot; a los que superan el promedio ($PC_1 &gt; 0$), 84 registros vulnerables (4.7 % del grupo de interés) quedan catalogados erróneamente como &quot;en buen estado&quot;: son falsos negativos.</p>
+<p><strong>Qué significa para el cliente:</strong> Un solo índice sintético no basta: al mezclarse escala demográfica, cobertura y rendimiento en $PC_1$, municipios grandes con deserción alta o cobertura neta baja pueden aparecer como &quot;mejores que el promedio&quot; y quedarse fuera de los fondos de infraestructura y tutoría que el cliente quiere dirigir precisamente a ellos.</p>
+<p><strong>Qué decide él:</strong> El cliente no debe priorizar ni excluir territorios con base únicamente en $PC_1$. Debe usar al menos dos componentes (PC1 y PC2) para evitar omitir a 84 registros en situación de vulnerabilidad extrema ($r round(pct_fn, 1)` % del grupo de interés).</p>
+<p><img src="../../../outputs/taller-pca/componentes-principales-i/figures/costo_pc1.png" alt="Dispersión de PC1 vs tasa de deserción con líneas de corte: grupo vulnerable y clasificación unidimensional." /></p>
+<p><strong>Qué ve:</strong> Cada punto es un registro municipio-año; los rojos son vulnerables (deserción &gt; 6,5 % o cobertura neta ≤ 60 %) y los azules no vulnerables. La línea vertical en PC1 = 0 separa &quot;buen estado&quot; (derecha) de &quot;atención&quot; (izquierda) bajo un criterio unidimensional; la línea horizontal marca la deserción crítica del 6,5 %. Muchos puntos rojos quedan a la derecha de PC1 = 0.</p>
+<p><strong>Qué significa para el cliente:</strong> Visualmente, el cliente observa que un número solo (PC1) no separa bien a los municipios con problemas severos de abandono: hay vulnerables mezclados con los clasificados como &quot;buen estado&quot; por el promedio de PC1.</p>
+<p><strong>Qué decide él:</strong> El cliente rechaza el ranking unidimensional y autoriza un modelo de dos o más componentes para clasificar territorios, de modo que los 84 casos vulnerables ocultos por PC1 sean visibles y atendibles.</p>
+<hr />
+

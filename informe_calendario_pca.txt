@@ -1,0 +1,141 @@
+================================================================================
+ INFORME DE CALENDARIO - ANALISIS DE COMPONENTES PRINCIPALES (PCA)
+================================================================================
+
+Proyecto: Estadistica Multidimensional - Indicadores Educativos
+Repositorio: Proyectos estadistica
+Lenguaje: R (RStudio Project)
+Duracion del sprint PCA: 1 semana (5 dias habiles)
+Equipo: Milu, David, Jairo y Gabriela
+Fecha de elaboracion: 17 de octubre de 2026
+
+================================================================================
+1. CONTEXTO Y ESTADO ACTUAL DEL REPOSITORIO
+================================================================================
+
+El proyecto ya cuenta con un avance considerable, por lo que este cronograma no
+parte de cero. Se enfoca exclusivamente en el analisis de componentes principales
+y su entrega.
+
+Elemento                    | Estado                                                    | Ubicacion en el repositorio
+----------------------------|-----------------------------------------------------------|-------------------------------------------
+Entorno                     | RStudio Project, R 4.5.3                                  | Proyectos estadistica.Rproj
+Dataset limpio              | 5 063 filas x 30 columnas, sin valores faltantes          | data/raw/educacion_limpio.csv
+Variables para analisis     | 28 indicadores educativos (2 excluidas por falta de varianza) | outputs/taller-02/tables/Variables_usadas.csv
+Datos normalizados          | Ya listos (z-score)                                       | outputs/taller-02/tables/Datos_normalizados.csv
+Matriz de correlacion       | Ya calculada                                              | outputs/taller-02/tables/Matriz_correlacion.csv
+Matriz de covarianzas       | Ya calculada                                              | outputs/taller-02/tables/Matriz_covarianzas.csv
+Reportes previos            | Taller 1, Taller 2 y Corte 1 entregados                   | reports/taller-01/, reports/taller-02/, reports/entrega-corte-1/
+Scripts de soporte          | Instalacion, validacion y renderizado                     | scripts/install_dependencies.R, scripts/check_project.R, scripts/render_reports.R
+
+Conclusión: las etapas de carga, limpieza, seleccion de variables, normalizacion
+y matriz de correlacion ya estan resueltas. El sprint PCA comienza directamente
+con el calculo de autovalores, seleccion de componentes, cargas, scores e
+informe final.
+
+================================================================================
+2. OBJETIVO DEL SPRINT
+================================================================================
+
+Aplicar PCA sobre los 28 indicadores educativos normalizados para:
+- Identificar los componentes principales que explican la mayor parte de la varianza.
+- Reducir la dimensionalidad del dataset.
+- Interpretar que indicadores agrupan cada componente.
+- Proyectar las observaciones en el nuevo espacio de componentes (scores y biplot).
+- Entregar un informe reproducible en R Markdown.
+
+================================================================================
+3. ASIGNACION DE ROLES (4 INTEGRANTES)
+================================================================================
+
+Integrante  | Rol principal                                  | Actividades clave
+------------|------------------------------------------------|-------------------------------------------------------------
+Milu        | Autovalores y seleccion de componentes         | Calculo de autovalores/autovectores, scree plot, regla de Kaiser, criterio del codo, varianza acumulada.
+David       | Cargas (loadings) e interpretacion             | Cargas de variables por componente, identificacion de indicadores dominantes, interpretacion tematica.
+Jairo       | Scores y visualizacion                         | Proyeccion de observaciones, calculo de scores, biplot, graficos de componentes.
+Gabriela    | Informe, validacion y entrega                  | Redaccion del .Rmd, integracion de tablas y figuras, revisión cruzada, renderizado final, documentacion.
+
+Todos participan en el kickoff inicial, la validacion de la seleccion de componentes (martes) y la revision final (viernes).
+
+================================================================================
+4. CRONOGRAMA DIA A DIA
+================================================================================
+
+Dia       | Actividad                                                                 | Responsable principal | Entrada (repositorio)                                                | Salida / Entregable
+----------|---------------------------------------------------------------------------|-----------------------|----------------------------------------------------------------------|------------------------------------------------------
+Lunes     | Calculo de autovalores y autovectores de la matriz de correlacion. Tabla de varianza explicada por componente. Construccion del scree plot. | Milu                  | Datos_normalizados.csv, Matriz_correlacion.csv                       | outputs/pca/tables/autovalores.csv; outputs/pca/figures/scree_plot.png
+Martes    | Seleccion del numero de componentes: Kaiser (autovalor > 1), metodo del codo y varianza acumulada (>= 70-80 %). Decision documentada y validada por el equipo. | Milu (validacion: equipo) | Autovalores del Dia 1                                               | Decision: numero de componentes y justificacion escrita
+Miercoles | Calculo de cargas (loadings) de cada variable sobre los componentes retenidos. Identificacion de variables dominantes por componente. | David                 | Matriz de correlacion, autovectores                                  | outputs/pca/tables/loadings.csv; Interpretacion por componente
+Jueves    | Calculo de scores y proyeccion de las 5 063 observaciones. Construccion e interpretacion del biplot (variables + observaciones). | Jairo                 | Datos normalizados, loadings                                         | outputs/pca/tables/scores.csv; outputs/pca/figures/biplot.png
+Viernes   | Redaccion del informe en R Markdown, integracion de tablas y figuras, revision cruzada del equipo, renderizado final y entrega. | Gabriela (todos revisan) | Todo lo anterior                                                    | reports/pca/analisis_pca.Rmd; reports/pca/analisis_pca.html; Presentacion final
+
+================================================================================
+5. ESTRUCTURA DE CARPETAS PROPUESTA (consistente con el repositorio)
+================================================================================
+
+outputs/pca/
+  tables/
+    autovalores.csv
+    loadings.csv
+    scores.csv
+  figures/
+    scree_plot.png
+    biplot.png
+reports/pca/
+  analisis_pca.Rmd
+  analisis_pca.html
+
+Comando para crear las carpetas desde R (raiz del proyecto):
+
+    dir.create("outputs/pca/tables", recursive = TRUE)
+    dir.create("outputs/pca/figures", recursive = TRUE)
+    dir.create("reports/pca", recursive = TRUE)
+
+================================================================================
+6. RITMO DE TRABAJO Y SINCRONIAS
+================================================================================
+
+Instancia             | Frecuencia      | Duracion | Propósito
+----------------------|-----------------|----------|-----------------------------------------------------
+Stand-up diario       | Cada manana     | 15 min   | Que se hizo ayer, que se hace hoy, bloqueos
+Sincronia seleccion   | Martes mediodia | 30 min   | Validar el numero de componentes (depende del lunes)
+Revision final        | Viernes         | 60 min   | Revisar informe, tablas, figuras y renderizado antes de entregar
+Control de versiones  | Continuo        | --       | Commits en Git para compartir avances y evitar sobrescribir CSV/PNG
+
+================================================================================
+7. ENTREGABLES FINALES
+================================================================================
+
+1. outputs/pca/tables/autovalores.csv  - tabla de autovalores y varianza explicada.
+2. outputs/pca/tables/loadings.csv     - cargas de variables por componente.
+3. outputs/pca/tables/scores.csv       - scores de las 5 063 observaciones.
+4. outputs/pca/figures/scree_plot.png  - grafico de codo.
+5. outputs/pca/figures/biplot.png      - biplot de componentes y variables.
+6. reports/pca/analisis_pca.Rmd        - informe reproducible en R Markdown.
+7. reports/pca/analisis_pca.html       - informe renderizado.
+8. Presentacion final                  - opcional, segun requerimiento del curso.
+
+================================================================================
+8. REQUISITOS TECNICOS
+================================================================================
+
+- R 4.5.3 o compatible.
+- Paquetes base de R suficientes para PCA (stats::prcomp, stats::princomp) o bien FactoMineR si se decide usar.
+- Paquetes ya instalados en el proyecto: rmarkdown, knitr, ggplot2, dplyr, tidyr y reshape2 (ver scripts/install_dependencies.R).
+- Pandoc para generar HTML desde R Markdown (si no esta instalado, el script genera Markdown y conserva CSV y graficos).
+
+Validacion previa disponible:
+
+    source("scripts/check_project.R")
+
+================================================================================
+9. NOTAS
+================================================================================
+
+- El dataset en data/raw/ NO se modifica durante este sprint.
+- Los resultados son derivados: se regeneran mediante scripts y se conservan en outputs/pca/.
+- Los nombres de archivos nuevos deben usar ASCII, minusculas y guiones, segun las convenciones del repositorio.
+
+================================================================================
+FIN DEL INFORME
+================================================================================
