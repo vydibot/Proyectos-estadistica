@@ -1,5 +1,7 @@
 "metrica","valor"
 "Registros totales",13802
-"Registros en grupo de interes (vulnerables)",1783
-"Vulnerables clasificados como BUEN estado solo por PC1 (falsos negativos)",84
-"Porcentaje de vulnerables omitidos por solo PC1",4.7
+"Registros del grupo de interés",1783
+"Del grupo, encontrados por PC1 (PC1 ≤ 0)",1699
+"Del grupo, que se escapan (PC1 mayor que 0)",84
+"Registros marcados «en atención» por PC1",6408
+"Del grupo, encontrados entre los registros de menor PC1 (mismo tamaño del grupo)",1087
