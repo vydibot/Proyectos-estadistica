@@ -1,7 +1,7 @@
 ---
 title: "Taller I – ¿Un número o varios? El resumen para su cliente"
 subtitle: "Análisis de Componentes Principales (PCA) – Indicadores Educativos Municipales de Colombia (2011–2024)"
-author: "Equipo de trabajo: Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva"
+author: "Equipo (6): Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva"
 date: "Octubre de 2026"
 output:
   html_document:
@@ -18,7 +18,7 @@ library(tidyr)
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    if (file.exists(file.path(path, "Proyectos estadistica.Rproj"))) {
+    if (file.exists(file.path(path, "Proyectos-estadistica.Rproj"))) {
       return(path)
     }
     parent <- dirname(path)
@@ -121,11 +121,11 @@ knitr::kable(
 )
 ```
 
-**Qué ve:** Un cliente institucional (Ministerio de Educación Nacional) que decide a quién dirigir fondos extraordinarios de infraestructura y tutoría, 13.802 registros municipio-año de 2011 a 2024 y seis variables, una por dimensión de esa decisión, elegidas de forma que ninguna repita a otra.
-
-**Qué significa para el cliente:** Sabe de qué datos parte y por qué cada variable está en el análisis. También sabe que cada «caso» es un municipio en un año, no un municipio único, y que un mismo municipio puede aparecer varias veces.
-
-**Qué decide él:** Si basta un solo número para priorizar municipios o si necesita reportar varios.
+> ⭐ **Qué ve:** Un cliente institucional (Ministerio de Educación Nacional) que decide a quién dirigir fondos extraordinarios de infraestructura y tutoría, 13.802 registros municipio-año de 2011 a 2024 y seis variables, una por dimensión de esa decisión, elegidas de forma que ninguna repita a otra.
+>
+> ⭐ **Qué significa para el cliente:** Sabe de qué datos parte y por qué cada variable está en el análisis. También sabe que cada «caso» es un municipio en un año, no un municipio único, y que un mismo municipio puede aparecer varias veces.
+>
+> ⭐ **Qué decide él:** Si basta un solo número para priorizar municipios o si necesita reportar varios.
 
 ---
 
@@ -133,7 +133,7 @@ knitr::kable(
 
 Antes de reducir dimensionalidad se inspecciona si las variables se repiten (correlaciones altas, $|r| > 0,90$) o si existe una identidad contable casi exacta (`APROBACIÓN` + `REPROBACIÓN` + `DESERCIÓN` ≈ 1). Por eso `REPROBACIÓN` no se incluye entre las seis variables.
 
-```{r correlaciones, fig.show='hide'}
+```{r correlaciones}
 cor_mat <- cor(sub, use = "complete.obs")
 cor_df <- as.data.frame(cor_mat)
 cor_df$variable <- rownames(cor_mat)
@@ -178,13 +178,11 @@ knitr::kable(
 )
 ```
 
-![Matriz de correlaciones de las 6 variables seleccionadas: verde para asociación positiva, rojo para negativa.](../../../outputs/taller-pca/componentes-principales-i/figures/matriz_correlaciones.png)
-
-**Qué ve:** Ninguna pareja de las seis variables llega a $|r| = 0,90$ y solo dos superan $|r| = 0,5$: `COBERTURA_NETA` con `COBERTURA_NETA_MEDIA` ($r = 0,59$) y `DESERCIÓN` con `APROBACIÓN` ($r = -0,53$). Las demás son débiles. Las que más se repiten son las dos coberturas y, por otro lado, la deserción con la aprobación; la que va más sola es `POBLACIÓN_5_16`, que no se relaciona con ninguna tasa ($|r| \leq 0,06$), lo que en el mapa se ve como una fila y una columna casi blancas.
-
-**Qué significa para el cliente:** Las seis variables no cuentan la misma historia: solo dos pares se parecen, así que no se puede descartar ninguna por repetida, y tampoco se debe esperar que un único número las resuma bien. Resumir tiene sentido solo en parte: se pueden juntar los dos tipos de cobertura y la deserción con la aprobación, pero el tamaño del municipio y la repitencia quedan aparte.
-
-**Qué decide él:** Puede pedir el análisis con las seis variables, sabiendo que el resumen va a perder bastante; cuánto, se mide en el punto 4.
+> ⭐ **Qué ve:** Ninguna pareja de las seis variables llega a $|r| = 0,90$ y solo dos superan $|r| = 0,5$: `COBERTURA_NETA` con `COBERTURA_NETA_MEDIA` ($r = 0,59$) y `DESERCIÓN` con `APROBACIÓN` ($r = -0,53$). Las demás son débiles. Las que más se repiten son las dos coberturas y, por otro lado, la deserción con la aprobación; la que va más sola es `POBLACIÓN_5_16`, que no se relaciona con ninguna tasa ($|r| \leq 0,06$), lo que en el mapa se ve como una fila y una columna casi blancas.
+>
+> ⭐ **Qué significa para el cliente:** Las seis variables no cuentan la misma historia: solo dos pares se parecen, así que no se puede descartar ninguna por repetida, y tampoco se debe esperar que un único número las resuma bien. Resumir tiene sentido solo en parte: se pueden juntar los dos tipos de cobertura y la deserción con la aprobación, pero el tamaño del municipio y la repitencia quedan aparte.
+>
+> ⭐ **Qué decide él:** Puede pedir el análisis con las seis variables, sabiendo que el resumen va a perder bastante; cuánto, se mide en el punto 4.
 
 ---
 
@@ -263,11 +261,11 @@ knitr::kable(
 )
 ```
 
-**Qué ve:** En la escala original, `POBLACIÓN_5_16` tiene una desviación estándar de unos 45.000 habitantes y las tasas se mueven entre 0,02 y 0,16. Sin estandarizar, el primer componente se queda con prácticamente el 100 % de la varianza y apunta solo a la población; los otros cinco componentes quedan en cero. Con estandarización, cada variable pesa lo mismo y el primer componente explica el `r fnum(pct_var_scale1)` %.
-
-**Qué significa para el cliente:** Sin estandarizar, el análisis sería una forma complicada de ordenar municipios por tamaño y no diría nada de cobertura, deserción o aprobación. Estandarizar hace que el tamaño del municipio compita en igualdad de condiciones con las tasas educativas.
-
-**Qué decide él:** Se corre el PCA con `scale. = TRUE`. Los componentes que reciba reflejan el desempeño educativo y no el tamaño demográfico.
+> ⭐ **Qué ve:** En la escala original, `POBLACIÓN_5_16` tiene una desviación estándar de unos 45.000 habitantes y las tasas se mueven entre 0,02 y 0,16. Sin estandarizar, el primer componente se queda con prácticamente el 100 % de la varianza y apunta solo a la población; los otros cinco componentes quedan en cero. Con estandarización, cada variable pesa lo mismo y el primer componente explica el `r fnum(pct_var_scale1)` %.
+>
+> ⭐ **Qué significa para el cliente:** Sin estandarizar, el análisis sería una forma complicada de ordenar municipios por tamaño y no diría nada de cobertura, deserción o aprobación. Estandarizar hace que el tamaño del municipio compita en igualdad de condiciones con las tasas educativas.
+>
+> ⭐**Qué decide él:** Se corre el PCA con `scale. = TRUE`. Los componentes que reciba reflejan el desempeño educativo y no el tamaño demográfico.
 
 ---
 
@@ -275,7 +273,7 @@ knitr::kable(
 
 El **autovalor** de un componente mide cuánta información concentra. Con seis variables estandarizadas, el total es 6 y cada variable original aporta 1; por eso un componente con autovalor menor que 1 resume menos que una variable suelta (criterio de Kaiser).
 
-```{r varianza-explicada, fig.show='hide'}
+```{r varianza-explicada}
 autovalores <- pca_scale$sdev^2
 pct_var <- autovalores / sum(autovalores) * 100
 pct_acum <- cumsum(pct_var)
@@ -329,19 +327,17 @@ knitr::kable(
 )
 ```
 
-![Scree plot: varianza de cada componente, porcentaje acumulado, umbral del 80 % y criterio de Kaiser.](../../../outputs/taller-pca/componentes-principales-i/figures/varianza_explicada.png)
-
-**Qué ve:** El primer componente explica el `r fnum(varianza_df$pct_varianza[1])` % de la varianza y el segundo el `r fnum(varianza_df$pct_varianza[2])` %; juntos suman `r fnum(varianza_df$pct_acumulado[2])` %. El criterio de Kaiser retiene `r sum(varianza_df$kaiser)` componentes, aunque el tercero (autovalor `r fnum(varianza_df$autovalor[3], 3)`) queda a un paso de la línea. Para llegar al 80 % hacen falta `r n_comp_80` componentes (`r fnum(varianza_df$pct_acumulado[n_comp_80])` %); con tres solo se llega a `r fnum(varianza_df$pct_acumulado[3])` %. En el gráfico, las cuatro primeras barras son parecidas (entre 15 % y 31 %) y la mayor caída está entre el cuarto y el quinto componente.
-
-**Qué significa para el cliente:** Un solo número guarda apenas `r round(varianza_df$pct_varianza[1])` de cada 100 partes de la información y deja sin explicar el `r fnum(100 - varianza_df$pct_acumulado[1])` %, y dos números todavía dejan el `r fnum(100 - varianza_df$pct_acumulado[2])` %. Resumir seis variables en `r n_comp_80` componentes es un ahorro modesto, y eso es coherente con el punto 2, donde casi ninguna variable se parecía a otra.
-
-**Qué decide él:** No debe priorizar municipios solo con $PC_1$. Como mínimo, debe mirar los dos primeros componentes (los que retiene Kaiser, `r fnum(varianza_df$pct_acumulado[2])` %) y decidir si el 80 % justifica trabajar con `r n_comp_80` números en lugar de las seis variables originales.
+> ⭐ **Qué ve:** El primer componente explica el `r fnum(varianza_df$pct_varianza[1])` % de la varianza y el segundo el `r fnum(varianza_df$pct_varianza[2])` %; juntos suman `r fnum(varianza_df$pct_acumulado[2])` %. El criterio de Kaiser retiene `r sum(varianza_df$kaiser)` componentes, aunque el tercero (autovalor `r fnum(varianza_df$autovalor[3], 3)`) queda a un paso de la línea. Para llegar al 80 % hacen falta `r n_comp_80` componentes (`r fnum(varianza_df$pct_acumulado[n_comp_80])` %); con tres solo se llega a `r fnum(varianza_df$pct_acumulado[3])` %. En el gráfico, las cuatro primeras barras son parecidas (entre 15 % y 31 %) y la mayor caída está entre el cuarto y el quinto componente.
+>
+> ⭐ **Qué significa para el cliente:** Un solo número guarda apenas `r round(varianza_df$pct_varianza[1])` de cada 100 partes de la información y deja sin explicar el `r fnum(100 - varianza_df$pct_acumulado[1])` %, y dos números todavía dejan el `r fnum(100 - varianza_df$pct_acumulado[2])` %. Resumir seis variables en `r n_comp_80` componentes es un ahorro modesto, y eso es coherente con el punto 2, donde casi ninguna variable se parecía a otra.
+>
+> ⭐ **Qué decide él:** No debe priorizar municipios solo con $PC_1$. Como mínimo, debe mirar los dos primeros componentes (los que retiene Kaiser, `r fnum(varianza_df$pct_acumulado[2])` %) y decidir si el 80 % justifica trabajar con `r n_comp_80` números en lugar de las seis variables originales.
 
 ---
 
 ## 5. Qué mide cada una (Pesos de cada variable y nombre de cada componente)
 
-```{r cargas, fig.show='hide'}
+```{r cargas}
 loadings <- pca_scale$rotation  # variables x PCs
 loadings_df <- as.data.frame(loadings[, 1:3])
 loadings_df$variable <- rownames(loadings)
@@ -390,19 +386,17 @@ knitr::kable(
 )
 ```
 
-![Peso de las seis variables en los tres primeros componentes.](../../../outputs/taller-pca/componentes-principales-i/figures/pesos_componentes.png)
-
-**Qué ve:** En $PC_1$ todas las variables de desempeño pesan en la misma dirección: cobertura neta media (0,52), aprobación (0,50) y cobertura neta (0,41) en positivo; deserción (-0,49) y repitencia (-0,29) en negativo; la población casi no pesa (0,06). En $PC_2$ la cobertura neta (-0,59), la cobertura neta media (-0,46) y la deserción (-0,39) van en un sentido y la aprobación (0,47) en el contrario. En $PC_3$ pesa casi solo la población (0,98).
-
-**Qué significa para el cliente:** $PC_1$ se puede leer como el **funcionamiento educativo general**: sube cuando hay más acceso y más aprobación, y baja cuando hay más deserción y repitencia. $PC_2$ contrapone el **acceso frente a la permanencia y la aprobación**: separa a los municipios con mucha cobertura pero también mucha deserción de los que tienen poca cobertura pero buena aprobación. $PC_3$ es el **tamaño del municipio**: no mide desempeño, y por sí sola explica el `r fnum(varianza_df$pct_varianza[3])` % de la información. El signo de cada componente es arbitrario; aquí $PC_1$ quedó con el signo en que positivo es mejor. Los nombres los pusimos nosotros mirando los pesos: otro analista podría nombrarlos distinto, y no dicen que exista una causa detrás, solo que las variables se mueven juntas. $PC_2$ es un contraste entre dos grupos de variables (cobertura y deserción de un lado, aprobación del otro), no una variable por su cuenta.
-
-**Qué decide él:** Usa $PC_1$ para ordenar el desempeño general, $PC_2$ para encontrar municipios donde el acceso y la permanencia van en direcciones opuestas, y $PC_3$ solo como contexto de tamaño, nunca para decir que un municipio está mejor o peor. No debe promediar los componentes en un único índice, porque cada uno responde una pregunta distinta.
+> ⭐ **Qué ve:** En $PC_1$ todas las variables de desempeño pesan en la misma dirección: cobertura neta media (0,52), aprobación (0,50) y cobertura neta (0,41) en positivo; deserción (-0,49) y repitencia (-0,29) en negativo; la población casi no pesa (0,06). En $PC_2$ la cobertura neta (-0,59), la cobertura neta media (-0,46) y la deserción (-0,39) van en un sentido y la aprobación (0,47) en el contrario. En $PC_3$ pesa casi solo la población (0,98).
+>
+> ⭐ **Qué significa para el cliente:** $PC_1$ se puede leer como el **funcionamiento educativo general**: sube cuando hay más acceso y más aprobación, y baja cuando hay más deserción y repitencia. $PC_2$ contrapone el **acceso frente a la permanencia y la aprobación**: separa a los municipios con mucha cobertura pero también mucha deserción de los que tienen poca cobertura pero buena aprobación. $PC_3$ es el **tamaño del municipio**: no mide desempeño, y por sí sola explica el `r fnum(varianza_df$pct_varianza[3])` % de la información. El signo de cada componente es arbitrario; aquí $PC_1$ quedó con el signo en que positivo es mejor. Los nombres los pusimos nosotros mirando los pesos: otro analista podría nombrarlos distinto, y no dicen que exista una causa detrás, solo que las variables se mueven juntas. $PC_2$ es un contraste entre dos grupos de variables (cobertura y deserción de un lado, aprobación del otro), no una variable por su cuenta.
+>
+> ⭐ **Qué decide él:** Usa $PC_1$ para ordenar el desempeño general, $PC_2$ para encontrar municipios donde el acceso y la permanencia van en direcciones opuestas, y $PC_3$ solo como contexto de tamaño, nunca para decir que un municipio está mejor o peor. No debe promediar los componentes en un único índice, porque cada uno responde una pregunta distinta.
 
 ---
 
 ## 6. El costo para su cliente (Grupo de interés y omisión con solo $PC_1$)
 
-```{r costo-grupo, fig.show='hide'}
+```{r costo-grupo}
 # Grupo de interés: deserción alta (> 0.065) o cobertura neta baja (<= 0.60)
 educ_sub <- educ[, c("AÑO", "MUNICIPIO", "DEPARTAMENTO", vars)]
 educ_sub$grupo_vulnerable <- with(educ_sub, DESERCIÓN > 0.065 | COBERTURA_NETA <= 0.60)
@@ -488,6 +482,7 @@ p_costo <- ggplot(educ_scores, aes(x = PC1, y = DESERCIÓN, color = grupo_vulner
     y = "Tasa de deserción"
   )
 ggsave(fig_costo, plot = p_costo, width = 7, height = 5, dpi = 150)
+p_costo
 ```
 
 ```{r kable-costo-resumen}
@@ -504,17 +499,13 @@ knitr::kable(ejemplos, format = "pipe", digits = c(0, 0, 0, 3, 3, 3, 2),
              caption = "Los cinco casos más lejanos de la zona «en atención» entre los que se escapan.")
 ```
 
-![Dispersión de PC1 vs tasa de deserción con líneas de corte: grupo vulnerable y clasificación unidimensional.](../../../outputs/taller-pca/componentes-principales-i/figures/costo_pc1.png)
-
-**Qué ve:** De los `r format(n_total, big.mark = ".")` registros, `r format(n_vuln, big.mark = ".")` (`r format(round(pct_azar, 1), decimal.mark = ",")` %) están en el grupo de interés: deserción mayor de 6,5 % o cobertura neta de 60 % o menos. Si el cliente declara «en atención» a todo registro con PC1 ≤ 0, la primera componente encuentra `r format(n_encontrados, big.mark = ".")` del grupo (`r format(round(100 - pct_fn, 1), decimal.mark = ",")` %) y se le escapan `r n_falsos_negativos` (`r format(round(pct_fn, 1), decimal.mark = ",")` %), que quedan como «buen estado». A cambio, marca como «en atención» a `r format(n_marcados, big.mark = ".")` registros (`r format(round(n_marcados / n_total * 100, 1), decimal.mark = ",")` % del total), de los cuales `r format(n_marcados_sin_grupo, big.mark = ".")` no son del grupo. Si solo pudiera atender tantos registros como tiene el grupo, tomando los de menor PC1, encontraría `r format(encontrados_igual, big.mark = ".")` (`r format(round(pct_igual, 1), decimal.mark = ",")` %), frente a `r format(round(pct_azar, 1), decimal.mark = ",")` % que encontraría al azar.
-
-Entre los `r n_falsos_negativos` que se escapan hay dos tipos de casos. Unos tienen cobertura neta apenas por debajo de 60 % pero deserción casi nula y aprobación alta, como Sutatenza (Boyacá, 2020: cobertura de 58,8 %, deserción de 0,7 % y aprobación de 95,9 %), Nariño (Nariño, 2017), Chaguaní (Cundinamarca, 2017) y Útica (Cundinamarca, 2016). Otros tienen cobertura neta por encima de 100 % y deserción alta, como Tenjo (Cundinamarca, 2011: cobertura de 135,5 % y deserción de 7,8 %); el Corte 1 explicó que las coberturas sobre 100 % responden a desajustes entre la matrícula y las proyecciones de población.
-
-**Qué significa para el cliente:** Con el corte en cero, un solo número casi no deja a nadie del grupo por fuera (`r format(round(100 - pct_fn, 1), decimal.mark = ",")` % encontrado), pero lo logra marcando a `r format(round(n_marcados / n_total * 100, 1), decimal.mark = ",")` % de los registros: de cada 100 señalados, solo `r round(n_encontrados / n_marcados * 100)` son del grupo. En la figura, los puntos rojos (grupo de interés) quedan sobre todo a la izquierda de PC1 = 0, pero esa zona también contiene `r format(n_marcados_sin_grupo, big.mark = ".")` puntos azules; los rojos por debajo de la línea de 6,5 % de deserción están en el grupo solo por su baja cobertura. Si el cliente solo puede atender a tantos registros como tiene el grupo, el número encuentra `r round(pct_igual)` de cada 100 (frente a `r round(pct_azar)` al azar) y se le escapan `r round(100 - pct_igual)`. Los que se escapan son registros donde la cobertura y la permanencia van en direcciones opuestas: PC1 los promedia y los deja por encima del promedio. Además, cuatro de los cinco ejemplos tienen una cobertura entre 57,9 % y 59,3 %, justo bajo el límite de 60 %, así que parte de lo que se escapa es el borde de un corte arbitrario. Y como la deserción y la cobertura neta son dos de las variables del PCA, parte de este resultado es esperable; por eso la comparación a igual tamaño es la prueba exigente.
-
-**Qué decide él:** Un solo número no le basta si solo puede atender a un grupo del tamaño del de interés: `r round(100 - pct_igual)` de cada 100 quedarían por fuera. Debe reportar al menos dos: PC1, el funcionamiento general, y PC2, que contrapone el acceso con la permanencia (punto 5) y es el segundo componente que retiene Kaiser (punto 4). Para los registros cercanos al límite de 60 % de cobertura, debe revisar directamente la cobertura neta, sin depender de ningún componente.
-
----
+> ⭐ **Qué ve:** De los `r format(n_total, big.mark = ".")` registros, `r format(n_vuln, big.mark = ".")` (`r format(round(pct_azar, 1), decimal.mark = ",")` %) están en el grupo de interés: deserción mayor de 6,5 % o cobertura neta de 60 % o menos. Si el cliente declara «en atención» a todo registro con PC1 ≤ 0, la primera componente encuentra `r format(n_encontrados, big.mark = ".")` del grupo (`r format(round(100 - pct_fn, 1), decimal.mark = ",")` %) y se le escapan `r n_falsos_negativos` (`r format(round(pct_fn, 1), decimal.mark = ",")` %), que quedan como «buen estado». A cambio, marca como «en atención» a `r format(n_marcados, big.mark = ".")` registros (`r format(round(n_marcados / n_total * 100, 1), decimal.mark = ",")` % del total), de los cuales `r format(n_marcados_sin_grupo, big.mark = ".")` no son del grupo. Si solo pudiera atender tantos registros como tiene el grupo, tomando los de menor PC1, encontraría `r format(encontrados_igual, big.mark = ".")` (`r format(round(pct_igual, 1), decimal.mark = ",")` %), frente a `r format(round(pct_azar, 1), decimal.mark = ",")` % que encontraría al azar.
+>
+> Entre los `r n_falsos_negativos` que se escapan hay dos tipos de casos. Unos tienen cobertura neta apenas por debajo de 60 % pero deserción casi nula y aprobación alta, como Sutatenza (Boyacá, 2020: cobertura de 58,8 %, deserción de 0,7 % y aprobación de 95,9 %), Nariño (Nariño, 2017), Chaguaní (Cundinamarca, 2017) y Útica (Cundinamarca, 2016). Otros tienen cobertura neta por encima de 100 % y deserción alta, como Tenjo (Cundinamarca, 2011: cobertura de 135,5 % y deserción de 7,8 %); el Corte 1 explicó que las coberturas sobre 100 % responden a desajustes entre la matrícula y las proyecciones de población.
+> 
+> ⭐ **Qué significa para el cliente:** Con el corte en cero, un solo número casi no deja a nadie del grupo por fuera (`r format(round(100 - pct_fn, 1), decimal.mark = ",")` % encontrado), pero lo logra marcando a `r format(round(n_marcados / n_total * 100, 1), decimal.mark = ",")` % de los registros: de cada 100 señalados, solo `r round(n_encontrados / n_marcados * 100)` son del grupo. En la figura, los puntos rojos (grupo de interés) quedan sobre todo a la izquierda de PC1 = 0, pero esa zona también contiene `r format(n_marcados_sin_grupo, big.mark = ".")` puntos azules; los rojos por debajo de la línea de 6,5 % de deserción están en el grupo solo por su baja cobertura. Si el cliente solo puede atender a tantos registros como tiene el grupo, el número encuentra `r round(pct_igual)` de cada 100 (frente a `r round(pct_azar)` al azar) y se le escapan `r round(100 - pct_igual)`. Los que se escapan son registros donde la cobertura y la permanencia van en direcciones opuestas: PC1 los promedia y los deja por encima del promedio. Además, cuatro de los cinco ejemplos tienen una cobertura entre 57,9 % y 59,3 %, justo bajo el límite de 60 %, así que parte de lo que se escapa es el borde de un corte arbitrario. Y como la deserción y la cobertura neta son dos de las variables del PCA, parte de este resultado es esperable; por eso la comparación a igual tamaño es la prueba exigente.
+>
+> ⭐ **Qué decide él:** Un solo número no le basta si solo puede atender a un grupo del tamaño del de interés: `r round(100 - pct_igual)` de cada 100 quedarían por fuera. Debe reportar al menos dos: PC1, el funcionamiento general, y PC2, que contrapone el acceso con la permanencia (punto 5) y es el segundo componente que retiene Kaiser (punto 4). Para los registros cercanos al límite de 60 % de cobertura, debe revisar directamente la cobertura neta, sin depender de ningún componente.
 
 ### Costo por criterio: ¿a quiénes deja por fuera PC1 en cada fondo?
 
@@ -558,11 +549,11 @@ knitr::kable(
 )
 ```
 
-**Qué ve:** Si se toma el 20 % peor de cada indicador, PC1 deja por fuera entre `r fnum(min(costo_criterios$de_cada_100), 0)` y `r fnum(max(costo_criterios$de_cada_100), 0)` de cada 100: lo más alto en `r costo_criterios$variable[which.max(costo_criterios$de_cada_100)]` (`r fnum(max(costo_criterios$de_cada_100), 0)` de cada 100) y lo más bajo en `r costo_criterios$variable[which.min(costo_criterios$de_cada_100)]` (`r fnum(min(costo_criterios$de_cada_100), 0)` de cada 100).
-
-**Qué significa para el cliente:** En los indicadores de acceso (infraestructura) se quedan por fuera `r fnum(costo_criterios$de_cada_100[1], 0)` y `r fnum(costo_criterios$de_cada_100[2], 0)` de cada 100; en los de permanencia (tutoría), `r fnum(costo_criterios$de_cada_100[3], 0)`, `r fnum(costo_criterios$de_cada_100[4], 0)` y `r fnum(costo_criterios$de_cada_100[5], 0)` de cada 100. Es la información que un solo número esconde, y el costo no es el mismo en todos los criterios.
-
-**Qué decide él:** Si asignara un fondo mirando solo PC1, dejaría por fuera al menos `r fnum(min(costo_criterios$de_cada_100), 0)` de cada 100 de quienes más lo necesitan según ese criterio. Para decidir quién recibe cada fondo debe mirar directamente el indicador de ese fondo, y usar PC1 solo para ordenar el funcionamiento general.
+> ⭐ **Qué ve:** Si se toma el 20 % peor de cada indicador, PC1 deja por fuera entre `r fnum(min(costo_criterios$de_cada_100), 0)` y `r fnum(max(costo_criterios$de_cada_100), 0)` de cada 100: lo más alto en `r costo_criterios$variable[which.max(costo_criterios$de_cada_100)]` (`r fnum(max(costo_criterios$de_cada_100), 0)` de cada 100) y lo más bajo en `r costo_criterios$variable[which.min(costo_criterios$de_cada_100)]` (`r fnum(min(costo_criterios$de_cada_100), 0)` de cada 100).
+>
+> ⭐ **Qué significa para el cliente:** En los indicadores de acceso (infraestructura) se quedan por fuera `r fnum(costo_criterios$de_cada_100[1], 0)` y `r fnum(costo_criterios$de_cada_100[2], 0)` de cada 100; en los de permanencia (tutoría), `r fnum(costo_criterios$de_cada_100[3], 0)`, `r fnum(costo_criterios$de_cada_100[4], 0)` y `r fnum(costo_criterios$de_cada_100[5], 0)` de cada 100. Es la información que un solo número esconde, y el costo no es el mismo en todos los criterios.
+>
+> ⭐ **Qué decide él:** Si asignara un fondo mirando solo PC1, dejaría por fuera al menos `r fnum(min(costo_criterios$de_cada_100), 0)` de cada 100 de quienes más lo necesitan según ese criterio. Para decidir quién recibe cada fondo debe mirar directamente el indicador de ese fondo, y usar PC1 solo para ordenar el funcionamiento general.
 
 ---
 
@@ -570,10 +561,13 @@ knitr::kable(
 
 One-hot de los más de mil municipios es pesado y probablemente poco útil, así que se prueban tres caminos y se comparan con la versión sin categóricas. Todas están estandarizadas (`scale. = TRUE`, la misma decisión del punto 3), y en las tres con categóricas el año entra en one-hot (14 columnas):
 
-- **Sin categóricas:** solo las 6 variables numéricas, la versión de los puntos 1 a 6.
-- **Departamentos y municipios en one-hot:** una columna por cada departamento y por cada municipio.
-- **Departamentos en one-hot y municipio con su código:** una columna por departamento y una sola columna con el código DANE del municipio, estandarizada.
-- **Códigos de departamento y de municipio:** dos columnas, los códigos DANE estandarizados.
+* **Sin categóricas:** solo las 6 variables numéricas, la versión de los puntos 1 a 6.
+
+* **Departamentos y municipios en one-hot:** una columna por cada departamento y por cada municipio.
+
+* **Departamentos en one-hot y municipio con su código:** una columna por departamento y una sola columna con el código DANE del municipio, estandarizada.
+
+* **Códigos de departamento y de municipio:** dos columnas, los códigos DANE estandarizados.
 
 Estandarizar un código no lo vuelve una cantidad: el código sigue siendo una etiqueta y estandarizarlo le inventa un orden. Se incluye porque es una de las alternativas pedidas y porque comparar es la forma de ver cuánto cuesta.
 
@@ -705,6 +699,7 @@ p_oh <- ggplot(acum_df, aes(x = componente, y = acumulado, color = version)) +
     y = "% de información acumulado"
   )
 ggsave(fig_oh, plot = p_oh, width = 8, height = 6.5, dpi = 150)
+p_oh
 ```
 
 ```{r kable-one-hot}
@@ -746,13 +741,11 @@ knitr::kable(
 )
 ```
 
-![Información acumulada según el número de componentes en cada versión.](../../../outputs/taller-pca/componentes-principales-i/figures/comparacion_one_hot.png)
-
-**Qué ve:** Sin categóricas, el PCA usa `r res$columnas[1]` columnas y PC1 guarda `r fnum(res$pct_pc1[1])` % de la información (PC1 y PC2, `r fnum(res$pct_pc12[1])` %); bastan `r res$n80[1]` componentes para pasar del 80 %. Con deptos y municipios en one-hot, usa `r fint(res$columnas[2])` columnas, PC1 guarda `r fnum(res$pct_pc1[2], 2)` % y hacen falta `r fint(res$n80[2])` componentes. Con deptos en one-hot y el código del municipio, usa `r fint(res$columnas[3])` columnas, PC1 guarda `r fnum(res$pct_pc1[3], 2)` % y hacen falta `r fint(res$n80[3])`. Con solo los códigos, usa `r fint(res$columnas[4])` columnas, PC1 guarda `r fnum(res$pct_pc1[4], 2)` % y hacen falta `r fint(res$n80[4])`. La correlación de PC1 con el PC1 sin categóricas es `r fnum(res$cor_pc1[2], 2)`, `r fnum(res$cor_pc1[3], 2)` y `r fnum(res$cor_pc1[4], 2)` en las tres versiones con categóricas. Con PC1 ≤ 0 se encuentra el `r fnum(res$pct_enc[1])` % del grupo de interés sin categóricas y el `r fnum(res$pct_enc[2])` %, `r fnum(res$pct_enc[3])` % y `r fnum(res$pct_enc[4])` % con las tres versiones con categóricas; a igual tamaño del grupo, `r fnum(res$pct_igual[1])` % frente a `r fnum(res$pct_igual[2])` %, `r fnum(res$pct_igual[3])` % y `r fnum(res$pct_igual[4])` %. De PC1, solo entre el `r fnum(min(res$peso_num1[2:4]), 0)` % y el `r fnum(max(res$peso_num1[2:4]), 0)` % viene de las 6 variables educativas, y PC2 se parece poco al original (correlación de `r fnum(min(res$cor_pc2[2:4]), 2)` a `r fnum(max(res$cor_pc2[2:4]), 2)`). Los pesos de las 6 variables en PC1 mantienen sus signos, pero bajan: la cobertura neta pasa de `r fnum(pesos_pc1["COBERTURA_NETA", 1], 2)` a entre `r fnum(min(pesos_pc1["COBERTURA_NETA", 2:4]), 2)` y `r fnum(max(pesos_pc1["COBERTURA_NETA", 2:4]), 2)`.
-
-**Qué significa para el cliente:** Agregar categóricas no solo reparte la información en más componentes: cambia lo que miden. Parte de PC1 pasa a las columnas de año, departamento y municipio, y PC2 deja de ser el mismo componente, por eso se encuentran menos casos del grupo de interés. Entre las tres versiones con categóricas, la de códigos es la que pierde menos con menos columnas (`r fint(res$columnas[4])` columnas y `r fnum(res$pct_pc12[4])` % en PC1 y PC2), pero es la que peor encuentra al grupo y trata un código como si fuera una cantidad; la de municipios en one-hot es la peor relación (`r fint(res$columnas[2])` columnas para `r fnum(res$pct_pc12[2], 2)` %). `r ifelse(all(res$pct_pc12[con_cat] < res$pct_pc12[1]) && all(res$columnas[con_cat] > res$columnas[1]), "Ninguna de las tres supera a la versión sin categóricas: todas usan más columnas y guardan menos información en los dos primeros componentes.", "Alguna versión con categóricas se acerca o supera a la versión sin categóricas en la tabla: revisar cuál y por qué.")`
-
-**Qué decide él:** Decide con el PCA sin categóricas, que resume en pocos números con la menor cantidad de columnas. Si necesita ver cómo cambia el desempeño entre años o territorios, los usa como grupos para comparar sobre ese mismo mapa y no como columnas del PCA.
+> ⭐ **Qué ve:** Sin categóricas, el PCA usa `r res$columnas[1]` columnas y PC1 guarda `r fnum(res$pct_pc1[1])` % de la información (PC1 y PC2, `r fnum(res$pct_pc12[1])` %); bastan `r res$n80[1]` componentes para pasar del 80 %. Con deptos y municipios en one-hot, usa `r fint(res$columnas[2])` columnas, PC1 guarda `r fnum(res$pct_pc1[2], 2)` % y hacen falta `r fint(res$n80[2])` componentes. Con deptos en one-hot y el código del municipio, usa `r fint(res$columnas[3])` columnas, PC1 guarda `r fnum(res$pct_pc1[3], 2)` % y hacen falta `r fint(res$n80[3])`. Con solo los códigos, usa `r fint(res$columnas[4])` columnas, PC1 guarda `r fnum(res$pct_pc1[4], 2)` % y hacen falta `r fint(res$n80[4])`. La correlación de PC1 con el PC1 sin categóricas es `r fnum(res$cor_pc1[2], 2)`, `r fnum(res$cor_pc1[3], 2)` y `r fnum(res$cor_pc1[4], 2)` en las tres versiones con categóricas. Con PC1 ≤ 0 se encuentra el `r fnum(res$pct_enc[1])` % del grupo de interés sin categóricas y el `r fnum(res$pct_enc[2])` %, `r fnum(res$pct_enc[3])` % y `r fnum(res$pct_enc[4])` % con las tres versiones con categóricas; a igual tamaño del grupo, `r fnum(res$pct_igual[1])` % frente a `r fnum(res$pct_igual[2])` %, `r fnum(res$pct_igual[3])` % y `r fnum(res$pct_igual[4])` %. De PC1, solo entre el `r fnum(min(res$peso_num1[2:4]), 0)` % y el `r fnum(max(res$peso_num1[2:4]), 0)` % viene de las 6 variables educativas, y PC2 se parece poco al original (correlación de `r fnum(min(res$cor_pc2[2:4]), 2)` a `r fnum(max(res$cor_pc2[2:4]), 2)`). Los pesos de las 6 variables en PC1 mantienen sus signos, pero bajan: la cobertura neta pasa de `r fnum(pesos_pc1["COBERTURA_NETA", 1], 2)` a entre `r fnum(min(pesos_pc1["COBERTURA_NETA", 2:4]), 2)` y `r fnum(max(pesos_pc1["COBERTURA_NETA", 2:4]), 2)`.
+>
+> ⭐ **Qué significa para el cliente:** Agregar categóricas no solo reparte la información en más componentes: cambia lo que miden. Parte de PC1 pasa a las columnas de año, departamento y municipio, y PC2 deja de ser el mismo componente, por eso se encuentran menos casos del grupo de interés. Entre las tres versiones con categóricas, la de códigos es la que pierde menos con menos columnas (`r fint(res$columnas[4])` columnas y `r fnum(res$pct_pc12[4])` % en PC1 y PC2), pero es la que peor encuentra al grupo y trata un código como si fuera una cantidad; la de municipios en one-hot es la peor relación (`r fint(res$columnas[2])` columnas para `r fnum(res$pct_pc12[2], 2)` %). `r ifelse(all(res$pct_pc12[con_cat] < res$pct_pc12[1]) && all(res$columnas[con_cat] > res$columnas[1]), "Ninguna de las tres supera a la versión sin categóricas: todas usan más columnas y guardan menos información en los dos primeros componentes.", "Alguna versión con categóricas se acerca o supera a la versión sin categóricas en la tabla: revisar cuál y por qué.")`
+>
+> ⭐ **Qué decide él:** Decide con el PCA sin categóricas, que resume en pocos números con la menor cantidad de columnas. Si necesita ver cómo cambia el desempeño entre años o territorios, los usa como grupos para comparar sobre ese mismo mapa y no como columnas del PCA.
 
 ---
 
