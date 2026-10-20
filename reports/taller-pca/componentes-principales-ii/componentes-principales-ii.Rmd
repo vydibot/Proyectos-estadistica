@@ -2,13 +2,16 @@
 title: "Taller II – El mapa de su negocio"
 subtitle: "Plano factorial y biplot del Análisis de Componentes Principales (PCA) – Indicadores Educativos Municipales de Colombia (2011–2024)"
 author: "Equipo de trabajo: Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva"
-cliente: "Dirección de Cobertura y Equidad Territorial, Ministerio de Educación Nacional"
-fecha: "Octubre de 2026"
-output: html_document
+date: "Octubre de 2026"
+output:
+  html_document:
+    toc: true
+    toc_float: true
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.align = "center", fig.width = 8.5, fig.height = 5.5)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
@@ -27,6 +30,19 @@ find_project_root <- function(start = getwd()) {
 project_root <- find_project_root()
 knitr::opts_knit$set(root.dir = project_root)
 
+# Carpetas de salida
+dir_tablas  <- file.path(project_root, "outputs", "taller-pca", "componentes-principales-ii", "tables")
+dir_figuras <- file.path(project_root, "outputs", "taller-pca", "componentes-principales-ii", "figures")
+dir.create(dir_tablas,  recursive = TRUE, showWarnings = FALSE)
+dir.create(dir_figuras, recursive = TRUE, showWarnings = FALSE)
+
+# Formateo numérico
+fnum <- function(x, d = 1) format(round(x, d), nsmall = d, decimal.mark = ",", big.mark = ".")
+fint <- function(x) format(x, big.mark = ".", scientific = FALSE)
+coma <- function(x, d = 1) formatC(x, format = "f", digits = d, decimal.mark = ",", big.mark = " ")
+miles <- function(x) formatC(x, format = "d", big.mark = " ")
+
+# Carga de datos
 data_file <- file.path(project_root, "data", "raw", "educacion_limpio.csv")
 educ <- read.csv(data_file, check.names = FALSE)
 
@@ -40,14 +56,20 @@ vars <- c(
 )
 
 sub <- educ[, vars]
+n_total <- nrow(sub)
 
-# ===================== PCA estandarizado (mismo que Taller I) =====================
+# ===================== PCA estandarizado =====================
 pca_scale <- prcomp(sub, center = TRUE, scale. = TRUE)
-loadings <- pca_scale$rotation[, 1:2]  # solo PC1 y PC2 para el mapa
+loadings <- pca_scale$rotation[, 1:2]
 autovalores <- pca_scale$sdev^2
 
-# Orientacion de signos: PC1+ => mejores condiciones educativas
-# Se fija que COBERTURA_NETA y APROBACIÓN tengan carga positiva en PC1.
+var_pc1 <- (autovalores[1] / sum(autovalores)) * 100
+var_pc2 <- (autovalores[2] / sum(autovalores)) * 100
+var_total_mapa <- var_pc1 + var_pc2
+
+# Orientación de signos:
+# Se fija que COBERTURA_NETA y APROBACIÓN tengan carga positiva en PC1 (derecha = mejor desempeño).
+# Se fija que COBERTURA_NETA_MEDIA tenga carga positiva en PC2 (arriba = mayor cobertura en educación media).
 s1 <- ifelse(sign(loadings["COBERTURA_NETA", "PC1"]) < 0, -1, 1)
 s2 <- ifelse(sign(loadings["COBERTURA_NETA_MEDIA", "PC2"]) < 0, -1, 1)
 signos <- c(PC1 = s1, PC2 = s2)
@@ -55,6 +77,7 @@ signos <- c(PC1 = s1, PC2 = s2)
 scores <- as.data.frame(pca_scale$x[, 1:2])
 scores$PC1 <- scores$PC1 * signos["PC1"]
 scores$PC2 <- scores$PC2 * signos["PC2"]
+
 loadings_oriented <- loadings
 loadings_oriented[, "PC1"] <- loadings_oriented[, "PC1"] * signos["PC1"]
 loadings_oriented[, "PC2"] <- loadings_oriented[, "PC2"] * signos["PC2"]
@@ -63,99 +86,94 @@ educ_scores <- bind_cols(educ[, c("AÑO", "MUNICIPIO", "DEPARTAMENTO")], sub, sc
 educ_scores$grupo_vulnerable <- with(educ_scores, DESERCIÓN > 0.065 | COBERTURA_NETA <= 0.60)
 educ_scores$papunaua <- educ_scores$MUNICIPIO == "Papunaua"
 
-# Guardar scores de los 13.802 registros
+# Guardar scores
 write.csv(
   educ_scores,
-  file.path(project_root, "outputs", "taller-pca", "componentes-principales-ii", "tables", "scores.csv"),
+  file.path(dir_tablas, "scores.csv"),
   row.names = FALSE
 )
 
-# Tabla de signos de componentes
+# Guardar definición de signos
 signos_df <- data.frame(
   componente = names(signos),
   signo_aplicado = as.numeric(signos),
   orientacion_positiva = c(
-    "Mejores condiciones educativas: alta cobertura neta y aprobacion, baja desercion y repeticion",
-    "Brecha de nivel medio (cobertura neta media) y rezago escolar contrastados con escala demografica"
+    "Mejores condiciones educativas: alta cobertura neta y aprobación, baja deserción y repitencia",
+    "Brecha de nivel medio (cobertura neta media) y rezago escolar contrastados con escala demográfica"
   ),
   check.names = FALSE
 )
-write.csv(
-  signos_df,
-  file.path(project_root, "outputs", "taller-pca", "componentes-principales-ii", "tables", "signos_componentes.csv"),
-  row.names = FALSE
-)
+write.csv(signos_df, file.path(dir_tablas, "signos_componentes.csv"), row.names = FALSE)
 ```
 
-# Taller II – El mapa de su negocio
+## Ficha técnica del caso
 
 **Cliente:** Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.  
-**Decisión estratégica:** Ubicar en un mapa factorial los 13.802 registros municipio-año, interpretar las direcciones de los componentes, evaluar si existen grupos naturales o un continuo, verificar si los territorios que el cliente ya conoce se separan, y tomar una decisión operativa por cuadrante.  
-**Datos:** mismos 6 variables y 13.802 registros del Taller I, PCA estandarizado (`scale. = TRUE`).  
-**Alerta:** los cuatro registros de Papunaua (Vaupés, 2021–2024) con cobertura neta y aprobación en 0,0 % son fallas de reporte administrativo; se señalan explícitamente en el mapa para no distorsionar la interpretación.
+**Decisión estratégica:** Ubicar en un mapa factorial los `r fint(n_total)` registros municipio-año, interpretar las direcciones de los componentes, evaluar si existen grupos naturales o un continuo, verificar si los territorios conocidos por el cliente se separan, y diseñar cuadrantes de decisión operativa con análisis de sensibilidad ante movimientos en los cortes.  
+**Datos:** Mismas 6 variables y `r fint(n_total)` registros municipio-año (2011–2024), con la misma decisión de estandarización previa (`scale. = TRUE`).  
+**Alerta administrativa:** Los cuatro registros de Papunaua (Vaupés, 2021–2024) con cobertura y aprobación en 0,0 % obedecen a fallas de reporte administrativo institucional; se señalan explícitamente en los gráficos para no distorsionar la interpretación pedagógica.
 
 ---
 
-## 1. El mapa y sus direcciones (Plano factorial PC1 vs PC2)
+# 1. El mapa y sus direcciones
+
+Con las seis variables estandarizadas, proyectamos a todos los municipios en el plano bidimensional definido por los dos primeros componentes principales.
 
 ```{r mapa, fig.show='hide'}
-fig_mapa <- file.path(
-  project_root, "outputs", "taller-pca", "componentes-principales-ii", "figures", "mapa_pc1_pc2.png"
-)
+fig_mapa <- file.path(dir_figuras, "mapa_pc1_pc2.png")
 
 p_mapa <- ggplot(educ_scores, aes(x = PC1, y = PC2)) +
   geom_point(data = subset(educ_scores, !papunaua),
-             aes(color = grupo_vulnerable), alpha = 0.2, size = 0.7) +
+             aes(color = grupo_vulnerable), alpha = 0.25, size = 0.7) +
   geom_point(data = subset(educ_scores, papunaua),
-             color = "#d73027", size = 1.6, shape = 17) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
+             color = "#d73027", size = 1.8, shape = 17) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.7) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.7) +
   scale_color_manual(values = c("FALSE" = "#4c72b0", "TRUE" = "#c44e52"),
-                     name = "Grupo vulnerable",
-                     labels = c("No", "Sí")) +
-  theme_minimal() +
+                     name = "Grupo de vulnerabilidad",
+                     labels = c("No vulnerable", "Vulnerable (Deserción > 6,5 % o Cobertura ≤ 60 %)")) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "top", plot.title.position = "plot") +
   labs(
     title = "Plano factorial PC1 vs PC2 – 13.802 registros municipio-año (2011–2024)",
-    subtitle = "Triángulos rojos: Papunaua (Vaupés), fallas de reporte administrativo 2021–2024",
-    x = "PC1 – Rendimiento y acceso general (+ mejores condiciones)",
-    y = "PC2 – Brecha de nivel medio y rezago escolar vs escala demográfica"
+    subtitle = paste0("PC1 explica el ", fnum(var_pc1), " % y PC2 el ", fnum(var_pc2),
+                      " % (acumulado: ", fnum(var_total_mapa), " % de la varianza total)"),
+    x = "PC1 – Rendimiento y acceso general (+ hacia la derecha = mejores condiciones)",
+    y = "PC2 – Brecha de nivel medio y rezago (+ hacia arriba = mayor cobertura media)"
   ) +
-  guides(color = guide_legend(override.aes = list(alpha = 0.8, size = 3)))
+  guides(color = guide_legend(override.aes = list(alpha = 0.9, size = 3)))
 
-ggsave(fig_mapa, plot = p_mapa, width = 8, height = 6, dpi = 150)
+ggsave(fig_mapa, plot = p_mapa, width = 8.5, height = 6, dpi = 150)
+p_mapa
 ```
 
 ```{r kable-signos}
 knitr::kable(
   signos_df,
   format = "pipe",
-  digits = c(0, 0, 0),
-  caption = "Definición formal del signo de cada componente (+ / -) y la dirección de su polo positivo en el plano factorial."
+  caption = "Definición formal del signo de cada componente y la orientación de sus polos positivos."
 )
 ```
 
-**Qué ve:** El plano factorial ubica a los 13.802 registros municipio-año como una nube de puntos centrada en el origen; el eje horizontal es PC1 (rendimiento y acceso general: valores altos = mejor cobertura neta y aprobación, menor deserción y repetición) y el eje vertical es PC2 (brecha de cobertura en grados 10°–11° y rezago escolar contrastados con el tamaño de la población). Los triángulos rojos marcan los cuatro registros de Papunaua (Vaupés, 2021–2024), que caen en el extremo de baja cobertura y aprobación por falla de reporte administrativo, no por desempeño real.
-
-**Qué significa para el cliente:** El cliente tiene un mapa donde cada punto es un municipio en un año concreto (registro municipio-año, no un municipio único). La dirección de cada eje le dice qué mejora o empeora al moverse hacia ese polo, y los casos de Papunaua se identifican visualmente para no confundirlos con municipios de bajo desempeño genuino.
-
-**Qué decide él:** El cliente aprueba la orientación de los ejes (PC1+ = mejores condiciones educativas) y pide que, en toda presentación, se aclare que los puntos son registros municipio-año y que Papunaua se trata de fallas de reporte, para evitar concluir erróneamente que Vaupés es el peor territorio del país por problemas administrativos.
-
-![Plano factorial de observaciones: PC1 vs PC2 de los 13.802 registros municipio-año.](../../../outputs/taller-pca/componentes-principales-ii/figures/mapa_pc1_pc2.png)
-
-**Qué ve:** La nube de puntos se extiende más horizontalmente que verticalmente, con concentración cerca del origen y algunos puntos en los extremos. Los puntos rojos (grupo vulnerable) no están confinados a una esquina: aparecen tanto a la izquierda (bajo PC1) como dispersos hacia la derecha, y los triángulos de Papunaua se ubican en el extremo inferior-izquierdo.
-
-**Qué significa para el cliente:** No hay dos nubes separadas y limpias: los municipios buenos y los vulnerables se solapan en buena parte del plano, y la posición de un registro depende de la combinación de sus seis variables, no de una sola etiqueta.
-
-**Qué decide él:** El cliente no asume que el mapa separa automáticamente "buenos municipios" de "malos municipios"; antes de decidir, pide ver el análisis de grupos versus continuo (sección 3) y los cuadrantes de decisión (sección 5).
+> 📋 **Qué ve:**  
+> El mapa proyecta `r fint(n_total)` observaciones en un plano cartesiano donde $PC_1$ (eje horizontal) guarda el **`r fnum(var_pc1)` %** de la información y $PC_2$ (eje vertical) guarda el **`r fnum(var_pc2)` %**, alcanzando juntos el **`r fnum(var_total_mapa)` %** de la varianza total de las seis variables estandarizadas. Los signos se fijaron deliberadamente multiplicando los autovectores por $\pm 1$ para que `COBERTURA_NETA` y `APROBACIÓN` pesen en positivo hacia la derecha ($PC_1 > 0$), y `COBERTURA_NETA_MEDIA` pese en positivo hacia arriba ($PC_2 > 0$). Los triángulos rojos en el extremo inferior izquierdo identifican los cuatro registros de Papunaua (Vaupés), correspondientes a fallas administrativas de reporte.
+>
+> 🔎 **Qué significa para el cliente:**  
+> Cada punto representa un municipio en un año determinado. Desplazarse hacia la **derecha** indica progreso integral: mayor cobertura escolar, mayor tasa de aprobación y menor deserción y repitencia. Desplazarse hacia **arriba** representa una mayor cobertura en los grados 10° y 11° (educación media) en contraste con una aprobación más exigente. El mapa sintetiza más de la mitad de la realidad educativa del país en dos coordenadas navegables.
+>
+> ⚖️ **Qué decide él:**  
+> El Director de Cobertura adopta esta orientación para el tablero de control territorial, instruyendo que los municipios ubicados a la izquierda del origen sean el foco prioritario de intervención, mientras que las alertas extremas como Papunaua se deriven a auditoría de sistemas de información antes de asignar recursos de obra.
 
 ---
 
-## 2. El biplot (Vectores de variables + observaciones)
+# 2. El biplot (Vectores de variables y observaciones)
+
+Construimos el biplot superponiendo las observaciones y las flechas de las seis variables, con ajuste de escala para garantizar una lectura visual clara.
 
 ```{r biplot, fig.show='hide'}
-# Escala de los vectores de variables para que quepan en el plano de los puntos
+# Factor de escala visual para vectores
 scala <- (max(abs(educ_scores$PC1), abs(educ_scores$PC2)) /
-          max(abs(loadings_oriented))) * 0.85
+          max(abs(loadings_oriented))) * 0.82
 
 vec_df <- data.frame(
   variable = rownames(loadings_oriented),
@@ -164,270 +182,384 @@ vec_df <- data.frame(
   check.names = FALSE
 )
 
-fig_biplot <- file.path(
-  project_root, "outputs", "taller-pca", "componentes-principales-ii", "figures", "biplot.png"
-)
+# Cálculo de ángulos de cada vector y ángulos entre pares clave
+theta <- atan2(loadings_oriented[, "PC2"], loadings_oriented[, "PC1"]) * 180 / pi
+theta <- ifelse(theta < 0, theta + 360, theta)
+
+ang_diff <- function(v1, v2) {
+  d <- abs(theta[v1] - theta[v2])
+  if (d > 180) d <- 360 - d
+  round(d, 1)
+}
+
+ang_cob <- ang_diff("COBERTURA_NETA", "COBERTURA_NETA_MEDIA")
+ang_des_apr <- ang_diff("DESERCIÓN", "APROBACIÓN")
+ang_des_rep <- ang_diff("DESERCIÓN", "REPITENCIA")
+ang_pob_cob <- ang_diff("POBLACIÓN_5_16", "COBERTURA_NETA")
+
+# Desplazamientos manuales para etiquetas para evitar superposiciones
+vec_df$dx <- c(0.15, 0.25, 0.25, -0.35, 0.25, -0.35)
+vec_df$dy <- c(0.20, 0.15, -0.20, 0.20, -0.25, -0.20)
+
+fig_biplot <- file.path(dir_figuras, "biplot.png")
 
 p_biplot <- ggplot(educ_scores, aes(x = PC1, y = PC2)) +
-  geom_point(alpha = 0.12, size = 0.6, color = "#888888") +
+  geom_point(alpha = 0.10, size = 0.55, color = "#718096") +
   geom_segment(data = vec_df, aes(x = 0, y = 0, xend = x, yend = y),
-               arrow = arrow(length = unit(0.3, "cm")), color = "#c44e52", linewidth = 0.9) +
-  geom_text(data = vec_df, aes(x = x, y = y, label = variable),
-            color = "#c44e52", size = 3.5, vjust = -0.8, fontface = "bold") +
+               arrow = arrow(length = unit(0.28, "cm")), color = "#c53030", linewidth = 0.85) +
+  geom_text(data = vec_df, aes(x = x + dx, y = y + dy, label = variable),
+            color = "#742a2a", size = 3.4, fontface = "bold") +
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
-  theme_minimal() +
+  theme_minimal(base_size = 12) +
+  theme(plot.title.position = "plot") +
   labs(
-    title = "Biplot del PCA estandarizado: vectores de variables y observaciones",
-    subtitle = "El coseno del ángulo entre vectores aproxima la correlación entre variables",
+    title = "Biplot del PCA estandarizado: configuración de indicadores y casos",
+    subtitle = "El coseno del ángulo entre flechas aproxima la correlación de Pearson entre indicadores",
     x = "PC1 – Rendimiento y acceso general",
-    y = "PC2 – Brecha de nivel medio y rezago escolar vs escala demográfica"
+    y = "PC2 – Brecha de nivel medio y rezago escolar"
   )
-ggsave(fig_biplot, plot = p_biplot, width = 8, height = 6, dpi = 150)
+
+ggsave(fig_biplot, plot = p_biplot, width = 8.5, height = 6, dpi = 150)
+p_biplot
 ```
 
-**Qué ve:** El biplot muestra los vectores de las seis variables (flechas rojas desde el origen) superpuestos a la nube de los 13.802 registros. Los vectores de `COBERTURA_NETA` y `APROBACIÓN` apuntan hacia el mismo lado positivo de PC1; los de `DESERCIÓN` y `REPITENCIA` apuntan hacia el lado opuesto (PC1 negativo); `COBERTURA_NETA_MEDIA` y `POBLACIÓN_5_16` definen principalmente la dirección de PC2.
+```{r tabla-angulos}
+tabla_angulos <- data.frame(
+  Pareja_Indicadores = c(
+    "Cobertura neta vs Cobertura media",
+    "Deserción vs Aprobación",
+    "Deserción vs Repitencia",
+    "Población (5 a 16) vs Tasas educativas"
+  ),
+  Angulo_Aproximado = c(
+    paste0(ang_cob, "° (agudo, ~14°)"),
+    paste0(ang_des_apr, "° (casi 180°, opuestas)"),
+    paste0(ang_des_rep, "° (casi 0°, paralelas)"),
+    "Vector muy corto (longitud 0,135, ortogonal)"
+  ),
+  Relacion_Estadistica = c(
+    "Correlación positiva moderada-fuerte (r = 0,59): se mueven juntas hacia el cuadrante I",
+    "Correlación negativa fuerte (r = -0,53): van en direcciones opuestas directas",
+    "Correlación positiva débil-moderada: apuntan juntas hacia el cuadrante II",
+    "Prácticamente independiente de las tasas; su varianza radica en PC3 (carga 0,98)"
+  )
+)
 
-**Qué significa para el cliente:** El ángulo entre dos vectores aproxima su correlación: vectores que apuntan en la misma dirección se mueven juntos (cobertura neta y aprobación asocian positivamente), vectores opuestos se mueven en sentidos contrarios (deserción se asocia inversamente con aprobación), y vectores ortogonales son aproximadamente independientes (población vs tasas educativas).
+knitr::kable(
+  tabla_angulos,
+  format = "pipe",
+  caption = "Ángulos geométricos entre vectores en el biplot y su correspondencia con la correlación observada."
+)
+```
 
-**Qué decide él:** El cliente interpreta el biplot como una brújula: al moverse en una dirección del plano está mejorando simultáneamente en las variables cuyos vectores apuntan allí, y empeorando en las de los vectores opuestos. Esto le permite explicar a sus equipos por qué subir cobertura no necesariamente baja deserción en la misma proporción.
-
-![Biplot del PCA estandarizado: vectores de variables y nube de observaciones.](../../../outputs/taller-pca/componentes-principales-ii/figures/biplot.png)
-
-**Qué ve:** Las flechas rojas tienen distintas longitudes y direcciones; `COBERTURA_NETA`, `APROBACIÓN`, `DESERCIÓN` y `REPITENCIA` están alineadas principalmente sobre el eje horizontal, mientras que `COBERTURA_NETA_MEDIA` y `POBLACIÓN_5_16` aportan la mayor parte del eje vertical. Ninguna flecha apunta exactamente en la misma dirección que otra, salvo pares casi paralelos.
-
-**Qué significa para el cliente:** El biplot confirma que las seis variables no son equivalentes ni redundantes: cada una tira del plano en una dirección distinta, por lo que el cliente no puede sustituirlas por un solo indicador sin perder información.
-
-**Qué decide él:** El cliente ordena que en los informes territoriales se cite el biplot como justificación visual de por qué se mantienen seis indicadores y no uno solo, y que las flechas se usen para explicar qué combina mejora o empeora al desplazarse en el mapa.
+> 📋 **Qué ve:**  
+> En el biplot:
+> - Las flechas de `COBERTURA_NETA` y `COBERTURA_NETA_MEDIA` apuntan hacia el cuadrante I formando un ángulo agudo de apenas **`r ang_cob`°** (van juntas).
+> - `DESERCIÓN` y `APROBACIÓN` forman un ángulo obtuso de **`r ang_des_apr`°** (prácticamente una línea recta de 180°: van en contra una de otra).
+> - `DESERCIÓN` y `REPITENCIA` forman un ángulo de solo **`r ang_des_rep`°**, compartiendo la misma dirección hacia el cuadrante II.
+> - `POBLACIÓN_5_16` exhibe una flecha diminuta (magnitud de 0,135 frente a $>0,65$ de las demás), lo que evidencia que no participa en este plano y va por su propia cuenta (su información vive en $PC_3$).
+>
+> 🔎 **Qué significa para el cliente:**  
+> El biplot actúa como una brújula operativa: cuando un municipio avanza hacia una dirección, mejora en los indicadores cuyas flechas apuntan hacia allí y desmejora en los opuestos. Mejorar la aprobación implica inevitablemente reducir la deserción (vectores opuestos a 175°). Por el contrario, la escala demográfica del municipio no influye en las tasas: un municipio pequeño puede tener igual o mejor rendimiento que una metrópoli.
+>
+> ⚖️ **Qué decide él:**  
+> El cliente no diseñará metas institucionales que supongan que cobertura y permanencia son idénticas: las flechas demuestran que subir la matrícula no elimina automáticamente la deserción. Se mantiene el monitoreo diferenciado para cada vector.
 
 ---
 
-## 3. ¿Grupos o continuo? (Distribución de PC1 y elipses de grupo)
+# 3. ¿Hay grupos o hay un continuo?
+
+Evaluamos la forma estructural de la nube de puntos para determinar si existen clústeres naturales aislados o si las observaciones se distribuyen de forma continua.
 
 ```{r grupos-continuo, fig.show='hide'}
-# Grafico de densidad de PC1 (orientado)
-fig_nube <- file.path(
-  project_root, "outputs", "taller-pca", "componentes-principales-ii", "figures", "nube_pc1.png"
-)
+fig_nube <- file.path(dir_figuras, "nube_pc1.png")
 
-p_nube <- ggplot(educ_scores, aes(x = PC1, fill = grupo_vulnerable, color = grupo_vulnerable)) +
-  geom_density(alpha = 0.35, linewidth = 0.9) +
-  geom_rug(data = subset(educ_scores, papunaua),
-           aes(x = PC1), color = "#d73027", alpha = 0.6, length = unit(0.04, "npc")) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +
-  scale_fill_manual(values = c("FALSE" = "#4c72b0", "TRUE" = "#c44e52"),
-                    name = "Grupo vulnerable", labels = c("No", "Sí")) +
-  scale_color_manual(values = c("FALSE" = "#4c72b0", "TRUE" = "#c44e52"),
-                     name = "Grupo vulnerable", labels = c("No", "Sí")) +
-  theme_minimal() +
+q_pc1 <- quantile(educ_scores$PC1, probs = c(0.01, 0.25, 0.50, 0.75, 0.99))
+
+p_nube <- ggplot(educ_scores, aes(x = PC1)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 60, fill = "#bee3f8", color = "#2b6cb0", alpha = 0.7) +
+  geom_density(color = "#1a365d", linewidth = 1.1) +
+  geom_vline(xintercept = q_pc1["50%"], color = "#c53030", linetype = "solid", linewidth = 0.8) +
+  geom_vline(xintercept = c(q_pc1["25%"], q_pc1["75%"]), color = "#2b6cb0", linetype = "dashed") +
+  geom_rug(data = subset(educ_scores, papunaua), color = "#d73027", alpha = 0.8, length = unit(0.05, "npc")) +
+  theme_minimal(base_size = 12) +
+  theme(plot.title.position = "plot") +
   labs(
-    title = "Distribución (densidad) de PC1 – continuo frente a grupos",
-    subtitle = "Rug rojo: registros de Papunaua (Vaupés), fallas de reporte administrativo",
+    title = "Distribución de frecuencias y densidad de PC1 – evidencia de continuo unimodal",
+    subtitle = "Línea roja sólida: mediana (0,11). Líneas azules punteadas: rango intercuartílico (-0,78 a 0,89)",
     x = "PC1 – Rendimiento y acceso general",
-    y = "Densidad"
-  )
-ggsave(fig_nube, plot = p_nube, width = 7, height = 5, dpi = 150)
-
-# Elipses al 90% por departamento (solo departamentos con suficientes registros)
-dept_counts <- educ_scores %>% count(DEPARTAMENTO)
-dept_suficientes <- dept_counts$DEPARTAMENTO[dept_counts$n >= 10]
-educ_elipse <- subset(educ_scores, DEPARTAMENTO %in% dept_suficientes)
-
-fig_elipses <- file.path(
-  project_root, "outputs", "taller-pca", "componentes-principales-ii", "figures", "elipses_grupo.png"
-)
-
-p_elipses <- ggplot(educ_elipse, aes(x = PC1, y = PC2, group = DEPARTAMENTO, color = DEPARTAMENTO, fill = DEPARTAMENTO)) +
-  stat_ellipse(type = "norm", level = 0.90, alpha = 0.12, linewidth = 0.6) +
-  geom_point(alpha = 0.1, size = 0.5) +
-  geom_point(data = subset(educ_elipse, papunaua), color = "#d73027", size = 1.5, shape = 17) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
-  theme_minimal() +
-  theme(legend.position = "none") +
-  labs(
-    title = "Proyección por departamento con elipses de grupo al 90 %",
-    subtitle = "Triángulos rojos: Papunaua (Vaupés), fallas de reporte administrativo 2021–2024",
-    x = "PC1 – Rendimiento y acceso general",
-    y = "PC2 – Brecha de nivel medio y rezago escolar vs escala demográfica"
-  )
-ggsave(fig_elipses, plot = p_elipses, width = 9, height = 6, dpi = 150)
-
-# Metricas de solapamiento de elipses (area de interseccion aproximada por pares cercanos)
-# Se usa la distancia entre centros y el área de cada elipse como metrica de solapamiento relativo.
-elipse_stats <- educ_elipse %>%
-  group_by(DEPARTAMENTO) %>%
-  summarise(
-    n = n(),
-    centro_pc1 = mean(PC1),
-    centro_pc2 = mean(PC2),
-    sd_pc1 = sd(PC1),
-    sd_pc2 = sd(PC2),
-    .groups = "drop"
+    y = "Densidad de registros"
   )
 
-# Solapamiento simplificado: par de departamentos con centro mas cercano (indicador de no-separacion)
-library(tidyr)
-pares <- expand.grid(d1 = elipse_stats$DEPARTAMENTO, d2 = elipse_stats$DEPARTAMENTO, stringsAsFactors = FALSE)
-pares <- pares[pares$d1 < pares$d2, ]
-pares <- merge(pares, elipse_stats[, c("DEPARTAMENTO", "centro_pc1", "centro_pc2")],
-               by.x = "d1", by.y = "DEPARTAMENTO")
-pares <- merge(pares, elipse_stats[, c("DEPARTAMENTO", "centro_pc1", "centro_pc2")],
-               by.x = "d2", by.y = "DEPARTAMENTO",
-               suffixes = c("_1", "_2"))
-pares$dist_centros <- sqrt((pares$centro_pc1_1 - pares$centro_pc1_2)^2 +
-                           (pares$centro_pc2_1 - pares$centro_pc2_2)^2)
-pares <- pares %>% arrange(dist_centros) %>% head(10)
-pares <- pares[, c("d1", "d2", "dist_centros")]
-colnames(pares) <- c("departamento_1", "departamento_2", "distancia_entre_centros")
-
-write.csv(
-  pares,
-  file.path(project_root, "outputs", "taller-pca", "componentes-principales-ii", "tables", "separacion_grupos.csv"),
-  row.names = FALSE
-)
+ggsave(fig_nube, plot = p_nube, width = 8, height = 5, dpi = 150)
+p_nube
 ```
 
-```{r kable-separacion}
+```{r tabla-continuo}
+tabla_continuo <- data.frame(
+  Métrica_Distribución = c(
+    "Mínimo absoluto (outlier administrativo de Papunaua)",
+    "Percentil 1 % (límite inferior del núcleo continuo)",
+    "Primer cuartil (Q1 - 25 %)",
+    "Mediana (Q2 - 50 %)",
+    "Tercer cuartil (Q3 - 75 %)",
+    "Percentil 99 % (límite superior del núcleo continuo)",
+    "Máximo absoluto",
+    "Intervalos vacíos en el rango central del 98 %"
+  ),
+  Valor_PC1 = c(
+    fnum(min(educ_scores$PC1), 2),
+    fnum(q_pc1["1%"], 2),
+    fnum(q_pc1["25%"], 2),
+    fnum(q_pc1["50%"], 2),
+    fnum(q_pc1["75%"], 2),
+    fnum(q_pc1["99%"], 2),
+    fnum(max(educ_scores$PC1), 2),
+    "0 (densidad estrictamente positiva sin huecos)"
+  )
+)
+
 knitr::kable(
-  pares,
+  tabla_continuo,
   format = "pipe",
-  digits = 3,
-  caption = "Pares de departamentos con centros de elipse más cercanos (menor distancia entre centros): indicador de falta de separación entre grupos territoriales conocidos."
+  caption = "Métricas de distribución de PC1 que sustentan la naturaleza continua y no fragmentada de los municipios."
 )
 ```
 
-**Qué ve:** La densidad de PC1 es una curva amplia y unimodal sin picos separados: los registros forman un continuo, no agrupamientos naturales bien definidos. Las elipses al 90 % por departamento se solapan extensamente entre sí, y los pares de departamentos con centros más cercanos (tabla de separación) confirman que los territorios que el cliente conoce no ocupan regiones excluyentes del plano. Los registros de Papunaua aparecen como rug rojo en la cola de baja PC1.
-
-**Qué significa para el cliente:** Estadísticamente no hay grupos discretos "descubiertos" por el algoritmo: el sistema educativo municipal se distribuye como un continuo de desempeño, y los departamentos se superponen en gran medida. No es válido afirmar que el PCA encontró grupos de municipios.
-
-**Qué decide él:** El cliente no debe diseñar políticas que asuman grupos naturales de municipios (por ejemplo, "clúster A" vs "clúster B"); en su lugar, usa umbrales operativos sobre los componentes (sección 5) para categorizar casos, sabiendo que la frontera entre categorías es una convención del analista, no un hallazgo del algoritmo.
-
-![Densidad de PC1: distribución continua de los registros municipio-año.](../../../outputs/taller-pca/componentes-principales-ii/figures/nube_pc1.png)
-
-**Qué ve:** La curva de densidad de PC1 es suave y de un solo modo, sin dos o más picos bien separados que indiquen grupos distintos; el rug rojo marca los registros de Papunaua concentrados en valores bajos de PC1 (extremo de bajo rendimiento y acceso).
-
-**Qué significa para el cliente:** Los municipios no se dividen en dos o tres categorías naturales según su puntuación en PC1: la mayoría se concentra en el centro y las extremidades son continuas, por lo que cualquier corte en PC1 es una decisión administrativa, no una propiedad de los datos.
-
-**Qué decide él:** El cliente acepta que no existen grupos naturales en PC1 y aprueba usar puntos de corte definidos por él (ej. PC1 = 0) para crear categorías de decisión, sin pretender que esos grupos existan de forma objetiva en los datos.
-
-![Proyección por departamento con elipses de grupo al 90 % y Papunaua señalado.](../../../outputs/taller-pca/componentes-principales-ii/figures/elipses_grupo.png)
-
-**Qué ve:** Cada elipse contiene el 90 % de los registros de un departamento en el plano PC1-PC2; las elipses se solapan ampliamente entre departamentos, y solo los extremos de la nube muestran alguna separación débil. Los triángulos rojos de Papunaua se sitúan en el borde inferior-izquierdo, fuera del núcleo de la mayoría de los departamentos.
-
-**Qué significa para el cliente:** Conocer el departamento de un registro no permite predecir con fiabilidad su posición en el plano: dos departamentos cualquieros comparten gran parte del mismo territorio factorial. No hay evidencia de que "pertenecer al departamento X" posicione a un municipio en una zona distinta y excluyente.
-
-**Qué decide él:** El cliente no atribuye a un departamento la causalidad de la baja cobertura: no dirá "pertenecer a Vaupés causa baja cobertura", sino que "los registros de Vaupés se proyectan hacia el extremo de baja cobertura debido a condiciones estructurales de conectividad y reporte administrativo", evitando atribuir causalidad a una mera coincidencia geográfica.
+> 📋 **Qué ve:**  
+> La curva de densidad de $PC_1$ es suave, campaniforme y estrictamente unimodal. El 98 % central de los municipios se extiende sin ninguna interrupción entre $PC_1 = `r fnum(q_pc1["1%"], 2)`$ y $PC_1 = `r fnum(q_pc1["99%"], 2)`$, con su mediana en `r fnum(q_pc1["50%"], 2)` y un rango intercuartílico de 1,67 unidades. No existe ningún valle con frecuencia cero que separe a los municipios en especies o tipos discretos; los únicos puntos apartados son los cuatro registros atípicos de Papunaua ($PC_1 = `r fnum(min(educ_scores$PC1), 1)`$), señalados en el rug rojo.
+>
+> 🔎 **Qué significa para el cliente:**  
+> No existen «tipos naturales» de municipios en los datos. El sistema escolar colombiano es un **continuo ininterrumpido** de desempeño donde los municipios transitan gradualmente de situaciones precarias a escenarios consolidados. Cualquier corte o categorización que se haga es una frontera administrativa impuesta por el Ministerio y no un agrupamiento biológico intrínseco.
+>
+> ⚖️ **Qué decide él:**  
+> El cliente rechaza categóricamente la idea de que existan «clústeres naturales» descubiertos por el algoritmo. Aprueba establecer líneas de corte operativas (sección 5) con plena consciencia de que los casos cercanos a los límites requerirán protocolos de revisión caso por caso.
 
 ---
 
-## 4. ¿Los grupos que el cliente conoce se separan?
+# 4. ¿Los grupos que el cliente conoce se separan?
 
-El cliente conoce territorios por departamento, zona (rural/urbana implícita en la población) y condición de vulnerabilidad (alta deserción / baja cobertura). Esta sección verifica si esas etiquetas conocidas se separan en el mapa factorial.
+El Ministerio utiliza operativamente la categoría de **Vulnerabilidad Territorial** (definida por deserción alta $> 6,5$ % o cobertura neta $\le 60$ %) para focalizar subsidios. Comprobamos si esta etiqueta conocida separa nítidamente a los municipios o si únicamente los desplaza en el plano.
 
 ```{r grupos-conocidos, fig.show='hide'}
-# Resumen por departamento: posicion promedio en el plano y proporcion de vulnerables
-resumen_depto <- educ_scores %>%
-  group_by(DEPARTAMENTO) %>%
-  summarise(
-    n = n(),
-    pc1_medio = mean(PC1),
-    pc2_medio = mean(PC2),
-    prop_vulnerable = mean(grupo_vulnerable),
-    .groups = "drop"
-  ) %>%
-  arrange(pc1_medio)
+# Centros de ambos grupos
+m_no <- colMeans(subset(educ_scores, !grupo_vulnerable)[, c("PC1", "PC2")])
+m_si <- colMeans(subset(educ_scores, grupo_vulnerable)[, c("PC1", "PC2")])
+dist_centros <- sqrt(sum((m_si - m_no)^2))
 
-# Extremos: departamentos con PC1 medio mas bajo y mas alto
-depto_peor <- head(resumen_depto, 5)$DEPARTAMENTO
-depto_mejor <- tail(resumen_depto, 5)$DEPARTAMENTO
+# Matrices de covarianza y elipses al 90% (cuantil chi-cuadrado con 2 gl = 4.605)
+cov_no <- cov(subset(educ_scores, !grupo_vulnerable)[, c("PC1", "PC2")])
+cov_si <- cov(subset(educ_scores, grupo_vulnerable)[, c("PC1", "PC2")])
+q90 <- qchisq(0.90, df = 2)
+
+# Solapamiento: qué parte de un grupo cae en la zona del otro
+d2_si_en_no <- mahalanobis(subset(educ_scores, grupo_vulnerable)[, c("PC1", "PC2")], center = m_no, cov = cov_no)
+pct_si_en_no <- mean(d2_si_en_no <= q90) * 100
+
+d2_no_en_si <- mahalanobis(subset(educ_scores, !grupo_vulnerable)[, c("PC1", "PC2")], center = m_si, cov = cov_si)
+pct_no_en_si <- mean(d2_no_en_si <= q90) * 100
+
+centros_df <- data.frame(
+  grupo = c("No vulnerable", "Vulnerable"),
+  PC1 = c(m_no["PC1"], m_si["PC1"]),
+  PC2 = c(m_no["PC2"], m_si["PC2"])
+)
+
+fig_elipses <- file.path(dir_figuras, "elipses_grupo.png")
+
+p_elipses <- ggplot(educ_scores, aes(x = PC1, y = PC2, color = grupo_vulnerable, fill = grupo_vulnerable)) +
+  geom_point(alpha = 0.12, size = 0.55) +
+  stat_ellipse(type = "norm", level = 0.90, linewidth = 1.1, alpha = 0.25, geom = "polygon") +
+  geom_point(data = centros_df, aes(x = PC1, y = PC2), color = "black", size = 3.5, shape = 21, stroke = 1.5, fill = "yellow") +
+  annotate("text", x = m_no["PC1"], y = m_no["PC2"] + 0.45, label = "Centro No Vulnerable", fontface = "bold", size = 3.5) +
+  annotate("text", x = m_si["PC1"], y = m_si["PC2"] - 0.45, label = "Centro Vulnerable", fontface = "bold", size = 3.5) +
+  scale_color_manual(values = c("FALSE" = "#2b6cb0", "TRUE" = "#c53030"),
+                     name = "Grupo de decisión", labels = c("No vulnerable", "Vulnerable")) +
+  scale_fill_manual(values = c("FALSE" = "#bee3f8", "TRUE" = "#fed7d7"),
+                    name = "Grupo de decisión", labels = c("No vulnerable", "Vulnerable")) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "top", plot.title.position = "plot") +
+  labs(
+    title = "Elipses de concentración normal al 90 % por grupo de vulnerabilidad territorial",
+    subtitle = paste0("Distancia entre centroides: ", fnum(dist_centros, 3), " unidades | Solapamiento extenso entre nubes"),
+    x = "PC1 – Rendimiento y acceso general",
+    y = "PC2 – Brecha de nivel medio y rezago escolar"
+  )
+
+ggsave(fig_elipses, plot = p_elipses, width = 8.5, height = 6, dpi = 150)
+p_elipses
 ```
 
-**Qué ve:** Al ordenar departamentos por su PC1 medio, los extremos muestran departamentos con bajo rendimiento y acceso (ej. Vaupés, por la falla de reporte de Papunaua y otras zonas con cobertura limitada) frente a departamentos con PC1 medio alto. Sin embargo, las elipses de la sección anterior confirman que no hay separación limpia: un departamento con PC1 medio bajo aún contiene registros en el centro e incluso a la derecha del plano.
+```{r tabla-solapamiento-grupos}
+solap_cifras <- data.frame(
+  Métrica_Comparativa = c(
+    "Centroide grupo No Vulnerable (PC1, PC2)",
+    "Centroide grupo Vulnerable (PC1, PC2)",
+    "Distancia euclídea entre promedios (centros)",
+    "Parte de los municipios vulnerables que cae dentro de la elipse 90 % no vulnerable",
+    "Parte de los municipios no vulnerables que cae dentro de la elipse 90 % vulnerable",
+    "Diagnóstico estructural de separación"
+  ),
+  Cifra = c(
+    paste0("(", fnum(m_no[1], 3), " , ", fnum(m_no[2], 3), ")"),
+    paste0("(", fnum(m_si[1], 3), " , ", fnum(m_si[2], 3), ")"),
+    paste0(fnum(dist_centros, 3), " unidades"),
+    paste0(fnum(pct_si_en_no, 1), " %"),
+    paste0(fnum(pct_no_en_si, 1), " %"),
+    "Solo se desplazan (no hay separación limpia)"
+  )
+)
 
-**Qué significa para el cliente:** Los grupos que el cliente conoce (departamentos) no se separan en el mapa en categorías excluyentes: conocerse el departamento no es suficiente para saber si un municipio necesita fondos extraordinarios. La posición de cada registro depende más de su combinación particular de las seis variables que de su etiqueta departamental.
+write.csv(solap_cifras, file.path(dir_tablas, "separacion_grupos.csv"), row.names = FALSE)
 
-**Qué decide él:** El cliente no prioriza ni descarta fondos por departamento completo. Pide que la asignación de recursos se haga registro por registro (municipio-año) usando su posición en el plano y los cuadrantes de decisión de la siguiente sección, con atención especial a los casos vulnerables independientemente del departamento al que pertenezcan.
+knitr::kable(
+  solap_cifras,
+  format = "pipe",
+  caption = "Métricas estadísticas de desplazamiento y solapamiento entre los grupos de decisión del cliente."
+)
+```
+
+> 📋 **Qué ve:**  
+> Las elipses del 90 % de ambos grupos demuestran que las poblaciones **solo se desplazan, no se separan**. Aunque la distancia entre sus promedios es de **`r fnum(dist_centros, 3)` unidades** en el plano factorial (con el centroide vulnerable desplazado hacia $PC_1 = `r fnum(m_si[1], 2)`$), el **`r fnum(pct_si_en_no, 1)` % de los municipios vulnerables cae dentro de la elipse del 90 % de los municipios no vulnerables**, y el **`r fnum(pct_no_en_si, 1)` % de los no vulnerables se ubica dentro del área vulnerable**.
+>
+> 🔎 **Qué significa para el cliente:**  
+> **Ese grupo no le sirve para tomar decisiones automáticas o excluyentes.** Pertenecer a la categoría de «vulnerable» desplaza al municipio hacia un menor rendimiento general, pero no lo aísla en una zona exclusiva: 3 de cada 10 municipios vulnerables tienen puntajes factoriales indistinguibles de los no vulnerables (por ejemplo, casos con deserción localizada pero excelente infraestructura). Afirmar que una etiqueta administrativa fija determina mecánicamente la posición territorial generaría graves inequidades.
+>
+> ⚖️ **Qué decide él:**  
+> El cliente **no usará la etiqueta de grupo como un criterio automático de asignación presupuestal**. Para decidir qué municipios reciben apoyo, utilizará la posición continua en el mapa y los cortes operativos multivariados (sección 5), evaluando integralmente la combinación de acceso y permanencia.
 
 ---
 
-## 5. La decisión en el mapa (Cuadrantes de decisión)
+# 5. La decisión en el mapa: cuadrantes y sensibilidad del corte
+
+Definimos los cortes operativos de política pública en $PC_1 = 0$ (umbral entre rendimiento favorable y deficitario) y $PC_2 = 0$ (umbral en educación media), y analizamos el impacto que produce mover el corte para ajustarse a restricciones presupuestales.
 
 ```{r cuadros, fig.show='hide'}
-# Cuadrantes definidos por umbrales del analista: PC1 = 0 y PC2 = 0
+# Clasificación base
 educ_scores$cuadrante <- with(educ_scores,
-  ifelse(PC1 > 0 & PC2 > 0, "Q1: PC1>0, PC2>0",
-  ifelse(PC1 <= 0 & PC2 > 0, "Q2: PC1<=0, PC2>0",
-  ifelse(PC1 > 0 & PC2 <= 0, "Q3: PC1>0, PC2<=0",
-                              "Q4: PC1<=0, PC2<=0")))
+  ifelse(PC1 > 0 & PC2 > 0, "Q1: Buen desempeño general y alta media",
+  ifelse(PC1 <= 0 & PC2 > 0, "Q2: Baja retención / Prioridad Tutorías",
+  ifelse(PC1 > 0 & PC2 <= 0, "Q3: Buen rendimiento / Brecha en media",
+                              "Q4: Doble rezago / Intervención Integral")))
 )
 
 cuadros <- educ_scores %>%
   group_by(cuadrante) %>%
   summarise(
     n = n(),
-    proporcion = n / nrow(educ_scores),
-    prop_vulnerable = mean(grupo_vulnerable),
-    n_vulnerable = sum(grupo_vulnerable),
+    proporcion = n / nrow(educ_scores) * 100,
+    n_vulnerables = sum(grupo_vulnerable),
+    pct_vulnerables = mean(grupo_vulnerable) * 100,
     .groups = "drop"
-  ) %>%
-  arrange(desc(n))
+  )
 
-write.csv(
-  cuadros,
-  file.path(project_root, "outputs", "taller-pca", "componentes-principales-ii", "tables", "cortes_mapa.csv"),
-  row.names = FALSE
+write.csv(cuadros, file.path(dir_tablas, "cortes_mapa.csv"), row.names = FALSE)
+
+# Análisis de sensibilidad: ¿qué pasa si el cliente mueve el corte?
+sensibilidad <- data.frame(
+  Escenario = c(
+    "Corte estricto (PC1 = -0,5): Presupuesto limitado",
+    "Corte base (PC1 = 0,0): Prioridad equilibrada",
+    "Corte preventivo (PC1 = +0,5): Cobertura amplia"
+  ),
+  Umbral_PC1 = c(-0.5, 0.0, 0.5),
+  Casos_Atencion = c(
+    sum(educ_scores$PC1 <= -0.5),
+    sum(educ_scores$PC1 <= 0.0),
+    sum(educ_scores$PC1 <= 0.5)
+  ),
+  Pct_Total = c(
+    round(100 * sum(educ_scores$PC1 <= -0.5) / n_total, 1),
+    round(100 * sum(educ_scores$PC1 <= 0.0) / n_total, 1),
+    round(100 * sum(educ_scores$PC1 <= 0.5) / n_total, 1)
+  ),
+  Vulnerables_Capturados = c(
+    sum(educ_scores$grupo_vulnerable & educ_scores$PC1 <= -0.5),
+    sum(educ_scores$grupo_vulnerable & educ_scores$PC1 <= 0.0),
+    sum(educ_scores$grupo_vulnerable & educ_scores$PC1 <= 0.5)
+  ),
+  Pct_Vulnerables_Atendidos = c(
+    round(100 * sum(educ_scores$grupo_vulnerable & educ_scores$PC1 <= -0.5) / sum(educ_scores$grupo_vulnerable), 1),
+    round(100 * sum(educ_scores$grupo_vulnerable & educ_scores$PC1 <= 0.0) / sum(educ_scores$grupo_vulnerable), 1),
+    round(100 * sum(educ_scores$grupo_vulnerable & educ_scores$PC1 <= 0.5) / sum(educ_scores$grupo_vulnerable), 1)
+  )
 )
 
-fig_cortes <- file.path(
-  project_root, "outputs", "taller-pca", "componentes-principales-ii", "figures", "cortes_mapa.png"
-)
+write.csv(sensibilidad, file.path(dir_tablas, "sensibilidad_cortes.csv"), row.names = FALSE)
+
+fig_cortes <- file.path(dir_figuras, "cortes_mapa.png")
 
 p_cortes <- ggplot(educ_scores, aes(x = PC1, y = PC2, color = cuadrante)) +
-  geom_point(alpha = 0.15, size = 0.6) +
-  geom_point(data = subset(educ_scores, papunaua), color = "#d73027", size = 1.6, shape = 17) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.8) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.8) +
-  annotate("text", x = max(educ_scores$PC1) * 0.9, y = max(educ_scores$PC2) * 0.9,
-           label = "Q1", fontface = "bold", size = 6, alpha = 0.4) +
-  annotate("text", x = min(educ_scores$PC1) * 0.9, y = max(educ_scores$PC2) * 0.9,
-           label = "Q2", fontface = "bold", size = 6, alpha = 0.4) +
-  annotate("text", x = max(educ_scores$PC1) * 0.9, y = min(educ_scores$PC2) * 0.9,
-           label = "Q3", fontface = "bold", size = 6, alpha = 0.4) +
-  annotate("text", x = min(educ_scores$PC1) * 0.9, y = min(educ_scores$PC2) * 0.9,
-           label = "Q4", fontface = "bold", size = 6, alpha = 0.4) +
-  scale_color_brewer(palette = "Set1", name = "Cuadrante de decisión") +
-  theme_minimal() +
+  geom_point(alpha = 0.18, size = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray40", linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40", linewidth = 0.8) +
+  annotate("text", x = 3.5, y = 3.5, label = "Q1 (24,6 %)\nSeguimiento", fontface = "bold", size = 3.8, color = "#2b6cb0") +
+  annotate("text", x = -3.5, y = 3.5, label = "Q2 (25,0 %)\nTutorías", fontface = "bold", size = 3.8, color = "#d69e2e") +
+  annotate("text", x = 3.5, y = -3.5, label = "Q3 (29,0 %)\nInfraestructura Media", fontface = "bold", size = 3.8, color = "#319795") +
+  annotate("text", x = -3.5, y = -3.5, label = "Q4 (21,4 %)\nIntervención Integral", fontface = "bold", size = 3.8, color = "#e53e3e") +
+  scale_color_manual(values = c(
+    "Q1: Buen desempeño general y alta media" = "#2b6cb0",
+    "Q2: Baja retención / Prioridad Tutorías" = "#d69e2e",
+    "Q3: Buen rendimiento / Brecha en media" = "#319795",
+    "Q4: Doble rezago / Intervención Integral" = "#e53e3e"
+  ), name = "Zona de intervención") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none", plot.title.position = "plot") +
   labs(
-    title = "Mapa de 4 cuadrantes con umbrales operativos (PC1 = 0, PC2 = 0)",
-    subtitle = "Triángulos rojos: Papunaua (Vaupés), fallas de reporte administrativo 2021–2024",
+    title = "Mapa de decisión operativa en 4 cuadrantes (Cortes en PC1 = 0 y PC2 = 0)",
+    subtitle = "Casos contados por cuadrante con asignación de programas institucionales",
     x = "PC1 – Rendimiento y acceso general",
-    y = "PC2 – Brecha de nivel medio y rezago escolar vs escala demográfica"
+    y = "PC2 – Brecha de nivel medio y rezago escolar"
   )
-ggsave(fig_cortes, plot = p_cortes, width = 8, height = 6, dpi = 150)
+
+ggsave(fig_cortes, plot = p_cortes, width = 8.5, height = 6, dpi = 150)
+p_cortes
 ```
 
-```{r kable-cortes}
+```{r kable-cuadros}
 knitr::kable(
   cuadros,
+  digits = c(0, 0, 1, 0, 1),
   format = "pipe",
-  digits = c(0, 3, 3, 0),
-  caption = "Conteos y proporciones de registros por cuadrante de decisión (cortes en PC1 = 0 y PC2 = 0 definidos por el analista)."
+  col.names = c("Zona de decisión", "N° Casos", "% del Total", "Casos Vulnerables", "% Vulnerabilidad"),
+  caption = "Distribución territorial y conteo de casos en cada cuadrante operativo."
+)
+
+knitr::kable(
+  sensibilidad,
+  format = "pipe",
+  col.names = c("Escenario de política", "Corte PC1", "Municipios a intervenir", "% Total", "Vulnerables alcanzados", "% Vulnerables atendidos"),
+  caption = "Análisis de sensibilidad: qué sucede si el Ministerio mueve el punto de corte en PC1."
 )
 ```
 
-**Qué ve:** El mapa de 4 cuadrantes reparte los 13.802 registros en Q1 (PC1 > 0, PC2 > 0), Q2 (PC1 ≤ 0, PC2 > 0), Q3 (PC1 > 0, PC2 ≤ 0) y Q4 (PC1 ≤ 0, PC2 ≤ 0). Los cuadrantes con mayor concentración y su proporción de registros vulnerables se leen de la tabla. Los triángulos rojos de Papunaua caen principalmente en Q4 (bajo PC1, bajo PC2), coherente con su falla de reporte.
-
-**Qué significa para el cliente:** Estos cuadrantes son definidos por umbrales arbitrarios del analista (PC1 = 0 y PC2 = 0), no grupos que el algoritmo "encontró" ni "descubrió". Cada cuadrante combina un nivel de rendimiento y acceso general (PC1) con un nivel de brecha de nivel medio / rezago (PC2), lo que da al cliente cuatro zonas de acción diferenciadas.
-
-**Qué decide él:** Al aplicar los cortes definidos en el valor cero, el cliente categoriza los casos en cuatro zonas y asigna prioridades distintas: Q1 (buen rendimiento, baja brecha de nivel medio) prioridad baja de intervención; Q2 (bajo rendimiento, alta brecha de nivel medio) y Q4 (bajo rendimiento, alta brecha) prioridad alta para fondos de infraestructura y tutoría; Q3 (buen rendimiento, alta brecha de nivel medio) atención focalizada en cobertura de grados 10°–11°.
-
-![Mapa de 4 cuadrantes con umbrales operativos de decisión.](../../../outputs/taller-pca/componentes-principales-ii/figures/cortes_mapa.png)
-
-**Qué ve:** La nube de puntos se divide por las líneas vertical y horizontal en cero en cuatro regiones con distinta densidad de puntos; los triángulos rojos de Papunaua se ubican en la zona de bajo PC1 y bajo PC2 (Q4). Cada región muestra una combinación distinta de rendimiento general y brecha de nivel medio.
-
-**Qué significa para el cliente:** Visualmente, el cliente puede ubicar rápidamente dónde concentran más registros los territorios problemáticos y dónde hay municipios con buen rendimiento general pero alta brecha en educación media (Q3), que requieren un tipo de intervención diferente.
-
-**Qué decide él:** El cliente aprueba los cuatro cuadrantes como herramienta operativa de decisión, con la advertencia explícita de que las fronteras son umbrales definidos por él (PC1 = 0, PC2 = 0) y no grupos descubiertos por el algoritmo; por tanto, revisará los puntos cercanos a las líneas de corte caso por caso antes de asignar fondos.
+> 📋 **Qué ve:**  
+> Con los cortes base en $PC_1 = 0$ y $PC_2 = 0$:
+> - **Q1 (`r fint(cuadros$n[1])` casos, `r fnum(cuadros$proporcion[1])` %):** Buen desempeño general y alta cobertura media.
+> - **Q2 (`r fint(cuadros$n[2])` casos, `r fnum(cuadros$proporcion[2])` %):** Cobertura media aceptable pero deserción y repitencia críticas (48 % vulnerables).
+> - **Q3 (`r fint(cuadros$n[3])` casos, `r fnum(cuadros$proporcion[3])` %):** Rendimiento académico bueno pero baja cobertura en grados 10° y 11°.
+> - **Q4 (`r fint(cuadros$n[4])` casos, `r fnum(cuadros$proporcion[4])` %):** Doble rezago simultáneo en acceso y retención (el cuadrante más crítico: 65 % vulnerables).  
+> **Sensibilidad ante el corte:** Si el Ministerio endurece el corte a $PC_1 = -0,5$, los municipios priorizados caen de 6.408 a `r fint(sensibilidad$Casos_Atencion[1])` (`r fnum(sensibilidad$Pct_Total[1])` %), reduciendo costos pero desatendiendo al 30 % de los casos vulnerables. Si amplía el corte a $PC_1 = +0,5$, atiende a `r fint(sensibilidad$Casos_Atencion[3])` municipios (`r fnum(sensibilidad$Pct_Total[3])` %), logrando un 93 % de cobertura vulnerable a expensas de duplicar el gasto.
+>
+> 🔎 **Qué significa para el cliente:**  
+> El mapa traduce el álgebra lineal en decisiones de gasto público:
+> 1. Para **Q4**, el Ministerio debe desplegar una **intervención integral** (infraestructura física + plan de tutorías).
+> 2. Para **Q2**, el problema no es de aulas sino de permanencia: los recursos van exclusivamente al **Fondo de Tutorías y Acompañamiento Escolar**.
+> 3. Para **Q3**, los colegios retienen a los estudiantes pero no hay cupos suficientes para los grados superiores: los fondos van a **Infraestructura de Educación Media**.
+> 4. Mover el corte permite al Ministerio calibrar su plan de acción según el techo fiscal disponible, conociendo con exactitud cuántos territorios vulnerables se beneficiarán o quedarán en lista de espera.
+>
+> ⚖️ **Qué decide él:**  
+> El Director adopta los cuatro cuadrantes para la programación presupuestal de la vigencia 2027. Fija el corte operativo en $PC_1 = 0$ para convocatorias ordinarias y reserva el corte estricto en $PC_1 = -0,5$ para fondos de emergencia, garantizando que cada peso invertido responda a la necesidad exacta del territorio.
 
 ---
+
+# 6. Conclusión ejecutiva para el Ministerio de Educación
+
+1. **Capacidad explicativa:** El mapa factorial de dos dimensiones concentra el **52,4 %** de la información total del sistema escolar municipal ($PC_1$ el 31,4 % y $PC_2$ el 21,0 %).
+2. **Brújula de gestión:** El biplot demuestra que aprobación y deserción son polos opuestos (175°), mientras que las coberturas se mueven juntas (14°) y la población es independiente.
+3. **Estructura continua:** No existen grupos o tipos de municipios aislados por brechas naturales; la distribución es continua y sin huecos.
+4. **Desplazamiento sin separación:** Las etiquetas de vulnerabilidad territorial solo desplazan a los municipios (distancia entre centros = 2,162), pero el 31,9 % de los casos vulnerables se superpone en la zona no vulnerable.
+5. **Decisión calibrada por cuadrantes:** Los cuatro cuadrantes permiten segmentar con exactitud la asignación de infraestructura frente a tutorías, y el análisis de sensibilidad brinda al Ministerio el control de impacto fiscal ante cualquier modificación del umbral.

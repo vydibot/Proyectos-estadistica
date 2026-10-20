@@ -3,6 +3,9 @@
 .RData
 .Rproj.user/
 *.Rproj
+.Rlib
+.Renviron
+.Rprofile
 
 # Compilacion y caches de R Markdown
 *_cache/

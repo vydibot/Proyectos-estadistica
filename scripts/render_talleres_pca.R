@@ -6,6 +6,8 @@
 # Ejecutar desde la raiz del proyecto: source("scripts/render_talleres_pca.R")
 # --------------------------------------------------------------------------
 
+tryCatch(Sys.setlocale("LC_ALL", "C.UTF-8"), error = function(e) NULL)
+
 library(knitr)
 library(commonmark)
 
@@ -17,7 +19,9 @@ if (!file.exists(file.path(project_root, "data", "raw", "educacion_limpio.csv"))
 
 rmds <- c(
   file.path("reports", "taller-pca", "componentes-principales-i", "componentes-principales-i.Rmd"),
-  file.path("reports", "taller-pca", "componentes-principales-ii", "componentes-principales-ii.Rmd")
+  file.path("reports", "taller-pca", "componentes-principales-ii", "componentes-principales-ii.Rmd"),
+  file.path("reports", "taller-pca", "analisis-factorial-i", "analisis-factorial-i.Rmd"),
+  file.path("reports", "taller-pca", "analisis-factorial-ii", "analisis-factorial-ii.Rmd")
 )
 
 for (rmd_rel in rmds) {

@@ -1,0 +1,5 @@
+"Factores","Correlaciones_a_explicar","Parametros_libres","Grados_de_libertad","Estado_matematico"
+1,15,6,9,"Sobreidentificado (contrastable)"
+2,15,11,4,"Sobreidentificado (contrastable)"
+3,15,15,0,"Saturado (exacto, 0 gl)"
+4,15,18,-3,"Subidentificado (imposible)"

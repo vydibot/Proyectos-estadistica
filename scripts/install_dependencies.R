@@ -4,7 +4,9 @@ required_packages <- c(
   "ggplot2",
   "dplyr",
   "tidyr",
-  "reshape2"
+  "reshape2",
+  "psych",
+  "GPArotation"
 )
 
 missing_packages <- required_packages[

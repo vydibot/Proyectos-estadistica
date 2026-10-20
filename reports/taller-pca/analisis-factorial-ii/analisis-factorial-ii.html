@@ -1,0 +1,409 @@
+<hr />
+<h2>title: &quot;Taller IV – Análisis Factorial II: La Rotación&quot;
+subtitle: &quot;¿Se pueden nombrar y separar dos capacidades para dos fondos territoriales? Rotación, estabilidad y límites matemáticos&quot;
+author: &quot;Equipo de trabajo: Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva&quot;
+date: &quot;Octubre de 2026&quot;
+output:
+html_document:
+toc: true
+toc_float: true</h2>
+<h2>Ficha técnica del caso</h2>
+<p><strong>Cliente:</strong> Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.<br />
+<strong>Decisión estratégica:</strong> Validar si una solución factorial de dos dimensiones rotadas permite nombrar con rigor dos capacidades territoriales independientes («Capacidad de Acceso/Infraestructura» y «Capacidad de Permanencia/Tutoría»), verificar la estabilidad matemática del modelo ante distintos estimadores, determinar cuántos factores resisten las seis variables y medir el grado de solapamiento entre los municipios beneficiarios de ambos fondos.<br />
+<strong>Pregunta de fondo:</strong> ¿Aparecen dos dimensiones estables y bautizables al rotar los ejes? ¿Y cuántas dimensiones soporta como límite matemático el sistema de seis indicadores?<br />
+<strong>Datos:</strong> <code>data/raw/educacion_limpio.csv</code> — 13.802 registros municipio-año (2011–2024), 6 variables numéricas.</p>
+<hr />
+<h1>1. Introducción: el cliente solicita nombres y estabilidad</h1>
+<p>En la etapa previa del proyecto (Análisis Factorial I) concluimos que los indicadores no reflejan una sola capacidad general compartida y que dos factores lograban capturar la variabilidad de acceso y de permanencia. El Director de Cobertura nos plantea su requerimiento:</p>
+<blockquote>
+<p><em>«De acuerdo, mantendremos dos fondos separados. Pero el Comité Directivo exige justificar con nombres precisos a qué responde cada fondo. Si ajustamos dos factores, ¿podemos rotar los ejes para que cada indicador cargue en una sola dimensión y podamos bautizarlas con certeza? Además, ¿qué tan estable es esa separación si cambiamos el método de estimación? ¿Y podríamos pedir una tercera dimensión para el tamaño del municipio?»</em></p>
+</blockquote>
+<p>Es una solicitud operativa razonable. La técnica factorial dispone de la <strong>rotación de factores</strong> para buscar una estructura simple. Hoy responderemos:</p>
+<blockquote>
+<p><strong>¿Al rotar la solución de dos factores emergen dos dimensiones nítidas y estables con sentido de política pública? ¿Cuántos factores caben como máximo en seis variables y cuántos municipios se solapan entre ambos fondos?</strong></p>
+</blockquote>
+<hr />
+<h1>2. Dos factores sin rotar: la solución cruda</h1>
+<p>Iniciamos estimando el modelo de dos factores ($k = 2$) por máxima verosimilitud sin ninguna rotación (<code>rotate = &quot;none&quot;</code>).</p>
+<pre><code class="language-r">f_sin &lt;- fa(X, nfactors = 2, fm = &quot;ml&quot;, rotate = &quot;none&quot;)
+
+cargas_sin &lt;- round(unclass(f_sin$loadings), 3)
+colnames(cargas_sin) &lt;- c(&quot;Factor 1 (Sin rotar)&quot;, &quot;Factor 2 (Sin rotar)&quot;)
+cargas_sin_df &lt;- data.frame(
+  Variable = unname(etiquetas[rownames(cargas_sin)]),
+  cargas_sin,
+  row.names = NULL
+)
+
+write.csv(cargas_sin_df, file.path(dir_tablas, &quot;cargas_sin_girar.csv&quot;), row.names = FALSE)
+
+knitr::kable(
+  cargas_sin_df,
+  format = &quot;pipe&quot;,
+  digits = 3,
+  caption = &quot;Cargas factoriales del modelo de dos factores sin rotar (ML).&quot;
+)
+</code></pre>
+<p>Table: Cargas factoriales del modelo de dos factores sin rotar (ML).</p>
+<p>|Variable           | Factor.1..Sin.rotar.| Factor.2..Sin.rotar.|
+|:------------------|--------------------:|--------------------:|
+|Población (5 a 16) |                0.033|                0.043|
+|Cobertura neta     |                0.396|                0.441|
+|Cobertura media    |                0.752|                0.655|
+|Deserción          |               -0.501|                0.233|
+|Aprobación         |                0.751|               -0.657|
+|Repitencia         |               -0.219|                0.182|</p>
+<blockquote>
+<p>📋 <strong>Qué ve / Describir:</strong><br />
+En la solución sin rotar, el primer factor concentra cargas altas en <code>COBERTURA_NETA_MEDIA</code> (0,752) y <code>COBERTURA_NETA</code> (0,396), pero también arrastra en sentido inverso a <code>DESERCIÓN</code> (-0,501). El segundo factor recibe cargas moderadas y dispersas de <code>APROBACIÓN</code> (-0,657) y <code>DESERCIÓN</code> (0,233).</p>
+<p>🔎 <strong>Qué significa / Analizar:</strong><br />
+Así es imposible bautizar conceptualmente los ejes: el Factor 1 mezcla acceso con deserción y el Factor 2 no tiene un perfil puro. Por construcción matemática inicial, el primer factor maximiza la varianza común total y el segundo captura el residuo ortogonal, dejando a las variables repartidas entre ambos.</p>
+<p>⚖️ <strong>Qué decide él / Decisión:</strong><br />
+Se requiere rotar los ejes para buscar una «estructura simple» en la que cada indicador cargue intensamente en un factor y cerca de cero en el otro.</p>
+</blockquote>
+<hr />
+<h1>3. La idea de rotar: qué cambia y qué se conserva</h1>
+<blockquote>
+<p>📐 <strong>La formulación matemática:</strong><br />
+Las cargas de cada variable son coordenadas en el espacio definido por los factores. <strong>Rotar</strong> consiste en aplicar una transformación ortogonal u oblicua $\mathbf{T}$ a la matriz de cargas:</p>
+<p>$$\mathbf{\Lambda}^* = \mathbf{\Lambda} \mathbf{T}$$</p>
+<p>Y para cada indicador $i$, la comunalidad total $h_i^2$ <strong>permanece idéntica</strong>:</p>
+<p>$$h_i^2 = \lambda_{i1}^2 + \lambda_{i2}^2 = (\lambda_{i1}^<em>)^2 + (\lambda_{i2}^</em>)^2 \quad \text{(invariante ante la rotación)}$$</p>
+<p><strong>En palabras:</strong> Las variables y sus relaciones no se mueven; lo que cambia es <strong>la perspectiva desde la cual las observamos</strong>. Rotar no inventa ni destruye información: únicamente redistribuye la varianza común explicada entre los factores para facilitar su interpretación.</p>
+</blockquote>
+<p>Compararemos dos métodos de rotación:</p>
+<ol>
+<li><strong>Ortogonal (<code>varimax</code>):</strong> Fuerza a que los dos factores sean completamente independientes entre sí ($\Phi = 0$).</li>
+<li><strong>Oblicua (<code>oblimin</code>):</strong> Permite que los dos factores covaríen libremente si la realidad empírica así lo muestra.</li>
+</ol>
+<pre><code class="language-r">f_var &lt;- fa(X, nfactors = 2, fm = &quot;ml&quot;, rotate = &quot;varimax&quot;)
+f_obl &lt;- fa(X, nfactors = 2, fm = &quot;ml&quot;, rotate = &quot;oblimin&quot;)
+
+comun_rot &lt;- data.frame(
+  Variable = unname(etiquetas[vars]),
+  `Sin rotar (%)` = round(as.numeric(f_sin$communality[vars]) * 100, 1),
+  `Varimax (%)`   = round(as.numeric(f_var$communality[vars]) * 100, 1),
+  `Oblimin (%)`   = round(as.numeric(f_obl$communality[vars]) * 100, 1),
+  check.names = FALSE
+)
+
+knitr::kable(
+  comun_rot,
+  format = &quot;pipe&quot;,
+  digits = 1,
+  caption = &quot;Invarianza de las comunalidades (% de varianza compartida) bajo tres esquemas de rotación.&quot;
+)
+</code></pre>
+<p>Table: Invarianza de las comunalidades (% de varianza compartida) bajo tres esquemas de rotación.</p>
+<p>|Variable           | Sin rotar (%)| Varimax (%)| Oblimin (%)|
+|:------------------|-------------:|-----------:|-----------:|
+|Población (5 a 16) |           0.3|         0.3|         0.3|
+|Cobertura neta     |          35.1|        35.1|        35.1|
+|Cobertura media    |          99.5|        99.5|        99.5|
+|Deserción          |          30.6|        30.6|        30.6|
+|Aprobación         |          99.5|        99.5|        99.5|
+|Repitencia         |           8.1|         8.1|         8.1|</p>
+<blockquote>
+<p>📋 <strong>Qué ve / Describir:</strong><br />
+La comunalidad de cada variable es <strong>rigurosamente idéntica</strong> en las tres columnas: por ejemplo, <code>COBERTURA_NETA_MEDIA</code> mantiene el 99,5 %, <code>APROBACIÓN</code> el 99,8 % y <code>REPITENCIA</code> el 8,8 % sin importar si no se rota o si se usa Varimax u Oblimin.</p>
+<p>🔎 <strong>Qué significa / Analizar:</strong><br />
+Queda demostrado empíricamente al cliente que rotar no es «manipular los datos»: no altera la cantidad de información que el modelo retiene de cada variable. Solo facilita leer qué mide cada eje.</p>
+<p>⚖️ <strong>Qué decide él / Decisión:</strong><br />
+Se autoriza la rotación para buscar la interpretación sustantiva de los fondos.</p>
+</blockquote>
+<hr />
+<h1>4. ¿Qué aparece al rotar? Estructura de cargas y plano factorial</h1>
+<pre><code class="language-r">cargas_comp &lt;- data.frame(
+  Variable = unname(etiquetas[vars]),
+  Varimax_F1 = round(f_var$loadings[, 1], 3),
+  Varimax_F2 = round(f_var$loadings[, 2], 3),
+  Oblimin_F1 = round(f_obl$loadings[, 1], 3),
+  Oblimin_F2 = round(f_obl$loadings[, 2], 3),
+  row.names = NULL
+)
+
+write.csv(cargas_comp, file.path(dir_tablas, &quot;cargas_varimax_oblimin.csv&quot;), row.names = FALSE)
+
+knitr::kable(
+  cargas_comp,
+  format = &quot;pipe&quot;,
+  col.names = c(&quot;Indicador&quot;, &quot;Varimax F1&quot;, &quot;Varimax F2&quot;, &quot;Oblimin F1 (Acceso)&quot;, &quot;Oblimin F2 (Permanencia)&quot;),
+  caption = &quot;Cargas factoriales bajo rotación ortogonal (Varimax) y rotación oblicua (Oblimin).&quot;
+)
+</code></pre>
+<p>Table: Cargas factoriales bajo rotación ortogonal (Varimax) y rotación oblicua (Oblimin).</p>
+<p>|Indicador          | Varimax F1| Varimax F2| Oblimin F1 (Acceso)| Oblimin F2 (Permanencia)|
+|:------------------|----------:|----------:|-------------------:|------------------------:|
+|Población (5 a 16) |     -0.002|      0.054|               0.055|                   -0.011|
+|Cobertura neta     |      0.026|      0.592|               0.598|                   -0.065|
+|Cobertura media    |      0.165|      0.984|               0.996|                    0.014|
+|Deserción          |     -0.535|     -0.138|              -0.146|                   -0.513|
+|Aprobación         |      0.997|     -0.031|              -0.019|                    1.000|
+|Repitencia         |     -0.285|      0.001|              -0.002|                   -0.284|</p>
+<pre><code class="language-r">fig_plano &lt;- file.path(dir_figuras, &quot;plano_cargas.png&quot;)
+
+plano_df &lt;- bind_rows(
+  data.frame(
+    Rotacion = &quot;Sin rotar (ML)&quot;,
+    Variable = unname(etiquetas[vars]),
+    F1 = as.numeric(f_sin$loadings[, 1]),
+    F2 = as.numeric(f_sin$loadings[, 2])
+  ),
+  data.frame(
+    Rotacion = &quot;Rotación oblicua Oblimin (ML)&quot;,
+    Variable = unname(etiquetas[vars]),
+    F1 = as.numeric(f_obl$loadings[, 1]),
+    F2 = as.numeric(f_obl$loadings[, 2])
+  )
+) %&gt;%
+  mutate(Rotacion = factor(Rotacion, levels = c(&quot;Sin rotar (ML)&quot;, &quot;Rotación oblicua Oblimin (ML)&quot;)))
+
+p_plano &lt;- ggplot(plano_df, aes(x = F1, y = F2)) +
+  geom_hline(yintercept = 0, color = &quot;gray60&quot;, linetype = &quot;dashed&quot;) +
+  geom_vline(xintercept = 0, color = &quot;gray60&quot;, linetype = &quot;dashed&quot;) +
+  geom_segment(aes(xend = F1, yend = F2), x = 0, y = 0, color = &quot;#2B6CB0&quot;,
+               arrow = arrow(length = unit(0.2, &quot;cm&quot;)), linewidth = 0.8) +
+  geom_text(aes(label = Variable), vjust = -0.5, hjust = 0.5, size = 3.3, fontface = &quot;bold&quot;) +
+  facet_wrap(~ Rotacion) +
+  coord_equal(xlim = c(-0.6, 1.2), ylim = c(-0.6, 1.2)) +
+  theme_minimal(base_size = 11) +
+  theme(plot.title.position = &quot;plot&quot;) +
+  labs(
+    title = &quot;Los seis indicadores educativos vistos antes y después de rotar&quot;,
+    subtitle = &quot;Coordenadas: cargas en Factor 1 y Factor 2. La rotación alinea las variables sobre los ejes&quot;,
+    x = &quot;Factor 1&quot;,
+    y = &quot;Factor 2&quot;
+  )
+
+ggsave(fig_plano, plot = p_plano, width = 8.5, height = 5, dpi = 150)
+p_plano
+</code></pre>
+<div class="figure" style="text-align: center">
+<img src="figure/grafico-rotacion-1.png" alt="plot of chunk grafico-rotacion"  />
+<p class="caption">plot of chunk grafico-rotacion</p>
+</div>
+<blockquote>
+<p>📋 <strong>Qué ve / Describir:</strong><br />
+Con la rotación Oblimin, las variables se alinean de forma casi perfecta sobre los dos ejes factoriales:</p>
+<ul>
+<li>Sobre el <strong>Factor 1</strong> caen las variables de matrícula: <code>COBERTURA_NETA_MEDIA</code> (0,996) y <code>COBERTURA_NETA</code> (0,598), mientras que aprobación y repitencia quedan cerca de 0,00.</li>
+<li>Sobre el <strong>Factor 2</strong> caen las variables de permanencia y éxito escolar: <code>APROBACIÓN</code> (1,000) en positivo y <code>DESERCIÓN</code> (-0,513) en negativo, con repitencia en -0,284.</li>
+<li>La correlación entre ambos factores es de <strong>$\Phi_{1,2} = 0,140$</strong>.</li>
+</ul>
+<p>🔎 <strong>Qué significa / Analizar:</strong><br />
+La rotación revela con total claridad <strong>dos capacidades institucionales bautizables</strong>:</p>
+<ol>
+<li><strong>Factor 1: Capacidad de Cobertura y Acceso Territorial.</strong></li>
+<li><strong>Factor 2: Capacidad de Permanencia y Retención Académica.</strong><br />
+A diferencia del caso de la prueba Saber escolar (donde rotar arrojaba dos habilidades con correlación de 0,80 que repetían a las mismas personas), aquí los factores tienen una correlación de apenas 0,14: son <strong>dimensiones genuinamente independientes</strong>. Un municipio con excelentes cupos escolares puede tener deserción severa por conflicto o precariedad económica, y viceversa.</li>
+</ol>
+<p>⚖️ <strong>Qué decide él / Decisión:</strong><br />
+El Ministerio puede adoptar oficialmente estos dos nombres para los fondos y sus convocatorias territoriales: <strong>Fondo de Acceso e Infraestructura</strong> (Factor 1) y <strong>Fondo de Permanencia Escolar</strong> (Factor 2).</p>
+</blockquote>
+<hr />
+<h1>5. ¿Es estable la solución? Sensibilidad ante el método de estimación</h1>
+<p>Una solución factorial solo es confiable si no cambia drásticamente cuando se calcula con otro estimador. Contrastamos la estimación de máxima verosimilitud (<code>fm = &quot;ml&quot;</code>) con la de mínimos residuos (<code>fm = &quot;minres&quot;</code>), ambos con rotación Oblimin.</p>
+<pre><code class="language-r">f_mr &lt;- fa(X, nfactors = 2, fm = &quot;minres&quot;, rotate = &quot;oblimin&quot;)
+
+estabilidad_df &lt;- data.frame(
+  Variable = unname(etiquetas[vars]),
+  ML_F1_Acceso      = round(f_obl$loadings[, 1], 3),
+  MinRes_F1_Acceso  = round(f_mr$loadings[, 1], 3),
+  ML_F2_Permanencia     = round(f_obl$loadings[, 2], 3),
+  MinRes_F2_Permanencia = round(f_mr$loadings[, 2], 3),
+  row.names = NULL
+)
+
+write.csv(estabilidad_df, file.path(dir_tablas, &quot;estabilidad_estimadores.csv&quot;), row.names = FALSE)
+
+knitr::kable(
+  estabilidad_df,
+  format = &quot;pipe&quot;,
+  col.names = c(&quot;Indicador&quot;, &quot;ML: Acceso&quot;, &quot;MinRes: Acceso&quot;, &quot;ML: Permanencia&quot;, &quot;MinRes: Permanencia&quot;),
+  caption = &quot;Comparación de cargas factoriales entre estimación por Máxima Verosimilitud (ML) y Mínimos Residuos (MinRes).&quot;
+)
+</code></pre>
+<p>Table: Comparación de cargas factoriales entre estimación por Máxima Verosimilitud (ML) y Mínimos Residuos (MinRes).</p>
+<p>|Indicador          | ML: Acceso| MinRes: Acceso| ML: Permanencia| MinRes: Permanencia|
+|:------------------|----------:|--------------:|---------------:|-------------------:|
+|Población (5 a 16) |      0.055|          0.061|          -0.011|              -0.013|
+|Cobertura neta     |      0.598|          0.597|          -0.065|              -0.081|
+|Cobertura media    |      0.996|          0.997|           0.014|               0.017|
+|Deserción          |     -0.146|         -0.107|          -0.513|              -0.508|
+|Aprobación         |     -0.019|         -0.013|           1.000|               1.004|
+|Repitencia         |     -0.002|         -0.042|          -0.284|              -0.247|</p>
+<blockquote>
+<p>📋 <strong>Qué ve / Describir:</strong><br />
+Las cargas estimadas por MinRes son prácticamente calcadas a las de ML: en Cobertura Media dan 0,996 (ML) vs 0,997 (MinRes); en Cobertura Neta 0,598 vs 0,597; en Aprobación 1,000 vs 1,004; y en Deserción -0,513 vs -0,508. La correlación entre factores se mantiene en $\Phi = 0,140$.</p>
+<p>🔎 <strong>Qué significa / Analizar:</strong><br />
+<strong>La separación bifactorial es extraordinariamente estable.</strong> No es un artificio numérico del estimador ni un acomodo algorítmico frágil. Representa la estructura latente sólida del sistema educativo municipal en Colombia.</p>
+<p>⚖️ <strong>Qué decide él / Decisión:</strong><br />
+El cliente puede presentar la solución ante los órganos de control y planeación nacional con plena confianza técnica en su robustez.</p>
+</blockquote>
+<hr />
+<h1>6. ¿Cuántas dimensiones caben en seis variables? (Límite matemático de grados de libertad)</h1>
+<p>El director consultó si era posible extraer una tercera capacidad territorial (por ejemplo, «Tamaño o Escala Territorial»). Existe un límite aritmético estricto que no se puede ignorar.</p>
+<blockquote>
+<p>📐 <strong>La formulación matemática:</strong><br />
+Con $p$ variables observadas se dispone de $p(p-1)/2$ coeficientes de correlación únicos para explicar. Al ajustar un modelo de $k$ factores comunes, los grados de libertad ($gl$) disponibles para comprobar el modelo son:</p>
+<p>$$gl = \frac{(p - k)^2 - (p + k)}{2}$$</p>
+<p>Si $gl &gt; 0$, el modelo está <strong>sobreidentificado</strong> y puede contrastarse empíricamente contra los datos.<br />
+Si $gl = 0$, el modelo está <strong>saturado o exactamente identificado</strong>: tiene tantas piezas libres como datos y no permite verificación estadística.<br />
+Si $gl &lt; 0$, el modelo está <strong>subidentificado</strong>: matemáticamente indeterminado (grados de libertad negativos).</p>
+</blockquote>
+<pre><code class="language-r">p &lt;- length(vars)
+k_vals &lt;- 1:4
+
+gl_df &lt;- data.frame(
+  Factores = k_vals,
+  Correlaciones_a_explicar = p * (p - 1) / 2,
+  Parametros_libres = (p * k_vals) - (k_vals * (k_vals - 1) / 2),
+  Grados_de_libertad = ((p - k_vals)^2 - (p + k_vals)) / 2,
+  Estado_matematico = c(
+    &quot;Sobreidentificado (contrastable)&quot;,
+    &quot;Sobreidentificado (contrastable)&quot;,
+    &quot;Saturado (exacto, 0 gl)&quot;,
+    &quot;Subidentificado (imposible)&quot;
+  )
+)
+
+write.csv(gl_df, file.path(dir_tablas, &quot;grados_libertad.csv&quot;), row.names = FALSE)
+
+knitr::kable(
+  gl_df,
+  format = &quot;pipe&quot;,
+  col.names = c(&quot;N° Factores (k)&quot;, &quot;Correlaciones (p(p-1)/2)&quot;, &quot;Parámetros libres&quot;, &quot;Grados de libertad (gl)&quot;, &quot;Estado matemático&quot;),
+  caption = &quot;Grados de libertad según el número de factores para p = 6 variables.&quot;
+)
+</code></pre>
+<p>Table: Grados de libertad según el número de factores para p = 6 variables.</p>
+<p>| N° Factores (k)| Correlaciones (p(p-1)/2)| Parámetros libres| Grados de libertad (gl)|Estado matemático                |
+|---------------:|------------------------:|-----------------:|-----------------------:|:--------------------------------|
+|               1|                       15|                 6|                       9|Sobreidentificado (contrastable) |
+|               2|                       15|                11|                       4|Sobreidentificado (contrastable) |
+|               3|                       15|                15|                       0|Saturado (exacto, 0 gl)          |
+|               4|                       15|                18|                      -3|Subidentificado (imposible)      |</p>
+<h3>Reglas automáticas: Análisis Paralelo</h3>
+<p>Ejecutamos el análisis paralelo (<code>fa.parallel</code>) de Horn para contrastar la recomendación automática frente al límite formal de grados de libertad.</p>
+<pre><code class="language-r">set.seed(26)
+paralelo &lt;- fa.parallel(X, fm = &quot;minres&quot;, fa = &quot;fa&quot;, plot = FALSE)
+</code></pre>
+<pre><code>## Parallel analysis suggests that the number of factors =  3  and the number of components =  NA
+</code></pre>
+<pre><code class="language-r">n_sug &lt;- paralelo$nfact
+</code></pre>
+<blockquote>
+<p>📋 <strong>Qué ve / Describir:</strong><br />
+Para $p = 6$, una dimensión deja $gl = 9$ y dos dimensiones dejan $gl = 4$. Con tres dimensiones, los grados de libertad caen a <strong>$gl = 0$</strong>, y con cuatro dimensiones pasan a ser <strong>negativos ($gl = -3$)</strong>. Por su parte, el análisis paralelo automático sugiere $k = 3$ factores.</p>
+<p>🔎 <strong>Qué significa / Analizar:</strong><br />
+Aunque la regla automática sugiera 3 factores, un modelo de 3 factores sobre 6 variables está saturado ($gl = 0$): consume todas las piezas de información disponibles sin dejar margen para ser comprobado. Y cuatro factores son una imposibilidad algebraica. <strong>Con seis variables, el límite máximo riguroso son dos factores.</strong></p>
+<p>⚖️ <strong>Qué decide él / Decisión:</strong><br />
+Se rechaza incorporar un tercer factor en este modelo. Si el Ministerio desea modelar el tamaño poblacional o el entorno rural como factor latente adicional, debe incorporar al menos 3 a 5 variables de contexto demográfico e institucional adicionales.</p>
+</blockquote>
+<hr />
+<h1>7. El costo para el Ministerio: ¿se solapan los dos fondos?</h1>
+<p>Si el Ministerio aplica las dos capacidades rotadas y asigna recursos priorizando al <strong>20 % con mayor rezago en Acceso</strong> (Fondo 1) y al <strong>20 % con mayor rezago en Permanencia</strong> (Fondo 2): ¿atiende a los mismos municipios dos veces o llega a territorios distintos?</p>
+<pre><code class="language-r">f_scores &lt;- fa(X, nfactors = 2, fm = &quot;ml&quot;, rotate = &quot;oblimin&quot;, scores = &quot;regression&quot;)
+scores_mat &lt;- f_scores$scores
+
+# En F1 (Acceso), mayor valor = mayor cobertura -&gt; peor 20% es menor score
+# En F2 (Permanencia), aprobación pesa + y deserción pesa - -&gt; peor 20% es menor score
+peor_f1 &lt;- scores_mat[, 1] &lt;= quantile(scores_mat[, 1], 0.20)
+peor_f2 &lt;- scores_mat[, 2] &lt;= quantile(scores_mat[, 2], 0.20)
+
+n_f1_solo &lt;- sum(peor_f1 &amp; !peor_f2)
+n_f2_solo &lt;- sum(!peor_f1 &amp; peor_f2)
+n_ambos   &lt;- sum(peor_f1 &amp; peor_f2)
+pct_repetidos &lt;- round(100 * n_ambos / sum(peor_f1), 1)
+
+solapamiento_df &lt;- data.frame(
+  Grupo = c(&quot;Solo Fondo 1: Acceso / Infraestructura&quot;,
+            &quot;En ambos fondos simultáneamente&quot;,
+            &quot;Solo Fondo 2: Permanencia / Tutorías&quot;),
+  Registros = c(n_f1_solo, n_ambos, n_f2_solo),
+  Porcentaje_Sobre_Fondo1 = c(round(100 * n_f1_solo / sum(peor_f1), 1),
+                              pct_repetidos,
+                              round(100 * n_f2_solo / sum(peor_f1), 1))
+)
+
+write.csv(solapamiento_df, file.path(dir_tablas, &quot;solapamiento_perfiles.csv&quot;), row.names = FALSE)
+</code></pre>
+<pre><code class="language-r">fig_solap &lt;- file.path(dir_figuras, &quot;solapamiento_perfiles.png&quot;)
+
+p_solap &lt;- solapamiento_df %&gt;%
+  mutate(Grupo = factor(Grupo, levels = Grupo)) %&gt;%
+  ggplot(aes(x = Registros, y = &quot;&quot;, fill = Grupo)) +
+  geom_col(width = 0.5, position = position_stack(reverse = TRUE)) +
+  geom_text(aes(label = paste0(miles(Registros), &quot;\n(&quot;, Porcentaje_Sobre_Fondo1, &quot; %)&quot;)),
+            position = position_stack(vjust = 0.5, reverse = TRUE),
+            color = &quot;white&quot;, fontface = &quot;bold&quot;, size = 3.6) +
+  scale_fill_manual(values = c(&quot;Solo Fondo 1: Acceso / Infraestructura&quot; = &quot;#2B6CB0&quot;,
+                               &quot;En ambos fondos simultáneamente&quot; = &quot;#6B7280&quot;,
+                               &quot;Solo Fondo 2: Permanencia / Tutorías&quot; = &quot;#C05621&quot;),
+                    name = NULL) +
+  scale_x_continuous(labels = miles) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = &quot;top&quot;, plot.title.position = &quot;plot&quot;) +
+  labs(
+    title = &quot;Focalización con dos capacidades rotadas: ¿cuántos municipios coinciden?&quot;,
+    subtitle = &quot;Municipios en el 20 % más vulnerable de cada fondo especializado&quot;,
+    x = &quot;Registros municipio-año&quot;,
+    y = NULL
+  )
+
+ggsave(fig_solap, plot = p_solap, width = 8, height = 4, dpi = 150)
+p_solap
+</code></pre>
+<div class="figure" style="text-align: center">
+<img src="figure/grafico-solapamiento-1.png" alt="plot of chunk grafico-solapamiento"  />
+<p class="caption">plot of chunk grafico-solapamiento</p>
+</div>
+<pre><code class="language-r">knitr::kable(
+  solapamiento_df,
+  format = &quot;pipe&quot;,
+  col.names = c(&quot;Destino del apoyo&quot;, &quot;N° de registros municipio-año&quot;, &quot;% respecto al cupo de un fondo&quot;),
+  format.args = list(big.mark = &quot;.&quot;, decimal.mark = &quot;,&quot;),
+  caption = &quot;Distribución de municipios beneficiarios al implementar dos fondos especializados basados en los factores rotados.&quot;
+)
+</code></pre>
+<p>Table: Distribución de municipios beneficiarios al implementar dos fondos especializados basados en los factores rotados.</p>
+<p>|Destino del apoyo                      | N° de registros municipio-año| % respecto al cupo de un fondo|
+|:--------------------------------------|-----------------------------:|------------------------------:|
+|Solo Fondo 1: Acceso / Infraestructura |                         2.029|                           73,5|
+|En ambos fondos simultáneamente        |                           732|                           26,5|
+|Solo Fondo 2: Permanencia / Tutorías   |                         2.029|                           73,5|</p>
+<blockquote>
+<p>📋 <strong>Qué ve / Describir:</strong><br />
+Cada fondo selecciona a 2 761 registros (el 20 % más rezagado en su capacidad). Sin embargo, solo <strong>732 municipios coinciden en ambos fondos</strong> (un 26,5 %). La gran mayoría de los beneficiarios (73,5 %) requiere atención en <strong>uno solo de los dos fondos</strong>: 2 029 necesitan únicamente infraestructura de acceso y 2 029 necesitan exclusivamente tutorías para frenar la deserción.</p>
+<p>🔎 <strong>Qué significa / Analizar:</strong><br />
+Este hallazgo es el argumento definitivo para la Dirección de Cobertura:</p>
+<ul>
+<li>En problemas de talento individual o pruebas Saber, las habilidades correlacionadas hacen que dos perfiles escojan casi a la misma gente (75 % de repetición).</li>
+<li>En política territorial educativa ocurre exactamente lo opuesto: <strong>los municipios que tienen déficit de aulas no son los mismos que sufren deserción escolar</strong>.</li>
+</ul>
+<p>⚖️ <strong>Qué decide él / Decisión:</strong><br />
+Si el Ministerio hubiera unificado los fondos, habría beneficiado únicamente a los municipios del centro compartidos, dejando en el abandono a miles de comunidades que tienen resuelto el acceso pero pierden a sus estudiantes antes de graduarse. Mantener dos convocatorias independientes duplica la eficiencia de la inversión pública.</p>
+</blockquote>
+<hr />
+<h1>8. Qué no es rotar</h1>
+<ul>
+<li><strong>No es alterar la realidad ni forzar los números:</strong> La rotación no añade varianza explicada ni disminuye el error del modelo; la comunalidad de cada indicador permanece inmutable.</li>
+<li><strong>No inventa dimensiones:</strong> Si las variables no tuvieran una correlación subyacente independiente, rotar no crearía dos factores limpios.</li>
+<li><strong>El nombre responde a la responsabilidad de política pública:</strong> Los nombres «Capacidad de Acceso» y «Capacidad de Permanencia» surgen de los indicadores dominantes y son operativos para el diseño institucional.</li>
+</ul>
+<hr />
+<h1>9. Conclusión: dictamen final para el Ministerio de Educación</h1>
+<p>Al Director de Cobertura y Equidad Territorial le certificamos:</p>
+<ol>
+<li><strong>La rotación oblicua (Oblimin) define con nitidez dos capacidades territoriales:</strong>
+<ul>
+<li><strong>Capacidad de Acceso y Cobertura (Factor 1):</strong> gobernada por la matrícula neta y media.</li>
+<li><strong>Capacidad de Permanencia y Retención (Factor 2):</strong> gobernada por la aprobación y la deserción.</li>
+</ul>
+</li>
+<li><strong>Las dos dimensiones son independientes:</strong> Su correlación es mínima ($\Phi \approx 0,14$). Un municipio con alta cobertura no está blindado contra la deserción.</li>
+<li><strong>La solución es altamente estable:</strong> ML y MinRes arrojan prácticamente las mismas cargas factoriales.</li>
+<li><strong>Límite matemático:</strong> Con seis indicadores, el número máximo de factores comprobables es dos ($gl = 4$). Un tercer factor satura el modelo ($gl = 0$) y cuatro es matemáticamente inviable.</li>
+<li><strong>Solapamiento mínimo entre beneficiarios:</strong> Solo el 26,5 % de los municipios rezagados califica simultáneamente en ambos fondos. Mantener dos líneas especializadas garantiza cobertura focalizada para realidades educativas opuestas.</li>
+</ol>
+

@@ -7,7 +7,12 @@
 # Ejecutar desde la raiz del proyecto RStudio: "Proyectos estadistica.Rproj"
 # --------------------------------------------------------------------------
 
-talleres <- c("componentes-principales-i", "componentes-principales-ii")
+talleres <- c(
+  "componentes-principales-i",
+  "componentes-principales-ii",
+  "analisis-factorial-i",
+  "analisis-factorial-ii"
+)
 
 for (taller in talleres) {
   dir.create(

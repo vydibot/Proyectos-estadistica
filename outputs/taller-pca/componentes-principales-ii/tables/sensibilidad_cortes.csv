@@ -1,0 +1,4 @@
+"Escenario","Umbral_PC1","Casos_Atencion","Pct_Total","Vulnerables_Capturados","Pct_Vulnerables_Atendidos"
+"Corte estricto (PC1 = -0,5): Presupuesto limitado",-0.5,4395,31.8,1567,87.9
+"Corte base (PC1 = 0,0): Prioridad equilibrada",0,6408,46.4,1699,95.3
+"Corte preventivo (PC1 = +0,5): Cobertura amplia",0.5,8671,62.8,1754,98.4

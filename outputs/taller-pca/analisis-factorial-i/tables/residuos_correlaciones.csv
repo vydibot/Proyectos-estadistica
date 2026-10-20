@@ -1,0 +1,16 @@
+"Variable1","Variable2","Residuo"
+"Aprobación","Deserción",-0.499
+"Aprobación","Repitencia",-0.278
+"Cobertura neta","Deserción",0.127
+"Deserción","Repitencia",0.077
+"Aprobación","Cobertura neta",-0.071
+"Cobertura neta","Repitencia",-0.067
+"Cobertura neta","Población (5 a 16)",0.015
+"Aprobación","Población (5 a 16)",-0.011
+"Deserción","Población (5 a 16)",0.006
+"Población (5 a 16)","Repitencia",0.004
+"Cobertura media","Repitencia",0.001
+"Cobertura media","Población (5 a 16)",0
+"Cobertura neta","Cobertura media",0
+"Aprobación","Cobertura media",0
+"Cobertura media","Deserción",0
