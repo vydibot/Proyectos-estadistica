@@ -19,7 +19,7 @@ library(tidyr)
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    if (file.exists(file.path(path, "Proyectos-estadistica.Rproj"))) return(path)
+    if (file.exists(file.path(path, "Proyectos estadistica.Rproj"))) return(path)
     parent <- dirname(path)
     if (parent == path) stop("No se encontró la raíz del proyecto.")
     path <- parent

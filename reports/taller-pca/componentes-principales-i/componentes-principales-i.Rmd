@@ -18,7 +18,7 @@ library(tidyr)
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    if (file.exists(file.path(path, "Proyectos-estadistica.Rproj"))) {
+    if (file.exists(file.path(path, "Proyectos estadistica.Rproj"))) {
       return(path)
     }
     parent <- dirname(path)
@@ -573,7 +573,7 @@ Estandarizar un código no lo vuelve una cantidad: el código sigue siendo una e
 
 El Corte 1 descartó los códigos DANE al limpiar los datos, así que aquí se recuperan del archivo crudo con la misma normalización de nombres.
 
-```{r one-hot, fig.show='hide'}
+```{r one-hot}
 # ---- Códigos DANE: se recuperan del archivo crudo (el Corte 1 los descartó) ----
 crudo <- read.csv(file.path(project_root, "data", "raw", "educacion.csv"),
                   check.names = FALSE, stringsAsFactors = FALSE)
