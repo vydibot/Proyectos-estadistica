@@ -337,7 +337,17 @@ cargas_sensibilidad <- data.frame(
   `Factor 2 (perfiles municipales)` = unclass(f2_municipio$loadings)[vars, 2],
   check.names = FALSE
 )
+
+lm2 <- unclass(f2_municipio$loadings)[vars, ]
+col_des <- which.max(abs(lm2["DESERCIÓN", ]))
+col_apr <- which.max(abs(lm2["APROBACIÓN", ]))
+dom_mun <- vars[which.max(abs(lm2[, col_des]))]
+opuestos_reg <- sign(cg["DESERCIÓN", 2]) != sign(cg["APROBACIÓN", 2])
+opuestos_mun <- sign(lm2["DESERCIÓN", col_des]) != sign(lm2["APROBACIÓN", col_des])
+unic_min <- 100 * min(f2$uniquenesses)
 ```
+
+Hay cargas casi iguales a 1 (la unicidad mínima es `r fnum(unic_min)` %), señal de una solución en el límite y, por tanto, inestable: al promediar por municipio, el indicador dominante del segundo factor pasa de `r et(v_f2)` a `r et(dom_mun)`. `r ifelse(opuestos_reg & opuestos_mun, "Lo que se mantiene en las dos soluciones es que deserción y aprobación entran con signo contrario; lo que no se mantiene es cuál de las dos pesa más.", "Ni siquiera la relación entre deserción y aprobación se mantiene entre las dos soluciones.")`
 
 ```{r kable-dos-factores}
 knitr::kable(
@@ -533,6 +543,7 @@ Porque el patrón de cargas no reúne de forma inequívoca todas las medidas de 
 
 **5. ¿Por qué los porcentajes del Taller I y del análisis factorial son distintos?**
 Porque responden a objetivos distintos: el PCA maximiza la varianza total explicada por el componente; el análisis factorial estima la varianza común y la unicidad de cada variable. Aquí, el PCA1 explica `r fnum(var_pca1)` % de varianza total y la comunalidad media del modelo de un factor es `r fnum(var_fa1)` %. La diferencia entre estas cifras no mide la parte propia que el PCA “se lleva”.
+Porque el PCA mete todo en el componente, incluida la parte propia de cada indicador, y el análisis factorial solo cuenta lo que se comparte. Aquí, `r fnum(var_pca1)` frente a `r fnum(var_fa1)` de cada 100: la diferencia (`r fnum(var_pca1 - var_fa1)` puntos) refleja, en buena parte, esa parte propia; no es una resta exacta, porque los dos métodos estiman de forma distinta.
 
 **6. ¿Cuál afirmación es correcta?**
 La **(b)**, con una precisión: en el modelo de un factor, la comunalidad coincide con la carga al cuadrado; con varios factores, se calcula a partir del conjunto de cargas y, para factores oblicuos, de su matriz de correlaciones. La (a) es falsa porque la dimensión común se infiere de las covariaciones, no se observa directamente. La (c) es falsa porque la unicidad incluye variación específica y posible error de medición. La (d) es falsa porque los factores oblicuos pueden correlacionarse; aquí su correlación estimada es `r fnum(f2$Phi[1, 2], 2)`.
