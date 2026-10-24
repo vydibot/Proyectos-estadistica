@@ -20,7 +20,7 @@ library(psych)
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    if (file.exists(file.path(path, "Proyectos-estadistica.Rproj"))) {
+    if (file.exists(file.path(path, "Proyectos estadistica.Rproj"))) {
       return(path)
     }
     parent <- dirname(path)
@@ -80,8 +80,8 @@ n_total <- nrow(X)
 
 **Cliente:** Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.  
 **Decisión estratégica:** Priorizar municipios para asignar fondos extraordinarios de infraestructura (acceso) y de tutoría (permanencia).  
-**Datos:** `data/raw/educacion_limpio.csv`, con `r format(nrow(X), big.mark = ".")` registros municipio-año (2011–2024) y las mismas 6 variables numéricas en los tres talleres: `POBLACIÓN_5_16`, `COBERTURA_NETA`, `COBERTURA_NETA_MEDIA`, `DESERCIÓN`, `APROBACIÓN` y `REPITENCIA`, estandarizadas (`scale. = TRUE`).  
-**Grupo de interés (costo de error):** registros con deserción mayor que 6,5 % o cobertura neta de 60 % o menos.
+**Datos:** `data/raw/educacion_limpio.csv`, con `r format(nrow(X), big.mark = ".", decimal.mark = ",")` registros municipio-año (2011–2024) y las mismas 6 variables numéricas en los tres talleres: `POBLACIÓN_5_16`, `COBERTURA_NETA`, `COBERTURA_NETA_MEDIA`, `DESERCIÓN`, `APROBACIÓN` y `REPITENCIA`, estandarizadas (`scale. = TRUE`).<br>
+**Grupo de interés (costo de error):** registros municipio-año con deserción mayor que 6,5 % o cobertura neta de 60 % o menos. Las tasas están almacenadas como proporciones: los cortes del análisis son 0,065 y 0,60.
 
 # 1. Introducción: el encargo del Ministerio
 
@@ -109,14 +109,14 @@ Nuestra tarea hoy:
 >
 > $$1 = \underbrace{\lambda_i^2}_{\text{Comunalidad } (h_i^2)} + \underbrace{\text{Var}(u_i)}_{\text{Unicidad } (u_i^2)}$$
 >
-> ⭐ **En palabras:** La **comunalidad** ($\lambda_i^2$) es la proporción de las diferencias entre municipios en ese indicador que proviene de la capacidad común. Lo que sobra ($1 - \lambda_i^2$) es la **parte propia**: dinámicas locales, particularidades del trámite de reporte y factores no capturados por las demás variables.
+> ⭐ **En palabras:** En el modelo de un factor, la **comunalidad** ($\lambda_i^2$) es la proporción de la varianza del indicador asociada con el factor común. Lo que sobra ($1 - \lambda_i^2$) es la **parte propia o unicidad**: variación específica que el modelo no explica y posible error de medición.
 
-**La gran diferencia con el PCA del Taller I:** El PCA metía **toda** la variabilidad en los componentes principales (incluyendo la parte propia de cada variable). El análisis factorial **la separa**: busca únicamente la varianza compartida.
+**La gran diferencia con el PCA del Taller I:** El PCA construye componentes a partir de la varianza total de las variables y no estima una unicidad para cada una. El análisis factorial modela la varianza común y separa la unicidad.
 
 
 # 3. ¿Hay algo común que buscar? (Adecuación muestral KMO)
 
-Antes de estimar factores latentes, es indispensable verificar si las variables comparten suficiente variabilidad común mediante el índice de Kaiser-Meyer-Olkin (KMO).
+Antes de estimar factores latentes, evaluamos la adecuación de la matriz de correlaciones con el índice de Kaiser-Meyer-Olkin (KMO). Este índice orienta sobre si la estructura de correlaciones es apropiada para el análisis factorial; no sustituye la inspección del ajuste y las comunalidades.
 
 ```{r adecuacion}
 kmo <- KMO(X)
@@ -142,10 +142,10 @@ kmo_nivel <- ifelse(kmo$MSA >= 0.7, "bueno", ifelse(kmo$MSA >= 0.5, "apenas acep
 > El índice KMO general es `r fnum(kmo$MSA, 2)`. Por indicador va de `r fnum(min(kmo$MSAi), 2)` (`r et(names(which.min(kmo$MSAi)))`) a `r fnum(max(kmo$MSAi), 2)` (`r et(names(which.max(kmo$MSAi)))`), y las cinco tasas educativas quedan entre `r fnum(min(kmo_tasas), 2)` y `r fnum(max(kmo_tasas), 2)`. `r sum(kmo$MSAi < 0.5)` de los `r length(kmo$MSAi)` indicadores `r ifelse(sum(kmo$MSAi < 0.5) == 1, "está", "están")` por debajo de 0,5.
 >
 > ⭐ **Qué significa para el cliente:**
-> Este índice va de 0 a 1 y por encima de 0,7 se considera bueno; con `r fnum(kmo$MSA, 2)` queda en el rango «`r kmo_nivel`». Los indicadores comparten poco: casi nada de lo que se mueve junto se puede atribuir a algo compartido, así que hay algo que buscar, pero no una red fuertemente entrelazada como la de los módulos de una prueba. Se mantienen las seis variables de los Talleres I y II para que los tres talleres hablen de lo mismo; `POBLACIÓN_5_16` no se espera que comparta nada con las tasas.
+> El KMO compara la magnitud de las correlaciones observadas con la de las correlaciones parciales: valores mayores sugieren que un análisis factorial puede ser más apropiado. No es un porcentaje de varianza común ni mide por sí solo cuánto comparten los indicadores. Como referencia orientativa, valores por encima de 0,7 suelen considerarse buenos y valores por debajo de 0,5, débiles. El valor `r fnum(kmo$MSA, 2)` queda «`r kmo_nivel`», cerca del límite inferior, por lo que se interpreta el modelo con cautela, no como evidencia de que casi no exista varianza común. Se mantienen las seis variables de los Talleres I y II para facilitar la comparación; la adecuación de incluir población se evalúa con sus cargas y comunalidades, no se presupone de antemano.
 >
 > ⭐ **Qué decide él:**
-> Seguimos con la estimación factorial, pero el Ministerio debe leer lo que sigue con cautela: el punto de partida compartido es débil.
+> Seguimos con la estimación factorial, pero el Ministerio debe leer lo que sigue con cautela: la adecuación de la matriz para este análisis es limitada.
 
 # 4. Una sola capacidad común: reparto de varianza
 
@@ -184,7 +184,7 @@ p_rep <- reparto %>%
   ) %>%
   ggplot(aes(x = value, y = variable, fill = name)) +
   geom_col(width = 0.65) +
-  geom_text(aes(label = sprintf("%.1f %%", value)),
+  geom_text(aes(label = ifelse(value >= 8, sprintf("%.1f %%", value), "")),
             position = position_stack(vjust = 0.5),
             color = "white", fontface = "bold", size = 3.8) +
   scale_fill_manual(values = c("Capacidad común" = "#2B6CB0", "Parte propia" = "#C05621"),
@@ -193,7 +193,7 @@ p_rep <- reparto %>%
   theme(legend.position = "top", plot.title.position = "plot") +
   labs(
     title = "Parte común compartida vs parte propia de cada indicador educativo",
-    subtitle = "Porcentaje de la varianza municipal explicada por el factor común (k = 1, ML)",
+    subtitle = "Varianza de registros municipio-año; los porcentajes exactos se muestran en la tabla",
     x = "Porcentaje de varianza (sobre 100 %)",
     y = NULL
   )
@@ -213,7 +213,7 @@ sin_com <- c("DESERCIÓN", "APROBACIÓN", "REPITENCIA", "POBLACIÓN_5_16")
 > En `r et(mas_comun)`, el `r fnum(com[mas_comun])` % de la variación entre registros viene del factor común (carga λ = `r fnum(lam[mas_comun], 3)`); en `r et("COBERTURA_NETA")`, el `r fnum(com["COBERTURA_NETA"])` %. En cambio, `r et("DESERCIÓN")` conserva un `r fnum(pro["DESERCIÓN"])` % de parte propia, `r et("APROBACIÓN")` un `r fnum(pro["APROBACIÓN"])` %, `r et("REPITENCIA")` un `r fnum(pro["REPITENCIA"])` % y `r et("POBLACIÓN_5_16")` un `r fnum(pro["POBLACIÓN_5_16"])` %. La variable casi toda propia es `r et(mas_propia)`.
 >
 > ⭐ **Qué significa para el cliente:**
-> Una carga de `r fnum(lam[mas_comun], 3)` es casi 1: el factor común es prácticamente `r et(mas_comun)` con `r et("COBERTURA_NETA")` arrastrada, no una capacidad educativa general. Deserción, aprobación, repitencia y población no pasan de `r fnum(max(com[sin_com]))` % de parte común, así que quedan casi fuera del factor. Para `r et(mas_propia)`, que casi todo sea propio significa que no se puede deducir de los otros indicadores: hay que medirlo y seguirlo directamente.
+> Una carga de `r fnum(lam[mas_comun], 3)` es casi 1: el factor común está dominado por `r et(mas_comun)` y también refleja `r et("COBERTURA_NETA")`, no una capacidad educativa general. Deserción, aprobación, repitencia y población tienen como máximo `r fnum(max(com[sin_com]))` % de comunalidad en este modelo. Para `r et(mas_propia)`, que casi todo sea propio significa que el factor único no explica gran parte de su variación; no demuestra que el indicador sea independiente de cualquier estructura posible.
 >
 > ⭐ **Qué decide él:**
 > Un fondo unificado que se guiara por este factor casi no vería la deserción, la aprobación ni la repitencia. Para esos frentes mira directamente cada indicador, como se concluyó en el Taller I.
@@ -230,9 +230,6 @@ Evaluamos la matriz de correlaciones observadas frente a las reproducidas por el
 R_obs <- cor(X)
 L <- as.numeric(f1$loadings[, 1])
 names(L) <- vars
-
-R_rep <- outer(L, L)
-diag(R_rep) <- 1
 
 error_mat <- R_obs - outer(L, L)
 diag(error_mat) <- 0
@@ -261,7 +258,7 @@ cn_obs <- R_obs["COBERTURA_NETA", "COBERTURA_NETA_MEDIA"]
 cn_rep <- unname(L["COBERTURA_NETA"] * L["COBERTURA_NETA_MEDIA"])
 
 n_parejas   <- choose(ncol(X), 2)
-n_residuo10 <- sum(abs(residuos_df$Residuo) > 0.10)
+n_residuo10 <- sum(abs(error_mat[upper.tri(error_mat)]) > 0.10)
 alcanza_una <- max_err < 0.10   # regla: una habilidad alcanza si ningún error pasa de 0,10
 
 write.csv(residuos_df, file.path(dir_tablas, "residuos_correlaciones.csv"), row.names = FALSE)
@@ -277,17 +274,38 @@ knitr::kable(
 > La correlación observada entre `r et("DESERCIÓN")` y `r et("APROBACIÓN")` es `r fnum(cor_obs, 3)`; el producto de sus cargas da `r fnum(cor_rep, 3)` y el residuo es `r fnum(cor_res, 3)`. En cambio, para `r et("COBERTURA_NETA")` y `r et("COBERTURA_NETA_MEDIA")` la observada es `r fnum(cn_obs, 3)` y el producto de cargas `r fnum(cn_rep, 3)`. De las `r n_parejas` parejas, `r n_residuo10` tienen un error mayor que 0,10; el más grande es `r fnum(max_err, 3)`, entre `r et(var1_max)` y `r et(var2_max)`.
 >
 > ⭐ **Qué significa para el cliente:**
-> `r ifelse(alcanza_una, "Un solo factor reproduce casi perfectamente cómo se mueven juntos los indicadores.", "Un solo factor no alcanza: reproduce bien la pareja de coberturas, pero deja sin explicar la relación entre deserción y aprobación.")` Eso quiere decir que la relación entre deserción y aprobación no pasa por el factor de cobertura, y que hay algo más que une a algunos indicadores y que el modelo de un factor no contempla.
+> `r ifelse(alcanza_una, "Los residuos quedan por debajo del umbral descriptivo elegido, aunque esto por sí solo no demuestra que el modelo sea adecuado.", "El mayor residuo es grande frente al umbral descriptivo de 0,10: el modelo de un factor no reproduce varias relaciones observadas.")` En particular, la relación entre deserción y aprobación no queda bien explicada por el factor. El límite de 0,10 es una referencia práctica para esta lectura, no una prueba estadística universal.
 >
 > ⭐ **Qué decide él:**
 > `r ifelse(alcanza_una, "Puede tratar los indicadores como una sola capacidad.", "No puede sostener que un solo índice resuma los indicadores; se prueba con dos factores (sección 6).")`
 
 # 6. ¿Y si le pedimos dos factores?
 
-Ajustamos un modelo con dos factores ($k = 2$) mediante máxima verosimilitud y rotación oblicua (`rotate = "oblimin"`), permitiendo que las dimensiones puedan asociarse libremente.
+Para explorar si la estructura es más compleja, usamos el análisis paralelo como guía para el número de factores y comparamos soluciones de uno y dos factores. El análisis paralelo sugiere tres factores en los registros municipio-año; sin embargo, con seis variables una solución de tres factores tiene cero grados de libertad y queda saturada, por lo que no permite evaluar su ajuste. La solución de dos factores que sigue es una exploración interpretable, no una demostración de que haya exactamente dos dimensiones.
 
 ```{r dos-factores}
+set.seed(20261023)
+pa_registros <- fa.parallel(X, fa = "fa", fm = "ml", n.iter = 100, plot = FALSE)
+nf_pa_registros <- pa_registros$nfact
+
 f2 <- fa(X, nfactors = 2, fm = "ml", rotate = "oblimin")
+f3_diagnostico <- fa(X, nfactors = 3, fm = "ml", rotate = "oblimin")
+gl_f3 <- f3_diagnostico$dof
+
+clave_municipio <- interaction(educ$DEPARTAMENTO, educ$MUNICIPIO, drop = TRUE)
+X_municipio <- aggregate(X, by = list(clave = clave_municipio), FUN = mean)
+X_municipio$clave <- NULL
+kmo_municipio <- KMO(X_municipio)
+set.seed(20261023)
+pa_municipios <- fa.parallel(X_municipio, fa = "fa", fm = "ml",
+                            n.iter = 100, plot = FALSE)
+f2_municipio <- fa(X_municipio, nfactors = 2, fm = "ml", rotate = "oblimin")
+
+ajuste_modelos <- data.frame(
+  Modelo = c("1 factor", "2 factores", "3 factores"),
+  Grados_libertad = c(f1$dof, f2$dof, gl_f3),
+  RMSR = c(f1$rms, f2$rms, f3_diagnostico$rms)
+)
 
 cargas_f2 <- as.data.frame(unclass(f2$loadings))
 colnames(cargas_f2) <- c("Factor 1", "Factor 2")
@@ -311,7 +329,14 @@ seg_f2 <- names(sort(abs(cg[, 2]), decreasing = TRUE))[2]
 cm1 <- setNames(as.numeric(f1$communality[vars]) * 100, vars)
 cm2 <- setNames(as.numeric(f2$communality[vars]) * 100, vars)
 r_vv <- cor(X[[v_f1]], X[[v_f2]])
-f2_casi_var <- abs(cg[v_f2, 2]) > 0.95   # una carga casi 1: el factor es esa variable
+cargas_sensibilidad <- data.frame(
+  Variable = unname(etiquetas[vars]),
+  `Factor 1 (registros municipio-año)` = unclass(f2$loadings)[vars, 1],
+  `Factor 2 (registros municipio-año)` = unclass(f2$loadings)[vars, 2],
+  `Factor 1 (perfiles municipales)` = unclass(f2_municipio$loadings)[vars, 1],
+  `Factor 2 (perfiles municipales)` = unclass(f2_municipio$loadings)[vars, 2],
+  check.names = FALSE
+)
 ```
 
 ```{r kable-dos-factores}
@@ -328,6 +353,20 @@ knitr::kable(
   format = "pipe",
   caption = "Comparación de comunalidades (% de varianza explicada) entre el modelo de 1 factor y el de 2 factores."
 )
+
+knitr::kable(
+  ajuste_modelos,
+  digits = 3,
+  format = "pipe",
+  caption = paste0("Diagnóstico descriptivo del ajuste; análisis paralelo en registros: ", nf_pa_registros, " factores sugeridos.")
+)
+
+knitr::kable(
+  cargas_sensibilidad,
+  digits = 3,
+  format = "pipe",
+  caption = "Sensibilidad de las cargas oblicuas al promediar registros por departamento y municipio. La orientación y el orden de factores pueden cambiar entre soluciones."
+)
 ```
 
 > ⭐ **Qué ve:**
@@ -341,7 +380,9 @@ knitr::kable(
 > * La parte común de `r et(v_f2)` pasa de `r fnum(cm1[v_f2])` % a `r fnum(cm2[v_f2])` %, la de `r et("DESERCIÓN")` de `r fnum(cm1["DESERCIÓN"])` % a `r fnum(cm2["DESERCIÓN"])` %, y la de `r et("REPITENCIA")` de `r fnum(cm1["REPITENCIA"])` % a `r fnum(cm2["REPITENCIA"])` %.
 >
 > ⭐ **Qué significa para el cliente:**
-> `r ifelse(f2_casi_var, paste0("El segundo factor cae casi entero sobre ", et(v_f2), " (carga ", fnum(cg[v_f2, 2], 3), "): no es una dimensión amplia, es ese indicador. Lo mismo pasa con el primero sobre ", et(v_f1), "."), "Cada factor reúne varios indicadores.")` Un factor que se reduce a una variable es la variable misma, así que los dos factores no son dos capacidades institucionales sino dos indicadores. Aun con dos factores, `r et("DESERCIÓN")` conserva `r fnum(100 - cm2["DESERCIÓN"])` % de parte propia, `r et("REPITENCIA")` `r fnum(100 - cm2["REPITENCIA"])` % y `r et("POBLACIÓN_5_16")` `r fnum(100 - cm2["POBLACIÓN_5_16"])` %; y los dos factores van juntos poco (`r fnum(f2$Phi[1, 2], 2)`), pero no son independientes por construcción. Los nombres «acceso» y «permanencia» son nuestros: describen los indicadores de cada factor, no son algo que el análisis haya encontrado.
+> El primer factor está dominado por `r et(v_f1)` (carga `r fnum(cg[v_f1, 1], 3)`), con una carga secundaria de `r fnum(cg[seg_f1, 1], 3)` en `r et(seg_f1)`; el segundo está dominado por `r et(v_f2)` (carga `r fnum(cg[v_f2, 2], 3)`), y también recoge una asociación con `r et(seg_f2)` (carga `r fnum(cg[seg_f2, 2], 3)`). Por tanto, no se deben describir como dos indicadores aislados: las cargas restantes y las comunalidades muestran qué otras variables contribuyen. Aun con dos factores, `r et("DESERCIÓN")` conserva `r fnum(100 - cm2["DESERCIÓN"])` % de parte propia, `r et("REPITENCIA")` `r fnum(100 - cm2["REPITENCIA"])` % y `r et("POBLACIÓN_5_16")` `r fnum(100 - cm2["POBLACIÓN_5_16"])` %; los factores se correlacionan (`r fnum(f2$Phi[1, 2], 2)`). Las etiquetas «acceso» y «permanencia» serían interpretaciones nuestras, no resultados directos del análisis.
+>
+> El análisis paralelo sugiere `r nf_pa_registros` factores para los registros municipio-año. La solución de tres factores tiene `r gl_f3` grados de libertad y queda saturada: un ajuste casi perfecto en ese caso no sirve para probar que tres factores sean correctos. En consecuencia, los criterios no fijan un número definitivo de dimensiones; la solución de dos factores se usa para explorar patrones, con cautela.
 >
 > ⭐ **Qué decide él:**
 > Puede mantener separados el fondo de infraestructura (cobertura) y el de tutorías (aprobación y deserción), pero la razón es que cada fondo se guía por sus propios indicadores y no porque el análisis haya encontrado dos capacidades. Cada fondo se decide mirando directamente sus indicadores.
@@ -359,85 +400,88 @@ var_fa2  <- (sum(f2$communality) / ncol(X)) * 100
 | Criterio comparativo | Resumen PCA ($PC_1$, Taller I) | Capacidad Común ($F_1$, Factorial I) | Dos Factores ($F_1$ y $F_2$, Factorial I) |
 |---|---|---|---|
 | **Objetivo central** | Maximizar la separación global entre municipios | Identificar la varianza compartida latente | Separar dimensiones que pueden asociarse (rotación oblicua) |
-| **Tratamiento de la parte propia** | La empaqueta dentro del componente principal | La separa y la aísla como unicidad | La aísla en cada variable |
-| **Varianza retenida / explicada** | `r fnum(var_pca1)` % del total de las 6 variables | `r fnum(var_fa1)` % del total común | `r fnum(var_fa2)` % del total común |
+| **Tratamiento de la parte propia** | Incluye varianza total en la construcción de los componentes; no estima una unicidad por variable | Estima varianza común y unicidades | Estima comunalidades y unicidades para la solución de dos factores |
+| **Varianza retenida / explicada** | `r fnum(var_pca1)` % de la varianza total | Comunalidad media: `r fnum(var_fa1)` % de la varianza total estandarizada | Comunalidad media: `r fnum(var_fa2)` % de la varianza total estandarizada |
 | **Pregunta de política pública** | ¿Con qué índice sintético rankeo los municipios? | ¿Existe una sola capacidad institucional compartida? | ¿Cuántos fondos o programas especializados se sostienen? |
 
 > ⭐ **Qué ve:**
-> El primer componente del PCA guardaba `r fnum(var_pca1)` % de la información; con un factor, la parte común es `r fnum(var_fa1)` %, y con dos, `r fnum(var_fa2)` %.
+> El primer componente del PCA explica `r fnum(var_pca1)` % de la varianza total. En los modelos factoriales, la comunalidad media es `r fnum(var_fa1)` % con un factor y `r fnum(var_fa2)` % con dos factores.
 >
 > ⭐ **Qué significa para el cliente:**
-> La diferencia entre el PCA y un factor (`r fnum(var_pca1 - var_fa1)` puntos) es la parte propia que el resumen se lleva de paso. Con un factor, `r fnum(100 - var_fa1)` % de la variación de los indicadores es propia; con dos, `r fnum(100 - var_fa2)` %. Ninguno de los dos análisis es mejor: responden preguntas distintas.
+> Son medidas de objetivos distintos: el PCA resume la varianza total en componentes, mientras que el análisis factorial estima la parte común y deja unicidades específicas. La diferencia de `r fnum(var_pca1 - var_fa1)` puntos entre esos porcentajes **no** equivale a la varianza propia capturada por el PCA. En los modelos factoriales, la parte no común media es `r fnum(100 - var_fa1)` % con un factor y `r fnum(100 - var_fa2)` % con dos. Ningún método es mejor por esa comparación; responden preguntas distintas.
 >
 > ⭐ **Qué decide él:**
-> Para ordenar municipios usa $PC_1$ (Taller I); para decidir qué fondo recibe cada municipio, mira los indicadores de cada fondo directamente. El análisis factorial le dice cuánto de cada indicador es compartido, que es poco.
+> Para ordenar registros puede usarse $PC_1$ (Taller I); para orientar cada fondo, conviene evaluar sus indicadores directamente. El análisis factorial muestra qué parte de su variación queda explicada por los factores explorados, pero no valida por sí mismo una regla de asignación.
 
-# 8. El costo para el Ministerio: candidatos omitidos con una sola dimensión
+# 8. El costo para el Ministerio: casos críticos omitidos con una sola dimensión
 
-Supongamos que el Ministerio comete el error de seleccionar a los registros que requieren apoyo priorizando únicamente por el 20 % con peor puntaje en la **capacidad común unifactorial** ($F_1$). ¿Cuántos registros con rezago crítico en cada indicador específico se le escapan?
+Comparamos el grupo de interés definido en la ficha —deserción mayor que 6,5 % o cobertura neta de 60 % o menos— con los registros seleccionados por el 20 % de puntajes más bajos del factor único. Además de los dos criterios por separado, mostramos su unión para contar una sola vez a cada registro que cumpla al menos uno. Estos son registros municipio-año, no municipios únicos.
 
 ```{r costo-un-factor}
 f1_scores <- fa(X, nfactors = 1, fm = "ml", scores = "regression")
 score_f1 <- as.numeric(f1_scores$scores[, 1])
+if (cor(score_f1, X[["COBERTURA_NETA_MEDIA"]]) < 0) score_f1 <- -score_f1
 
-peor20 <- function(v, alto_es_malo) {
-  if (alto_es_malo) v >= quantile(v, 0.80) else v <= quantile(v, 0.20)
-}
-
-# En f1, mayor cobertura = mayor score; municipios peores son los de menor score F1
+# Una puntuación baja representa peor posición en el factor dominado por cobertura.
 f1_peor <- score_f1 <= quantile(score_f1, 0.20)
 
-indicadores_costo <- data.frame(
-  cod = c("DESERCIÓN", "REPITENCIA", "APROBACIÓN", "COBERTURA_NETA", "COBERTURA_NETA_MEDIA"),
-  nombre = c("Deserción crítica", "Repitencia alta", "Aprobación precaria", "Cobertura neta baja", "Cobertura media baja"),
-  alto_malo = c(TRUE, TRUE, FALSE, FALSE, FALSE),
-  stringsAsFactors = FALSE
+crit_desercion <- X[["DESERCIÓN"]] > 0.065
+crit_cobertura <- X[["COBERTURA_NETA"]] <= 0.60
+crit_cualquiera <- crit_desercion | crit_cobertura
+cohortes_criticas <- list(
+  "Deserción > 6,5 %" = crit_desercion,
+  "Cobertura neta ≤ 60 %" = crit_cobertura,
+  "Cumple al menos un criterio" = crit_cualquiera
 )
 
-costo_fa <- do.call(rbind, lapply(seq_len(nrow(indicadores_costo)), function(i) {
-  critico <- peor20(X[[indicadores_costo$cod[i]]], indicadores_costo$alto_malo[i])
-  n_crit  <- sum(critico)
+costo_politica <- do.call(rbind, lapply(names(cohortes_criticas), function(nombre) {
+  critico <- cohortes_criticas[[nombre]]
+  n_criticos <- sum(critico)
   n_atendidos <- sum(critico & f1_peor)
-  n_escapan   <- sum(critico & !f1_peor)
+  n_omitidos <- sum(critico & !f1_peor)
   data.frame(
-    Indicador = indicadores_costo$nombre[i],
-    Municipios_Criticos = n_crit,
-    Atendidos_F1 = n_atendidos,
-    Omitidos_F1 = n_escapan,
-    Pct_Omitidos = round(100 * n_escapan / n_crit, 1)
+    Criterio = nombre,
+    Registros_criticos = n_criticos,
+    Capturados_F1 = n_atendidos,
+    Omitidos_F1 = n_omitidos,
+    Porcentaje_omitido = round(100 * n_omitidos / n_criticos, 1)
   )
 }))
 
-write.csv(costo_fa, file.path(dir_tablas, "costo_factor.csv"), row.names = FALSE)
+n_solapados <- sum(crit_desercion & crit_cobertura)
+n_priorizados_f1 <- sum(f1_peor)
+write.csv(costo_politica, file.path(dir_tablas, "costo_factor.csv"), row.names = FALSE)
 
-cf <- setNames(costo_fa$Pct_Omitidos,       costo_fa$Indicador)
-co <- setNames(costo_fa$Omitidos_F1,        costo_fa$Indicador)
-cc <- setNames(costo_fa$Municipios_Criticos, costo_fa$Indicador)
+omitidos_desercion <- costo_politica$Porcentaje_omitido[1]
+omitidos_cobertura <- costo_politica$Porcentaje_omitido[2]
+omitidos_union <- costo_politica$Porcentaje_omitido[3]
+casos_union <- costo_politica$Registros_criticos[3]
+omitidos_union_n <- costo_politica$Omitidos_F1[3]
 ```
 
 ```{r grafico-costo, fig.height = 4.5}
 fig_costo <- file.path(dir_figuras, "costo_factor.png")
 
-p_costo <- costo_fa %>%
-  select(Indicador, `Atendidos por F1` = Atendidos_F1, `Se le escapan (Omitidos)` = Omitidos_F1) %>%
-  pivot_longer(-Indicador) %>%
+p_costo <- costo_politica %>%
+  select(Criterio, `Capturados por F1` = Capturados_F1, `Omitidos por F1` = Omitidos_F1) %>%
+  pivot_longer(-Criterio) %>%
   mutate(
-    Indicador = factor(Indicador, levels = rev(costo_fa$Indicador[order(costo_fa$Pct_Omitidos)])),
-    name = factor(name, levels = c("Atendidos por F1", "Se le escapan (Omitidos)"))
+    Criterio = factor(Criterio, levels = rev(costo_politica$Criterio)),
+    name = factor(name, levels = c("Capturados por F1", "Omitidos por F1"))
   ) %>%
-  ggplot(aes(x = value, y = Indicador, fill = name)) +
+  ggplot(aes(x = value, y = Criterio, fill = name)) +
   geom_col(width = 0.6) +
   geom_text(aes(label = miles(value)),
             position = position_stack(vjust = 0.5),
             color = "white", fontface = "bold", size = 3.8) +
-  scale_fill_manual(values = c("Atendidos por F1" = "#2B6CB0", "Se le escapan (Omitidos)" = "#C05621"),
+  scale_fill_manual(values = c("Capturados por F1" = "#2B6CB0", "Omitidos por F1" = "#C05621"),
                     name = NULL) +
   scale_x_continuous(labels = miles) +
   theme_minimal(base_size = 12) +
   theme(legend.position = "top", plot.title.position = "plot") +
   labs(
-    title = "Municipios en el peor 20 % de cada indicador: ¿los captura el factor unificado?",
-    subtitle = "Si el Ministerio focaliza asignando al 20 % más bajo en la capacidad común (F1)",
+    title = "Registros críticos que captura o deja por fuera el factor único",
+    subtitle = "Criterios de la ficha técnica; selección por el 20 % inferior del puntaje F1",
     x = "Registros municipio-año",
     y = NULL
   )
@@ -448,19 +492,19 @@ p_costo
 
 ```{r kable-costo}
 knitr::kable(
-  costo_fa,
+  costo_politica,
   format = "pipe",
-  col.names = c("Indicador crítico", "Casos en el 20 % peor", "Atendidos por F1", "Omitidos por F1", "% que se escapan"),
+  col.names = c("Criterio crítico", "Registros críticos", "Capturados por F1", "Omitidos por F1", "% omitido"),
   format.args = list(big.mark = ".", decimal.mark = ","),
-  caption = "Registros desatendidos si se focaliza usando únicamente la capacidad común unifactorial."
+  caption = paste0("Casos con los umbrales declarados en la ficha; el 20 % inferior de F1 selecciona ", miles(n_priorizados_f1), " registros.")
 )
 ```
 
 > ⭐ **Qué ve:**
-> De los `r miles(cc["Deserción crítica"])` registros en situación crítica de deserción, focalizar con el factor único deja por fuera a `r miles(co["Deserción crítica"])` (`r fnum(cf["Deserción crítica"])` %). En repitencia alta se escapan el `r fnum(cf["Repitencia alta"])` %, y en baja aprobación el `r fnum(cf["Aprobación precaria"])` %. En cobertura media baja solo se escapa el `r fnum(cf["Cobertura media baja"])` %, porque el factor es casi ese indicador.
+> De los `r miles(costo_politica$Registros_criticos[1])` registros con deserción superior a 6,5 %, F1 omite `r miles(costo_politica$Omitidos_F1[1])` (`r fnum(omitidos_desercion)` %). Entre los `r miles(costo_politica$Registros_criticos[2])` registros con cobertura neta de 60 % o menos, omite `r miles(costo_politica$Omitidos_F1[2])` (`r fnum(omitidos_cobertura)` %). La unión contiene `r miles(casos_union)` registros —`r miles(n_solapados)` cumplen ambos criterios— y F1 deja por fuera `r miles(omitidos_union_n)` (`r fnum(omitidos_union)` %).
 >
 > ⭐ **Qué significa para el cliente:**
-> Es la parte propia convertida en registros: un municipio con deserción crítica no necesariamente tiene baja cobertura media. Si el Ministerio asignara por este factor, `r round(cf["Deserción crítica"] / 10)` de cada 10 registros con deserción crítica quedarían sin atención.
+> Son omisiones bajo estos umbrales concretos, no bajo un corte percentil de cada indicador. Si el Ministerio priorizara únicamente el 20 % inferior de F1, quedarían fuera `r fnum(omitidos_union)` de cada 100 registros que cumplen al menos uno de los criterios. La selección es exploratoria y no representa una regla presupuestal validada.
 >
 > ⭐ **Qué decide él:**
 > Para el fondo de tutorías, el criterio tiene que ser deserción, aprobación y repitencia directamente, no el factor común.
@@ -471,37 +515,58 @@ knitr::kable(
 
 * **No es una causalidad probada:** Que dos variables compartan un factor no significa que una cause a la otra; diversas condiciones no medidas por los datos desplazan ambos indicadores conjuntamente.
 
-* **La parte propia no es desecho ni error trivial:** en deserción, `r fnum(pro["DESERCIÓN"])` % es propio con un factor y `r fnum(100 - cm2["DESERCIÓN"])` % con dos; esa variación es información sobre cada municipio que ningún otro indicador entrega.
+* **La parte propia no es desecho ni error trivial:** en deserción, `r fnum(pro["DESERCIÓN"])` % es unicidad con un factor y `r fnum(100 - cm2["DESERCIÓN"])` % con dos. Es variación que las dimensiones retenidas no explican; puede contener tanto aspectos específicos de la deserción como error de medición.
 
 # 10. Preguntas conceptuales
 
 **1. ¿Qué diferencia hay entre la parte común y la parte propia de un indicador?**
-La parte común es la fracción de las diferencias entre registros en un indicador que viene de lo que comparte con los demás (la carga al cuadrado); la propia es lo que sobra: lo específico del indicador más el error de medición. En `r et(mas_comun)` la parte común es `r fnum(com[mas_comun])` % y en `r et(mas_propia)` solo `r fnum(com[mas_propia])` %. Para el cliente: lo común se puede resumir en un índice; lo propio hay que mirarlo indicador por indicador.
+La parte común es la varianza del indicador explicada por los factores retenidos; en el modelo de un factor coincide con la carga al cuadrado. La parte propia o unicidad es la varianza específica no explicada por el modelo, más el posible error de medición. En `r et(mas_comun)` la comunalidad es `r fnum(com[mas_comun])` % y en `r et(mas_propia)` solo `r fnum(com[mas_propia])` %. Para el cliente: interpretar lo común como un índice requiere validación, mientras que la variación no explicada recomienda seguir cada indicador directamente.
 
-**2. `r et(mas_propia)` tiene `r fnum(com[mas_propia])` de cada 100 partes comunes. ¿Significa que el indicador está mal construido?**
-No. Tener poca parte común no dice que se mida mal: dice que se mueve casi por su cuenta, y esa parte propia incluye lo que ese indicador mide y ningún otro, además del error de medición. Para saber si un indicador está mal medido harían falta mediciones repetidas, no su relación con los demás. Para el cliente, significa que `r et(mas_propia)` no se puede deducir de los otros indicadores.
+**2. ¿Tener poca comunalidad significa que el indicador está mal construido?**
+No. Tener poca comunalidad no dice que se mida mal: la unicidad incluye tanto variación específica que los factores retenidos no explican como posible error de medición. Para evaluar la calidad de medición hacen falta otras evidencias, por ejemplo mediciones repetidas o validación externa.
 
-**3. Si la correlación entre dos indicadores es casi igual al producto de sus cargas, ¿qué nos dice sobre cuántas habilidades hay?**
-Que una sola alcanza para explicar por qué esos dos se mueven juntos. En la base pasa con `r et("COBERTURA_NETA")` y `r et("COBERTURA_NETA_MEDIA")` (observada `r fnum(cn_obs, 3)`, producto `r fnum(cn_rep, 3)`), pero no con `r et("DESERCIÓN")` y `r et("APROBACIÓN")` (observada `r fnum(cor_obs, 3)`, producto `r fnum(cor_rep, 3)`). Por eso un solo factor no alcanza para todo el conjunto.
+**3. Si la correlación entre dos indicadores es cercana al producto de sus cargas, ¿qué nos dice?**
+Que el modelo de un factor reproduce razonablemente esa pareja en particular; no basta para decidir cuántas dimensiones explican el conjunto completo. En esta base ocurre con `r et("COBERTURA_NETA")` y `r et("COBERTURA_NETA_MEDIA")` (observada `r fnum(cn_obs, 3)`, reproducida `r fnum(cn_rep, 3)`), pero no con `r et("DESERCIÓN")` y `r et("APROBACIÓN")` (observada `r fnum(cor_obs, 3)`, reproducida `r fnum(cor_rep, 3)`).
 
-**4. `r ifelse(f2_casi_var, paste0("La segunda habilidad cae casi entera sobre ", et(v_f2), ". ¿Por qué no la llamamos «permanencia»?"), "¿Por qué no nombramos el segundo factor antes de leer sus cargas?")`**
-Porque una habilidad que se reduce a un solo indicador no es una habilidad nueva: es el indicador (carga `r fnum(cg[v_f2, 2], 3)`, parte común `r fnum(cm2[v_f2])` %). Llamarla «permanencia» sugiere una dimensión amplia, pero `r et("DESERCIÓN")` solo llega a `r fnum(abs(cg["DESERCIÓN", 2]), 3)` y `r et("REPITENCIA")` a `r fnum(abs(cg["REPITENCIA", 2]), 3)`. El nombre sería nuestro, no del dato.
+**4. ¿Por qué no basta con nombrar el segundo factor «permanencia»?**
+Porque el patrón de cargas no reúne de forma inequívoca todas las medidas de permanencia en una dimensión. El factor está dominado por `r et(v_f2)` (carga `r fnum(cg[v_f2, 2], 3)`), mientras que deserción y repitencia tienen cargas de `r fnum(cg["DESERCIÓN", 2], 3)` y `r fnum(cg["REPITENCIA", 2], 3)`. La selección del número de factores tampoco es definitiva; el nombre sería una hipótesis sustantiva que exige validación, no un resultado directo del modelo.
 
-**5. ¿Por qué el resumen del Taller I guardaba más de cada 100 que la habilidad común de hoy?**
-Porque el PCA mete todo en el componente, incluida la parte propia de cada indicador, y el análisis factorial solo cuenta lo que se comparte. Aquí, `r fnum(var_pca1)` frente a `r fnum(var_fa1)` de cada 100: la diferencia (`r fnum(var_pca1 - var_fa1)` puntos) es la parte propia que el resumen se llevaba de paso.
+**5. ¿Por qué los porcentajes del Taller I y del análisis factorial son distintos?**
+Porque responden a objetivos distintos: el PCA maximiza la varianza total explicada por el componente; el análisis factorial estima la varianza común y la unicidad de cada variable. Aquí, el PCA1 explica `r fnum(var_pca1)` % de varianza total y la comunalidad media del modelo de un factor es `r fnum(var_fa1)` %. La diferencia entre estas cifras no mide la parte propia que el PCA “se lleva”.
 
 **6. ¿Cuál afirmación es correcta?**
-La **(b)**: la carga al cuadrado es la parte de las diferencias en un indicador que viene de la habilidad común. La (a) es falsa porque la habilidad común no se mide, se deduce de cómo se mueven juntos los indicadores. La (c) es falsa porque la parte propia es información específica del indicador más error de medición, no siempre error. La (d) es falsa porque con rotación oblicua los factores pueden correlacionarse; aquí van juntos `r fnum(f2$Phi[1, 2], 2)`.
+La **(b)**, con una precisión: en el modelo de un factor, la comunalidad coincide con la carga al cuadrado; con varios factores, se calcula a partir del conjunto de cargas y, para factores oblicuos, de su matriz de correlaciones. La (a) es falsa porque la dimensión común se infiere de las covariaciones, no se observa directamente. La (c) es falsa porque la unicidad incluye variación específica y posible error de medición. La (d) es falsa porque los factores oblicuos pueden correlacionarse; aquí su correlación estimada es `r fnum(f2$Phi[1, 2], 2)`.
 
 
 # 11. Conclusión: respuesta formal al Ministerio
 
 Respondiendo a la solicitud del Director de Cobertura y Equidad Territorial:
 
-1. **Punto de partida débil.** El KMO general es `r fnum(kmo$MSA, 2)` («`r kmo_nivel`»; por encima de 0,7 se considera bueno) y    `r sum(kmo$MSAi < 0.5)` de los `r length(kmo$MSAi)` indicadores `r ifelse(sum(kmo$MSAi < 0.5) == 1, "queda", "quedan")` por debajo de 0,5. Los indicadores comparten poco entre sí, así que lo que sigue se lee con cautela: hay algo común que buscar, pero poco.
+1. **Adecuación limitada.** El KMO general es `r fnum(kmo$MSA, 2)` («`r kmo_nivel`»); `r sum(kmo$MSAi < 0.5)` de los `r length(kmo$MSAi)` indicadores quedan por debajo de 0,5. El KMO compara correlaciones con correlaciones parciales y no es un porcentaje de varianza común; su valor fronterizo aconseja cautela.
 2. **Los indicadores no reflejan una sola capacidad común.** Con un factor, la parte común de deserción, aprobación y repitencia va de `r fnum(min(com[c("DESERCIÓN","APROBACIÓN","REPITENCIA")]))` % a `r fnum(max(com[c("DESERCIÓN","APROBACIÓN","REPITENCIA")]))` %; el factor es prácticamente `r et(mas_comun)`.
 3. **Un solo factor no reproduce las correlaciones.** Para deserción y aprobación, la observada es `r fnum(cor_obs, 2)` y el modelo predice `r fnum(cor_rep, 2)` (residuo `r fnum(cor_res, 2)`).
-4. **Con dos factores, cada uno es casi un indicador.** El primero es `r et(v_f1)` y el segundo `r et(v_f2)`; deserción, repitencia y población siguen siendo en su mayoría propias, y los nombres «acceso» y «permanencia» son nuestros.
-5. **Costo de unificar:** si el Ministerio asignara por el factor único, se le escaparía el `r fnum(cf["Deserción crítica"])` % de los registros con deserción crítica.
-6. **Decisión:** mantener separados los fondos y decidir cada uno con sus propios indicadores, igual que en el Taller I; $PC_1$ solo para ordenar.
+4. **Número de factores incierto.** El análisis paralelo sugiere `r nf_pa_registros` factores en los registros municipio-año, pero el modelo de tres queda saturado (`r gl_f3` grados de libertad); dos factores son una exploración, no una selección definitiva. La solución oblicua muestra patrones dominados por `r et(v_f1)` y `r et(v_f2)`, con cargas adicionales, no dos capacidades confirmadas.
+5. **Costo de unificar:** con los umbrales de la ficha, el `r fnum(omitidos_desercion)` % de registros con deserción superior a 6,5 % queda fuera del 20 % inferior del factor; para la unión de criterios se omite el `r fnum(omitidos_union)` %.
+6. **Decisión:** no fusionar los criterios de asignación con base solo en este factor exploratorio. Mantener los indicadores específicos de cada fondo y validar cualquier umbral de priorización; $PC_1$ puede servir como resumen descriptivo para ordenar.
 
+# 12. Resumen integral del análisis factorial
+
+Este análisis estudia si seis indicadores educativos pueden resumirse mediante dimensiones latentes. Se usaron `r miles(n_total)` registros municipio-año de 2011–2024, con las variables estandarizadas y estimación por máxima verosimilitud. Como cada municipio aporta observaciones de varios años, los resultados a nivel de registro son descriptivos y no modelan explícitamente la dependencia temporal dentro de municipio.
+
+## Adecuación y solución de un factor
+
+El KMO general fue `r fnum(kmo$MSA, 3)`: un resultado fronterizo que invita a la cautela, no una medida de porcentaje compartido. En la solución de un factor, la comunalidad fue `r fnum(com["COBERTURA_NETA_MEDIA"])` % para cobertura media y `r fnum(com["COBERTURA_NETA"])` % para cobertura neta, frente a `r fnum(com["DESERCIÓN"])` % para deserción, `r fnum(com["APROBACIÓN"])` % para aprobación y `r fnum(com["REPITENCIA"])` % para repitencia. El factor queda dominado por la cobertura y no representa bien todos los indicadores como una sola capacidad general. El residuo máximo entre correlaciones observadas y reproducidas fue `r fnum(max_err, 3)`; `r n_residuo10` de las `r n_parejas` parejas excedieron el umbral descriptivo de 0,10.
+
+## Dos factores y límite de la retención
+
+La solución oblicua de dos factores reduce el RMSR de `r fnum(f1$rms, 3)` a `r fnum(f2$rms, 3)`, con correlación factorial de `r fnum(f2$Phi[1, 2], 3)`. Las cargas describen patrones exploratorios, no dimensiones validadas. El análisis paralelo sugiere `r nf_pa_registros` factores a nivel de registro, pero una solución de tres factores tiene `r gl_f3` grados de libertad y queda saturada. Por ello, no se determina un número definitivo de dimensiones con estos resultados.
+
+## Sensibilidad a la unidad de análisis
+
+Al promediar por combinación de departamento y municipio se obtienen `r nrow(X_municipio)` perfiles. En ellos, el KMO es `r fnum(kmo_municipio$MSA, 3)` y el análisis paralelo sugiere `r pa_municipios$nfact` factores. Las cargas de dos factores también cambian al pasar de registros municipio-año a perfiles promediados; el promedio es una comprobación de sensibilidad y no reemplaza un modelo longitudinal.
+
+## Implicación para la decisión
+
+Al seleccionar el 20 % inferior del puntaje F1, quedan fuera `r miles(omitidos_union_n)` de los `r miles(casos_union)` registros que cumplen deserción superior a 6,5 % o cobertura neta de 60 % o menos (`r fnum(omitidos_union)` %). Por separado, se omite `r fnum(omitidos_desercion)` % del grupo con deserción crítica y `r fnum(omitidos_cobertura)` % del grupo con baja cobertura neta. Este ejercicio mide omisiones frente a los umbrales especificados; no es una regla presupuestal validada ni una evaluación causal.
+
+El PCA resume varianza total para ordenar observaciones; el análisis factorial estima varianza común y unicidad. La diferencia entre sus porcentajes no estima la varianza propia que el PCA captura. Como recomendación, conviene decidir cada fondo con sus indicadores pertinentes y modelar explícitamente la estructura municipio-año antes de interpretar las dimensiones como capacidades estables.

@@ -1,6 +1,4 @@
-"Indicador","Municipios_Criticos","Atendidos_F1","Omitidos_F1","Pct_Omitidos"
-"Deserción crítica",2765,867,1898,68.6
-"Repitencia alta",2764,580,2184,79
-"Aprobación precaria",2769,728,2041,73.7
-"Cobertura neta baja",2762,1452,1310,47.4
-"Cobertura media baja",2761,2755,6,0.2
+"Criterio","Registros_criticos","Capturados_F1","Omitidos_F1","Porcentaje_omitido"
+"Deserción > 6,5 %",1141,459,682,59.8
+"Cobertura neta ≤ 60 %",752,625,127,16.9
+"Cumple al menos un criterio",1783,975,808,45.3
