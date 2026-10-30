@@ -1,63 +1,134 @@
-# Proyecto de Estadística Multidimensional
+# Estadística Multidimensional: Indicadores Educativos Municipales de Colombia (2011–2024)
 
-Repositorio de análisis de indicadores educativos y entregas recurrentes del Taller 1 y Taller 2.
+Proyecto del curso **Estadística Multidimensional** (Universidad Distrital Francisco José de Caldas). Se
+analizan los indicadores educativos de los municipios colombianos entre 2011 y 2024, con datos del
+Ministerio de Educación Nacional, para encontrar relaciones y patrones entre muchas variables a la vez.
 
-## Estructura
+**Equipo:** David Santiago Lugo Piñeros, Luisa Fernández Velasco López, Jairo Arturo Barrera Mosquera y
+Gabriela Martínez Silva.
+
+## Objetivos
+
+- Examinar las relaciones entre múltiples variables simultáneamente para encontrar patrones y
+  asociaciones.
+- Descubrir interdependencias entre dimensiones de los datos que no serían evidentes al analizar las
+  variables por separado.
+- Reducir la dimensionalidad del conjunto de indicadores e interpretar las dimensiones que resultan.
+- Traducir los resultados a decisiones para un cliente: la Dirección de Cobertura y Equidad Territorial
+  del Ministerio de Educación Nacional.
+
+## Informe principal
+
+El informe que integra todo el proyecto es **`reports/entrega-corte-2/Analisis_Indicadores_Educativos.Rmd`**.
+Parte del informe del Corte 1, que es la base del proyecto, y le agrega el Análisis de Componentes
+Principales sobre todas las variables.
+
+| Entrega | Archivo | Contenido |
+|---|---|---|
+| **Corte 1** | `reports/entrega-corte-1/Analisis_Indicadores_Educativos.Rmd` | Limpieza de los datos, análisis univariado, bivariado y multivariado (matriz de covarianzas, estandarización y distancias de Mahalanobis). |
+| **Corte 2** | `reports/entrega-corte-2/Analisis_Indicadores_Educativos.Rmd` | Todo el Corte 1 más el **PCA con las 30 variables numéricas**: ¿un número o varios? y el mapa de los municipios (biplot, grupos, cortes de decisión). |
+
+Los talleres son ejercicios cortos que deja el docente para entender cada técnica. Trabajan con pocas
+variables y sirven de antecedente para las entregas de corte.
+
+| Taller | Archivo |
+|---|---|
+| Taller 1 | `reports/taller-01/taller-01.Rmd` |
+| Taller 2 | `reports/taller-02/checklist-taller-02.Rmd` y `reports/taller-02/taller-02-html.Rmd` |
+| Componentes principales I | `reports/taller-pca/componentes-principales-i/componentes-principales-i.Rmd` |
+| Componentes principales II | `reports/taller-pca/componentes-principales-ii/componentes-principales-ii.Rmd` |
+| Análisis factorial I | `reports/taller-pca/analisis-factorial-i/analisis-factorial-i.Rmd` |
+| Análisis factorial II | `reports/taller-pca/analisis-factorial-ii/analisis-factorial-ii.Rmd` |
+
+## Datos
+
+| Archivo | Descripción |
+|---|---|
+| `data/raw/educacion.csv` | Datos originales del Ministerio de Educación Nacional: 15.707 registros municipio-año y 41 variables. **No se modifica.** |
+| `data/raw/educacion_limpio.csv` | Dataset depurado: **13.802 registros y 33 variables** (año, municipio, departamento y 30 indicadores numéricos), sin valores faltantes. Lo usan los informes de corte y los talleres de PCA y análisis factorial. |
+| `data/raw/educacion_limpio_talleres.csv` | Versión anterior del dataset depurado, con la que se hicieron los talleres 1 y 2: 5.063 registros y 34 columnas numéricas (incluye los códigos DANE de municipio y departamento, sin nombres de municipio ni año). Se conserva como registro; **no se modifica.** |
+
+El dataset depurado **lo genera el informe de corte** a partir de `educacion.csv`, en la sección
+«Carga, Depuración y Limpieza de Datos». Si el archivo se daña o queda desactualizado, basta con volver
+a tejer el informe del Corte 2 (o del Corte 1) para regenerarlo.
+
+La unidad de análisis es el registro **municipio-año**: un mismo municipio aparece hasta 14 veces.
+
+## Estructura del repositorio
 
 ```text
-data/raw/                 Datos de entrada sin modificar
-reports/taller-01/        Fuente y entregas del Taller 1
-reports/taller-02/        Fuente y entregas del Taller 2
-outputs/taller-01/tables  Resultados CSV del Taller 1
-outputs/taller-01/figures Gráficos del Taller 1
-outputs/taller-02/tables  Resultados CSV del Taller 2
-outputs/taller-02/figures Gráficos del Taller 2
-scripts/                  Instalación, validación y renderizado
-reports/*/archive/        Archivos históricos o intermedios
+data/raw/                         Datos originales y dataset depurado
+reports/
+  entrega-corte-1/                Informe del Corte 1 (.Rmd y .html)
+  entrega-corte-2/                Informe del Corte 2: Corte 1 + PCA (.Rmd y .html)
+  taller-01/                      Taller 1 (archive/: archivos históricos)
+  taller-02/                      Taller 2
+  taller-pca/                     Talleres de componentes principales y análisis factorial
+outputs/
+  entrega-corte-1/                Histogramas, boxplots y gráficos de Mahalanobis del Corte 1
+  entrega-corte-2/                Lo mismo para el Corte 2, más pca/ con las tablas y figuras del PCA
+  taller-01/, taller-02/          tables/ y figures/ de cada taller
+  taller-pca/                     tables/ y figures/ de cada taller de PCA y análisis factorial
+scripts/                          Instalación, validación y renderizado
+informe_calendario_pca.md         Cronograma y roles del sprint de PCA
 ```
 
 ## Requisitos
 
-- R 4.5.3 o compatible.
-- Pandoc para generar HTML desde R Markdown. Si no está instalado, el script genera Markdown y
-	mantiene todos los CSV y gráficos.
-- Paquetes: `rmarkdown`, `knitr`, `ggplot2`, `dplyr`, `tidyr` y `reshape2`.
+- R 4.5 o compatible, idealmente con RStudio.
+- Pandoc (viene con RStudio) para generar los HTML.
+- Paquetes de los informes de corte: `rmarkdown`, `knitr`, `ggplot2`, `dplyr`, `tidyr`, `reshape2`,
+  `readr`, `forcats`, `corrplot` y `DT`. Al tejer, el informe instala los que falten de esta lista
+  (salvo `rmarkdown`, que se necesita para tejer).
+  `ggrepel` es opcional: si está instalado, se usa para que las etiquetas del biplot no se monten.
+- Paquetes de los talleres de análisis factorial: `psych` y `GPArotation`. El script de los talleres
+  de PCA usa además `commonmark` cuando no hay Pandoc.
 
-Instale los paquetes una sola vez desde la raíz del proyecto:
+Para instalar todos los paquetes desde la raíz del proyecto:
 
 ```r
 source("scripts/install_dependencies.R")
 ```
 
-## Generar las entregas
+## Cómo generar las entregas
 
-Desde la raíz del repositorio:
+**Informes de corte:** abrir el `.Rmd` en RStudio y presionar **Knit**, o desde la raíz del proyecto:
 
 ```r
-source("scripts/render_reports.R")
+rmarkdown::render("reports/entrega-corte-2/Analisis_Indicadores_Educativos.Rmd")
 ```
 
-Los documentos fuente son:
+El informe del Corte 2 tarda unos minutos y genera un HTML de cerca de 30 MB, porque incluye todas las
+figuras en alta resolución.
 
-- `reports/taller-01/taller-01.Rmd`
-- `reports/taller-02/checklist-taller-02.Rmd`
+**Con los scripts**, desde la raíz del proyecto:
 
-Cada entrega escribe sus tablas y figuras en su carpeta correspondiente dentro de `outputs/`. Los
-archivos se pueden regenerar sin editar manualmente los CSV o PNG.
+```r
+source("scripts/render_reports.R")       # Corte 2, Corte 1, Taller 1 y Taller 2
+source("scripts/render_talleres_pca.R")  # Talleres de PCA y análisis factorial
+```
 
-## Validar el proyecto
+`render_reports.R` teje primero el Corte 2, que regenera `educacion_limpio.csv`. Si un informe falla,
+sigue con los demás y al final lista los que no se generaron. Los talleres 1 y 2 leen
+`educacion_limpio_talleres.csv`, la versión del dataset con la que se hicieron.
+
+**Validación del proyecto:**
 
 ```r
 source("scripts/check_project.R")
 ```
 
-La validación confirma que existe el dataset, que las carpetas de salida están disponibles y que los
-resultados principales no contienen valores no finitos.
+Confirma que existen los datos y los `.Rmd` de todas las entregas, que `educacion_limpio.csv` tiene
+13.802 filas y 33 columnas, y que sus variables numéricas no tienen valores faltantes ni infinitos.
 
 ## Convenciones
 
-- Las rutas y nombres de archivos nuevos usan ASCII, minúsculas y guiones.
-- El dataset conserva los nombres originales de sus columnas porque hacen parte del análisis.
-- `data/raw/` no se modifica durante los informes.
-- Los resultados son derivados: se regeneran mediante los scripts, pero se conservan para cada entrega.
-- Los archivos históricos y de compilación quedan dentro de `archive/`.
+- Los nombres de carpetas y archivos nuevos usan ASCII, minúsculas y guiones.
+- El dataset conserva los nombres originales de sus columnas (con tildes), porque hacen parte del análisis.
+- `data/raw/educacion.csv` y `data/raw/educacion_limpio_talleres.csv` no se modifican.
+- Las tablas y figuras de `outputs/` son derivadas: se regeneran al tejer cada informe, pero se conservan
+  para cada entrega.
+- Los informes se escriben en español, con coma decimal y punto de miles.
+- Cada integrante puede tener el proyecto como `Proyectos estadistica.Rproj` o
+  `Proyectos-estadistica.Rproj`: los informes y scripts reconocen los dos nombres.
+- Los archivos históricos o intermedios van en una carpeta `archive/`.

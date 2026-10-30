@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    expected_data <- file.path(path, "data", "raw", "educacion_limpio.csv")
+    expected_data <- file.path(path, "data", "raw", "educacion_limpio_talleres.csv")
     if (file.exists(expected_data) && dir.exists(file.path(path, "reports"))) {
       return(path)
     }
@@ -58,7 +58,7 @@ Los códigos geográficos se excluyen porque identifican lugares, pero no son ma
 se excluyen de los gráficos y cálculos que requieren variación.
 
 ```{r carga_limpieza}
-datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio.csv"),
+datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio_talleres.csv"),
                   check.names = FALSE,
                   stringsAsFactors = FALSE)
 

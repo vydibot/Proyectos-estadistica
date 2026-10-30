@@ -28,7 +28,7 @@ knitr::opts_chunk$set(
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    expected_data <- file.path(path, "data", "raw", "educacion_limpio.csv")
+    expected_data <- file.path(path, "data", "raw", "educacion_limpio_talleres.csv")
     if (file.exists(expected_data) && dir.exists(file.path(path, "reports"))) {
       return(path)
     }
@@ -69,7 +69,7 @@ library(reshape2)
 library(knitr)
 
 # 1. Carga de datos con parámetros explícitos (sep para comas de archivo, dec para decimales)
-datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio.csv"),
+datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio_talleres.csv"),
                   sep = ",", dec = ".", check.names = FALSE)
 
 # 2. Análisis y Tipificación según "Diccionario de Datos":

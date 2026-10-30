@@ -1,10 +1,20 @@
 required_packages <- c(
+  # Tejido de los informes
   "rmarkdown",
   "knitr",
+  "commonmark",
+  # Manipulación y gráficos
   "ggplot2",
   "dplyr",
   "tidyr",
   "reshape2",
+  "readr",
+  "forcats",
+  "scales",
+  "corrplot",
+  "DT",
+  "ggrepel",
+  # Análisis factorial
   "psych",
   "GPArotation"
 )

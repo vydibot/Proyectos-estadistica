@@ -20,7 +20,7 @@ library(psych)
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    if (file.exists(file.path(path, "Proyectos estadistica.Rproj"))) {
+    if (any(file.exists(file.path(path, c("Proyectos estadistica.Rproj", "Proyectos-estadistica.Rproj"))))) {
       return(path)
     }
     parent <- dirname(path)

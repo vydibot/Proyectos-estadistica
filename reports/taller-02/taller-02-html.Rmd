@@ -29,7 +29,7 @@ knitr::opts_chunk$set(
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    if (file.exists(file.path(path, "data", "raw", "educacion_limpio.csv")) &&
+    if (file.exists(file.path(path, "data", "raw", "educacion_limpio_talleres.csv")) &&
         dir.exists(file.path(path, "reports"))) return(path)
     parent <- dirname(path)
     if (parent == path) stop("No se encontró la raíz del proyecto.")
@@ -48,7 +48,7 @@ library(tidyr)
 library(reshape2)
 library(knitr)
 
-datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio.csv"),
+datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio_talleres.csv"),
                   check.names = FALSE, stringsAsFactors = FALSE)
 datos$CÓDIGO_MUNICIPIO <- as.factor(datos$CÓDIGO_MUNICIPIO)
 datos$CÓDIGO_DEPARTAMENTO <- as.factor(datos$CÓDIGO_DEPARTAMENTO)

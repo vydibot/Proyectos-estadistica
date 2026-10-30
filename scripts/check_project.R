@@ -1,24 +1,48 @@
 project_root <- normalizePath(getwd(), mustWork = TRUE)
+raw_file  <- file.path(project_root, "data", "raw", "educacion.csv")
 data_file <- file.path(project_root, "data", "raw", "educacion_limpio.csv")
-required_paths <- c(
-  data_file,
-  file.path(project_root, "reports", "taller-01", "taller-01.Rmd"),
-  file.path(project_root, "reports", "taller-02", "checklist-taller-02.Rmd"),
-  file.path(project_root, "outputs", "taller-01", "tables"),
-  file.path(project_root, "outputs", "taller-01", "figures"),
-  file.path(project_root, "outputs", "taller-02", "tables"),
-  file.path(project_root, "outputs", "taller-02", "figures")
-)
 
-missing_paths <- required_paths[!file.exists(required_paths) & !dir.exists(required_paths)]
-if (length(missing_paths) > 0) {
-  stop("Faltan rutas del proyecto:\n", paste(missing_paths, collapse = "\n"))
+if (!file.exists(raw_file)) {
+  stop("Ejecute este script desde la raíz del proyecto.")
 }
 
+# El proyecto se abre con "Proyectos estadistica.Rproj" o "Proyectos-estadistica.Rproj"
+if (!any(file.exists(file.path(project_root, c("Proyectos estadistica.Rproj", "Proyectos-estadistica.Rproj"))))) {
+  warning("No se encontró el archivo .Rproj en la raíz del proyecto.")
+}
+
+required_paths <- c(
+  data_file,
+  file.path(project_root, "data", "raw", "educacion_limpio_talleres.csv"),
+  file.path(project_root, "reports", "entrega-corte-1", "Analisis_Indicadores_Educativos.Rmd"),
+  file.path(project_root, "reports", "entrega-corte-2", "Analisis_Indicadores_Educativos.Rmd"),
+  file.path(project_root, "reports", "taller-01", "taller-01.Rmd"),
+  file.path(project_root, "reports", "taller-02", "checklist-taller-02.Rmd"),
+  file.path(project_root, "reports", "taller-02", "taller-02-html.Rmd"),
+  file.path(project_root, "reports", "taller-pca", "componentes-principales-i", "componentes-principales-i.Rmd"),
+  file.path(project_root, "reports", "taller-pca", "componentes-principales-ii", "componentes-principales-ii.Rmd"),
+  file.path(project_root, "reports", "taller-pca", "analisis-factorial-i", "analisis-factorial-i.Rmd"),
+  file.path(project_root, "reports", "taller-pca", "analisis-factorial-ii", "analisis-factorial-ii.Rmd")
+)
+
+missing_paths <- required_paths[!file.exists(required_paths)]
+if (length(missing_paths) > 0) {
+  stop("Faltan rutas del proyecto:\n", paste(missing_paths, collapse = "\n"),
+       "\nSi falta educacion_limpio.csv, teja el informe del Corte 2 para regenerarlo.")
+}
+
+# Dimensiones esperadas del dataset depurado (ver informe del Corte 1)
 dataset <- read.csv(data_file, check.names = FALSE)
-if (!all(vapply(dataset, function(x) all(is.finite(x)), logical(1))) ) {
+if (nrow(dataset) != 13802 || ncol(dataset) != 33) {
+  stop("educacion_limpio.csv tiene ", nrow(dataset), " filas y ", ncol(dataset),
+       " columnas; se esperaban 13802 y 33. Teja el informe del Corte 2 para regenerarlo.")
+}
+
+numericas <- dataset[vapply(dataset, is.numeric, logical(1))]
+if (!all(vapply(numericas, function(x) all(is.finite(x)), logical(1)))) {
   stop("El dataset contiene valores no finitos.")
 }
 
 cat("Proyecto válido.\n")
-cat("Filas:", nrow(dataset), " | Columnas:", ncol(dataset), "\n")
+cat("Filas:", nrow(dataset), " | Columnas:", ncol(dataset),
+    " | Numéricas:", ncol(numericas), "\n")
