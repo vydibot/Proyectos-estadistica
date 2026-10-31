@@ -23,3 +23,6 @@ Thumbs.db
 # Logs de compilacion nuevos
 reports/**/archive/*.log
 .Rproj.user
+
+# Presentaciones para el cliente (se regeneran con scripts/presentacion_*.R)
+presentacion/

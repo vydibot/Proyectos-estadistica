@@ -442,15 +442,57 @@ knitr::kable(
 
 ---
 
-# 9. Conclusión: dictamen final para el Ministerio de Educación
+# 9. Ampliación: ¿se sostienen los dos factores con las 33 columnas?
+
+El modelo de este taller usa 6 variables. Aquí se estima con los **30 indicadores** (MinRes, rotación Oblimin) y se compara con las codificaciones one-hot de `AÑO`, departamentos y municipios (detalle y advertencias en el Análisis Factorial I, punto 12), siempre con `educacion_limpio.csv`.
+
+```{r ampliacion-33-fa2}
+source(file.path(project_root, "scripts", "helpers_33.R"))
+r33 <- cargar_33(project_root)
+f30 <- r33$m$fa30
+C2 <- r33$cargas2
+F33 <- r33$fa
+h2c <- f30$h2_cmp
+names(h2c) <- c("variable", "h2_6", "h2_30")
+h2c$variable <- vapply(h2c$variable, function(v) unname(etiquetas[v]), character(1))
+
+# Cuatro cargas más altas por factor, con el nombre de la variable
+top_cargas <- function(col, k = 4) {
+  o <- order(-abs(C2[[col]]))[1:k]
+  paste0(C2$variable[o], " (", fnum(C2[[col]][o], 2), ")", collapse = "; ")
+}
+knitr::kable(
+  data.frame(Variable = h2c$variable, `Comunalidad con 6 variables` = fnum(h2c$h2_6, 2),
+             `Comunalidad con 30 indicadores` = fnum(h2c$h2_30, 2), check.names = FALSE),
+  format = "pipe", align = "lrr",
+  caption = "Comunalidad de las 6 variables del taller con el modelo de 6 y con el de 30 indicadores (2 factores)."
+)
+```
+
+```{r figura-33-fa2, results='asis', echo=FALSE}
+mostrar_img("fa30_cargas.png", "Cargas de dos factores con los 30 indicadores")
+mostrar_img("fa33_variantes.png", "Análisis factorial de 2 factores con cada codificación de las categóricas")
+```
+
+> 📋 **Qué ve / Describir:**
+> Con los 30 indicadores, el factor 1 (MR1) reúne los indicadores de cobertura y matriculación: `r top_cargas("MR1")`. El factor 2 (MR2) reúne aprobación, reprobación, deserción y repitencia: `r top_cargas("MR2")`. La correlación entre factores es `r fnum(f30$phi_2, 3)` (con 6 variables era `r fnum(f_obl$Phi[1, 2], 3)`). Dos factores explican `r fnum(f30$pct_comun_2, 1)` % de la varianza común; siete factores, `r fnum(f30$pct_comun_k, 1)` %, y en esa solución `r f30$heywood_k` indicadores tienen comunalidad cercana a 1 (caso límite). Al llevar a los dos fondos, el 20 % inferior de cada factor coincide en `r miles(f30$solape_ambos)` de `r miles(f30$solape_cupo)` registros (`r coma(f30$solape_pct)` %); con 6 variables era `r coma(pct_repetidos)` %.
+>
+> 🔎 **Qué significa / Analizar:**
+> Con 30 indicadores los factores se leen mejor: MR1 es **acceso** (cobertura y matriculación) y MR2 es **rendimiento y permanencia** (aprobación y reprobación en sentidos opuestos, más deserción y repitencia). Con 6 variables cada factor lo definía casi una sola variable (cobertura media y aprobación, comunalidad cercana a 1), y esos nombres no eran estables. Pero esto sigue siendo una exploración: el índice de ajuste de dos factores es malo (RMSEA `r fnum(f30$rmsea_2, 2)`, TLI `r fnum(f30$tli_2, 2)`) y esos índices no son fiables con una matriz casi singular (aprobación + reprobación + deserción ≈ 1). La correlación casi nula entre factores no prueba independencia. El solapamiento entre fondos, `r coma(f30$solape_pct)` %, queda **por debajo del 20 % esperado si fueran independientes**, mientras que con 6 variables quedaba por encima (`r coma(pct_repetidos)` %): la cifra depende de qué variables se usen, así que no sostiene por sí sola un «solapamiento mínimo».
+>
+> ⚖️ **Qué decide él / Decisión:**
+> Los nombres «Acceso» y «Permanencia» son defendibles con los 30 indicadores, no con las 6 variables. Antes de oficializarlos, validar la solución con otra muestra o por municipio. Y no agregar columnas one-hot geográficas: sus comunalidades son `r fnum(F33$h2_dummies_media[F33$codificacion == "+ AÑO + departamentos"], 3)` (departamentos) y `r fnum(F33$h2_dummies_media[F33$codificacion == "+ AÑO + municipios"], 3)` (municipios): no pertenecen a ningún factor.
+
+# 10. Conclusión: dictamen final para el Ministerio de Educación
 
 Al Director de Cobertura y Equidad Territorial le certificamos:
 
 1. **La rotación oblicua (Oblimin) define con nitidez dos capacidades territoriales:**
    - **Capacidad de Acceso y Cobertura (Factor 1):** gobernada por la matrícula neta y media.
    - **Capacidad de Permanencia y Retención (Factor 2):** gobernada por la aprobación y la deserción.
-2. **Las dos dimensiones son independientes:** Su correlación es mínima ($\Phi \approx 0,14$). Un municipio con alta cobertura no está blindado contra la deserción.
-3. **La solución es altamente estable:** ML y MinRes arrojan prácticamente las mismas cargas factoriales.
+2. **Las dos dimensiones están poco correlacionadas, no demostradamente independientes:** con rotación oblicua la correlación estimada es baja ($\Phi \approx 0,14$ con 6 variables; `r fnum(f30$phi_2, 2)` con 30 indicadores). Una correlación baja no prueba independencia.
+3. **La solución es estable ante el estimador, pero no ante las variables:** ML y MinRes arrojan prácticamente las mismas cargas, aunque una carga llega a 1,004 (caso límite) y con 30 indicadores los factores se definen por familias de variables, no por una sola.
 4. **Límite matemático:** Con seis indicadores, el número máximo de factores comprobables es dos ($gl = 4$). Un tercer factor satura el modelo ($gl = 0$) y cuatro es matemáticamente inviable.
-5. **Solapamiento mínimo entre beneficiarios:** Solo el `r coma(pct_repetidos)` % de los municipios rezagados califica simultáneamente en ambos fondos. Mantener dos líneas especializadas garantiza cobertura focalizada para realidades educativas opuestas.
+5. **Solapamiento moderado y sensible a las variables:** el `r coma(pct_repetidos)` % de los registros rezagados califica en ambos fondos con 6 variables (frente a 20 % esperado si fueran independientes) y `r coma(f30$solape_pct)` % con 30 indicadores. Dos líneas especializadas pueden tener sentido, pero la cifra no está validada.
+6. **33 columnas:** agregar año, departamentos o municipios en one-hot no produce factores nuevos (comunalidades cercanas a cero) y hunde el KMO; la mejor codificación es sin one-hot geográfico.
 

@@ -1,6 +1,6 @@
 ---
-title: "Análisis Multidimensional de Indicadores Educativos"
-author: "Reporte Estadístico"
+title: "Taller 1 (corregido) - Análisis exploratorio de las 33 variables educativas municipales"
+author: "Estadística Multidimensional"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -10,36 +10,26 @@ output:
     theme: flatly
     highlight: tango
     code_folding: show
-  pdf_document:
-    toc: true
-    toc_depth: '3'
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = TRUE, 
-  warning = FALSE, 
-  message = FALSE, 
-  fig.width = 10, 
-  fig.height = 7, 
-  fig.align = "center"
-)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.width = 10, fig.height = 7, fig.align = "center")
 
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    expected_data <- file.path(path, "data", "raw", "educacion_limpio_talleres.csv")
-    if (file.exists(expected_data) && dir.exists(file.path(path, "reports"))) {
-      return(path)
-    }
+    if (file.exists(file.path(path, "data", "raw", "educacion_limpio.csv")) &&
+        dir.exists(file.path(path, "reports"))) return(path)
     parent <- dirname(path)
     if (parent == path) stop("No se encontró la raíz del proyecto.")
     path <- parent
   }
 }
-
 project_root <- find_project_root()
 knitr::opts_knit$set(root.dir = project_root)
+source(file.path(project_root, "scripts", "helpers_datos.R"))
+
 tables_dir <- file.path(project_root, "outputs", "taller-01", "tables")
 figures_dir <- file.path(project_root, "outputs", "taller-01", "figures")
 dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
@@ -48,369 +38,365 @@ safe_file_name <- function(x) {
   x <- iconv(x, from = "UTF-8", to = "ASCII//TRANSLIT")
   gsub("[^A-Za-z0-9_.-]", "_", x)
 }
-```
 
-## Resumen del Dataset
+# Archivos de la versión que leía el dataset de los talleres (sin año), que este informe ya no produce
+obsoletos <- c(file.path(tables_dir, "Repeticion_por_municipio.csv"), file.path(figures_dir, "Repeticion_por_municipio.png"))
+for (obsoleto in obsoletos[file.exists(obsoletos)]) file.remove(obsoleto)
 
-Este reporte presenta una evaluación completa de múltiples variables e indicadores de cobertura, aprobación, reprobación, repitencia y deserción del sector educativo. El análisis discrimina adecuadamente las variables categóricas de las numéricas, normaliza los datos continuos y explora las distribuciones, valores atípicos y correlaciones estadísticas de interés.
-
----
-
-## 1. Preparación del Entorno y Carga de Datos
-
-En esta etapa inicial, se importan los datos aplicando una distinción estricta de los separadores de archivo (comas para dividir columnas) y los delimitadores de decimales (puntos). Luego, con base en el entendimiento funcional (diccionario de datos), reclasificamos las variables geográficas que originalmente son numéricas (Códigos DANE) como categóricas (factores).
-
-```{r preparacion_carga}
-# Cargar librerías necesarias
 library(ggplot2)
 library(dplyr)
 library(tidyr)
-library(reshape2)
 library(knitr)
-
-# 1. Carga de datos con parámetros explícitos (sep para comas de archivo, dec para decimales)
-datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio_talleres.csv"),
-                  sep = ",", dec = ".", check.names = FALSE)
-
-# 2. Análisis y Tipificación según "Diccionario de Datos":
-# Convertimos las entidades geográficas a factores (categóricas) ya que no son magnitudes numéricas reales.
-datos$CÓDIGO_MUNICIPIO <- as.factor(datos$CÓDIGO_MUNICIPIO)
-datos$CÓDIGO_DEPARTAMENTO <- as.factor(datos$CÓDIGO_DEPARTAMENTO)
-
-# Filtramos estrictamente las variables numéricas (cuantitativas reales) para el análisis estadístico
-variables_numericas <- datos %>% select(where(is.numeric))
-columnas_constantes <- names(variables_numericas)[vapply(
-  variables_numericas,
-  function(x) length(unique(x[is.finite(x)])) <= 1,
-  logical(1)
-)]
-variables_numericas <- variables_numericas %>%
-  select(-any_of(columnas_constantes))
-
-cor_segura <- function(x, y) {
-  cor(x, y, use = "complete.obs", method = "pearson")
-}
+tema <- theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = paleta$rejilla),
+        plot.title = element_text(face = "bold"))
 ```
 
----
+## 0. Qué se corrigió respecto a la versión anterior
 
-## 2. Tabla de Resumen Estadístico (Variables Clave)
+Este documento reemplaza el análisis exploratorio previo y analiza las **33 variables** de **`data/raw/educacion_limpio.csv`**:
+**30 indicadores numéricos** (resumen, histogramas, boxplots, correlaciones) y **3 variables categóricas** —`AÑO`, `DEPARTAMENTO` y `MUNICIPIO`—
+(frecuencias y cuánta varianza de cada indicador explica cada una).
 
-La siguiente tabla consolida las estadísticas descriptivas para todas las variables cuantitativas del modelo.
+| Problema en la versión anterior | Corrección aplicada |
+|---|---|
+| El código hacía `as.factor(CÓDIGO_MUNICIPIO)`, columna que **no existe** en el archivo limpio: el informe fallaba. Una solución intermedia leía el dataset de los talleres (5.063 registros, sin año ni nombres), que no contiene las 33 variables. | El informe lee `educacion_limpio.csv` (13.802 registros, 33 variables). El municipio se identifica con `MUNICIPIO` + `DEPARTAMENTO`. |
+| Las categóricas no se analizaban; `AÑO` podía entrar como número en histogramas, correlaciones y covarianzas. | `AÑO` es una categoría ordenada y las tres categóricas se analizan por separado. Los indicadores son las 30 columnas numéricas (`columnas_indicadores()` falla si `AÑO` se cuela). |
+| Se trataban las 13.802 filas como si fueran municipios distintos. | Se documenta el panel (1.123 municipios, hasta 14 años cada uno) y la incertidumbre de las correlaciones se mide con **bootstrap por municipio**. |
+| Pruebas de significancia sin ajuste. | No se reportan valores p: se reporta la magnitud de `r` con su intervalo por conglomerados y su sensibilidad. |
+| Boxplots con normalización Min-Max, que no añade información (los boxplots ya son invariantes a transformaciones lineales). | Boxplots en la escala original, un panel por indicador, con conteo de atípicos por regla IQR. |
+| Conclusiones con adjetivos no validados («crisis educativas severas», «correlación perfecta», sesgos con el signo invertido). | Conclusiones reescritas con cifras calculadas en este documento. |
 
-```{r resumen_estadistico}
-# Cálculo de estadísticas clave
+## 1. Datos y estructura de panel
+
+```{r carga}
+datos <- cargar_educacion(project_root)
+indicadores <- columnas_indicadores(datos)
+X <- datos[, indicadores]
+panel <- resumen_panel(datos)
+
+stopifnot(!"AÑO" %in% indicadores, !anyNA(X),
+          !any(duplicated(datos[, c("AÑO", "ID_MUNICIPIO")])))
+columnas_constantes <- indicadores[vapply(X, function(x) length(unique(x)) <= 1, logical(1))]
+```
+
+El archivo tiene **`r fint(panel$registros)` registros** y `r ncol(datos) - 1` columnas originales.
+Cada fila es un **municipio-año**: corresponden a **`r fint(panel$municipios)` municipios** distintos en
+**`r panel$departamentos` departamentos** y `r panel$anios` años (2011-2024). Solo
+`r fint(panel$municipios_14_anios)` municipios aparecen los 14 años; el municipio típico (mediana)
+aparece `r median(panel$anios_por_municipio)` años. No hay valores faltantes ni filas duplicadas por
+municipio-año, y `r if (length(columnas_constantes)) paste(columnas_constantes, collapse = ", ") else "ninguna columna es constante"`.
+
+```{r panel}
+por_anio <- panel$por_anio
+por_anio$AÑO <- as.integer(as.character(por_anio$AÑO))
+por_anio$referencia_2016_2024 <- round(median(por_anio$registros[por_anio$AÑO >= 2016]))
+por_anio$faltan_vs_referencia <- por_anio$referencia_2016_2024 - por_anio$registros
+write.csv(por_anio, file.path(tables_dir, "Panel_registros_por_anio.csv"), row.names = FALSE)
+kable(por_anio, caption = "Registros por año frente a la referencia 2016-2024.")
+
+p_panel <- ggplot(por_anio, aes(factor(AÑO), registros)) +
+  geom_col(fill = ifelse(por_anio$AÑO < 2016, paleta$naranja, paleta$azul), width = 0.7) +
+  geom_text(aes(label = fint(registros)), vjust = -0.4, size = 3.2) +
+  tema + labs(title = "El panel está incompleto entre 2011 y 2015",
+              subtitle = "Registros con información completa por año (naranja = años con menor cobertura)",
+              x = NULL, y = "Registros")
+print(p_panel)
+ggsave(file.path(figures_dir, "Registros_por_anio.png"), p_panel, width = 10, height = 5, dpi = 150)
+```
+
+**Lectura.** Entre 2011 y 2015 hay entre `r min(por_anio$registros)` y `r max(por_anio$registros[por_anio$AÑO < 2016])`
+registros por año; desde 2016 hay alrededor de `r fint(por_anio$referencia_2016_2024[1])`. Los años iniciales están
+sub-representados, así que cualquier promedio global pesa más a 2016-2024. El archivo limpio no permite
+saber *qué* municipios faltan en esos años, por lo que **no se puede descartar un sesgo de selección**;
+por eso las asociaciones clave se recalculan solo con 2016-2024 (sección 6).
+
+### Las tres variables categóricas
+
+Las 33 columnas son 30 indicadores y 3 categóricas. Se describen sus categorías y se mide **cuánta varianza de cada indicador explica cada una**
+con el R² ajustado por número de categorías (`eta2_ajustado()`; un valor alto indica que los registros de una misma categoría se parecen entre sí).
+
+```{r categoricas}
+n_dep <- length(unique(datos$DEPARTAMENTO))
+por_dep <- datos %>% count(DEPARTAMENTO, name = "registros", sort = TRUE) %>%
+  left_join(datos %>% distinct(DEPARTAMENTO, ID_MUNICIPIO) %>% count(DEPARTAMENTO, name = "municipios"), by = "DEPARTAMENTO")
+write.csv(por_dep, file.path(tables_dir, "Categoricas_registros_por_departamento.csv"), row.names = FALSE)
+
+p_dep <- ggplot(head(por_dep, 15), aes(reorder(DEPARTAMENTO, registros), registros)) +
+  geom_col(fill = paleta$azul, width = 0.7) + coord_flip() +
+  geom_text(aes(label = fint(registros)), hjust = -0.1, size = 3) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  tema + labs(title = "Los quince departamentos con más registros", x = NULL, y = "Registros municipio-año")
+print(p_dep)
+ggsave(file.path(figures_dir, "Registros_por_departamento.png"), p_dep, width = 9, height = 6, dpi = 150)
+
+eta <- data.frame(Indicador = indicadores,
+                  AÑO = vapply(indicadores, function(v) eta2_ajustado(datos[[v]], datos$AÑO), numeric(1)),
+                  DEPARTAMENTO = vapply(indicadores, function(v) eta2_ajustado(datos[[v]], datos$DEPARTAMENTO), numeric(1)),
+                  MUNICIPIO = vapply(indicadores, function(v) eta2_ajustado(datos[[v]], datos$ID_MUNICIPIO), numeric(1)))
+eta[, -1] <- 100 * pmax(eta[, -1], 0)
+write.csv(eta, file.path(tables_dir, "R2_ajustado_por_categorica.csv"), row.names = FALSE)
+
+eta_l <- pivot_longer(eta, -Indicador, names_to = "Categórica", values_to = "R2")
+eta_l$Categórica <- factor(eta_l$Categórica, levels = c("AÑO", "DEPARTAMENTO", "MUNICIPIO"))
+p_eta <- ggplot(eta_l, aes(Categórica, R2, color = Categórica)) +
+  geom_boxplot(width = 0.4, outlier.shape = NA, fill = NA, linewidth = 0.8) +
+  geom_jitter(width = 0.12, size = 2, alpha = 0.8) +
+  scale_color_manual(values = c(paleta$gris, paleta$naranja, paleta$azul), guide = "none") +
+  tema + labs(title = "Cuánta varianza de cada indicador explica cada categórica",
+              subtitle = "R² ajustado (%); un punto por indicador", x = NULL, y = "% de la varianza")
+print(p_eta)
+ggsave(file.path(figures_dir, "Categoricas_R2_ajustado.png"), p_eta, width = 8.5, height = 5.2, dpi = 150)
+kable(head(eta[order(-eta$MUNICIPIO), ], 6), digits = 1, row.names = FALSE,
+      caption = "Indicadores cuya varianza más explica el municipio (R² ajustado, %).")
+```
+
+Hay **`r n_dep` departamentos** (entre `r min(por_dep$registros)` y `r fint(max(por_dep$registros))` registros cada uno) y **`r fint(panel$municipios)` municipios**
+que aportan entre 1 y 14 años. El año explica una mediana de `r fnum(median(eta$AÑO), 1)` % de la varianza de un indicador, el departamento `r fnum(median(eta$DEPARTAMENTO), 1)` %
+y el municipio `r fnum(median(eta$MUNICIPIO), 1)` % (hasta `r fnum(max(eta$MUNICIPIO), 0)` % en `r eta$Indicador[which.max(eta$MUNICIPIO)]`).
+Esa gran parte del municipio es **persistencia del mismo municipio durante varios años**, no un patrón educativo nuevo, y es otra razón para no leer las filas como independientes.
+
+## 2. Resumen estadístico de los 30 indicadores
+
+```{r resumen}
 resumen <- data.frame(
-  Variable = names(variables_numericas),
-  Media = sapply(variables_numericas, mean, na.rm = TRUE),
-  Desv_Est = sapply(variables_numericas, sd, na.rm = TRUE),
-  Mínimo = sapply(variables_numericas, min, na.rm = TRUE),
-  Mediana = sapply(variables_numericas, median, na.rm = TRUE),
-  Máximo = sapply(variables_numericas, max, na.rm = TRUE)
+  Variable = indicadores,
+  Media = vapply(X, mean, numeric(1)),
+  Desv_Est = vapply(X, sd, numeric(1)),
+  Minimo = vapply(X, min, numeric(1)),
+  Mediana = vapply(X, median, numeric(1)),
+  Maximo = vapply(X, max, numeric(1)),
+  Pct_ceros = vapply(X, function(x) 100 * mean(x == 0), numeric(1)),
+  Pct_sobre_1 = vapply(X, function(x) 100 * mean(x > 1), numeric(1))
 )
-
-# Exportar los resultados a CSV
+# POBLACIÓN_5_16 es un conteo de personas, no una tasa: "mayor que 1" no tiene sentido.
+resumen$Pct_sobre_1[resumen$Variable == "POBLACIÓN_5_16"] <- NA
 write.csv(resumen, file.path(tables_dir, "Resumen_Estadistico.csv"), row.names = FALSE)
-
-# Renderización de tabla en HTML
-kable(resumen, digits = 3, caption = "Resumen Estadístico de las Variables Numéricas", row.names = FALSE)
+kable(resumen, digits = 3, row.names = FALSE,
+      caption = "Resumen de los indicadores (Pct_sobre_1: porcentaje de registros con valor > 1; no aplica a población).")
 ```
 
----
+```{r sobre1}
+sobre1 <- resumen[!is.na(resumen$Pct_sobre_1) & resumen$Pct_sobre_1 > 0, c("Variable", "Pct_sobre_1")]
+sobre1$Registros <- vapply(sobre1$Variable, function(v) sum(X[[v]] > 1), numeric(1))
+write.csv(sobre1, file.path(tables_dir, "Tasas_sobre_1.csv"), row.names = FALSE)
+```
 
-## 3. Histogramas para las Variables Numéricas
+Hay `r nrow(sobre1)` indicadores de tasa con valores superiores a 1 (100 %), todos de cobertura o matriculación (`POBLACIÓN_5_16` es un conteo y se excluye);
+la cobertura bruta primaria llega a `r fnum(sobre1$Pct_sobre_1[sobre1$Variable == "COBERTURA_BRUTA_PRIMARIA"], 1)` % de los registros.
+En coberturas brutas esto es esperable (incluye estudiantes con extraedad), pero en las **netas** y en la
+**tasa de matriculación** indica un desajuste entre la matrícula y la población de referencia. Los valores se
+conservan y se señalan para validación contra las definiciones y denominadores oficiales; no se eliminan.
 
-Se presentan las distribuciones individuales para evaluar la simetría, sesgos y concentración en cada indicador.
+## 3. Distribuciones (histogramas)
 
 ```{r histogramas, fig.height=12}
-# Transformar datos a formato largo para facilitar la graficación con facetas
-datos_long <- variables_numericas %>% 
-  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Valor")
-
-# Graficar la cuadrícula de histogramas
-p_hist <- ggplot(datos_long, aes(x = Valor)) +
-  geom_histogram(bins = 30, fill = "#3498db", color = "black", alpha = 0.8) +
-  facet_wrap(~ Variable, scales = "free", ncol = 4) +
-  theme_minimal() +
-  labs(
-    title = "Distribución de Variables Educativas (Histogramas)",
-    x = "Valor del Indicador",
-    y = "Frecuencia"
-  ) +
-  theme(strip.text = element_text(size = 8, face = "bold"))
-
-# Mostrar y guardar gráfico
+datos_long <- X %>% pivot_longer(everything(), names_to = "Variable", values_to = "Valor")
+p_hist <- ggplot(datos_long, aes(Valor)) +
+  geom_histogram(bins = 30, fill = paleta$azul, color = "white", linewidth = 0.2) +
+  facet_wrap(~ Variable, scales = "free", ncol = 5) +
+  tema + theme(strip.text = element_text(size = 7, face = "bold")) +
+  labs(title = "Distribución de los 30 indicadores (AÑO excluido)",
+       x = "Valor del indicador", y = "Frecuencia")
 print(p_hist)
-ggsave(file.path(figures_dir, "Histogramas.png"), plot = p_hist, width = 12, height = 10)
+ggsave(file.path(figures_dir, "Histogramas.png"), p_hist, width = 14, height = 11, dpi = 130)
 ```
 
----
+```{r asimetria}
+asimetria <- function(x) { m <- mean(x); mean((x - m)^3) / sd(x)^3 }
+sk <- vapply(X, asimetria, numeric(1))
+```
 
-## 4. Normalización y Diagramas de Caja (Boxplots)
+Lectura con asimetría de Fisher (positiva = cola a la derecha):
 
-Para evaluar los indicadores en una escala comparable e identificar la presencia de valores atípicos (outliers), se aplica una normalización Min-Max (rango de [0, 1]) y se consolidan en diagramas de caja.
+- `POBLACIÓN_5_16`: `r fnum(sk["POBLACIÓN_5_16"], 1)`. Pocos municipios muy grandes; la media (`r fint(round(mean(X$POBLACIÓN_5_16)))`) supera ampliamente a la mediana (`r fint(median(X$POBLACIÓN_5_16))`).
+- `DESERCIÓN` (`r fnum(sk["DESERCIÓN"], 2)`), `REPROBACIÓN` (`r fnum(sk["REPROBACIÓN"], 2)`) y `REPITENCIA` (`r fnum(sk["REPITENCIA"], 2)`): **cola a la derecha**; la mayoría de registros tiene tasas bajas y unos pocos tienen tasas altas.
+- `APROBACIÓN` (`r fnum(sk["APROBACIÓN"], 2)`): **cola a la izquierda**; se concentra cerca de 1 y los valores bajos son la excepción.
+- Coberturas netas y brutas: asimetría moderada (`r fnum(sk["COBERTURA_NETA"], 2)` y `r fnum(sk["COBERTURA_BRUTA"], 2)`), con una parte de los registros por encima de 1.
 
-```{r boxplots_normalizados}
-# Función de normalización Min-Max
-normalizar <- function(x) {
-  rango <- range(x, na.rm = TRUE)
-  if (!all(is.finite(rango)) || diff(rango) == 0) return(rep(NA_real_, length(x)))
-  (x - rango[1]) / diff(rango)
-}
+## 4. Valores atípicos (boxplots en escala original)
 
-# Aplicar normalización a las variables numéricas
-datos_norm <- variables_numericas %>% mutate(across(everything(), normalizar))
+Los boxplots con Min-Max se retiraron: un boxplot ya es invariante a una transformación lineal positiva,
+así que normalizar no revela atípicos adicionales ni vuelve comparables las variables. Se muestra cada indicador en
+su escala y se cuenta cuántos registros caen fuera de los bigotes (regla 1,5 × IQR).
 
-# Formato largo para los boxplots
-datos_norm_long <- datos_norm %>% 
-  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Valor_Normalizado")
+```{r boxplots, fig.height=12}
+atipicos <- data.frame(
+  Variable = indicadores,
+  Q1 = vapply(X, quantile, numeric(1), 0.25),
+  Q3 = vapply(X, quantile, numeric(1), 0.75)
+)
+atipicos$IQR <- atipicos$Q3 - atipicos$Q1
+atipicos$N_atipicos <- vapply(seq_along(indicadores), function(i) {
+  v <- X[[i]]; sum(v < atipicos$Q1[i] - 1.5 * atipicos$IQR[i] | v > atipicos$Q3[i] + 1.5 * atipicos$IQR[i])
+}, numeric(1))
+atipicos$Pct_atipicos <- 100 * atipicos$N_atipicos / nrow(X)
+rownames(atipicos) <- NULL
+write.csv(atipicos, file.path(tables_dir, "Atipicos_IQR.csv"), row.names = FALSE)
 
-# Graficar Boxplots unificados
-p_box <- ggplot(datos_norm_long, aes(x = reorder(Variable, Valor_Normalizado, FUN = median, na.rm = TRUE), y = Valor_Normalizado)) +
-  geom_boxplot(fill = "#2ecc71", color = "#27ae60", outlier.color = "#e74c3c", outlier.alpha = 0.5) +
-  coord_flip() + # Voltear para mejorar la lectura de las etiquetas
-  theme_minimal() +
-  labs(
-    title = "Diagramas de Caja (Variables Normalizadas [0,1])",
-    x = "Variable Numérica",
-    y = "Valor Normalizado"
-  )
-
-# Mostrar y guardar gráfico
+p_box <- ggplot(datos_long, aes(x = "", y = Valor)) +
+  geom_boxplot(fill = "#cde2fb", color = paleta$azul, outlier.color = paleta$naranja,
+               outlier.alpha = 0.4, outlier.size = 0.8) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 6) +
+  tema + theme(strip.text = element_text(size = 7, face = "bold"),
+               axis.text.x = element_blank(), axis.title.x = element_blank()) +
+  labs(title = "Boxplots por indicador (escala original)",
+       subtitle = "Puntos naranja: fuera de 1,5 × IQR; es un criterio estadístico, no un diagnóstico", y = NULL)
 print(p_box)
-ggsave(file.path(figures_dir, "Boxplots.png"), plot = p_box, width = 8, height = 10)
+ggsave(file.path(figures_dir, "Boxplots.png"), p_box, width = 14, height = 10, dpi = 130)
+
+kable(head(atipicos[order(-atipicos$Pct_atipicos), c("Variable", "N_atipicos", "Pct_atipicos")], 8),
+      digits = 1, caption = "Indicadores con mayor porcentaje de registros fuera de los bigotes.")
 ```
 
----
+Un punto fuera de los bigotes es un registro **estadísticamente extremo respecto a la distribución del
+indicador**. No prueba un error de captura ni una crisis educativa: puede ser un municipio pequeño con una
+tasa inestable (denominador reducido), un municipio grande o un cambio de definición. Se conservan y se
+marcan para revisión con información externa.
 
-## 5. Relaciones Bivariadas (Diagramas de Dispersión)
+## 5. Evolución temporal: por qué `AÑO` no puede ser una variable numérica
 
-Analizamos las interdependencias críticas entre indicadores seleccionados, evaluando su trayectoria y posibles tendencias lineales.
+```{r tiempo, fig.height=6}
+clave <- c("COBERTURA_NETA", "DESERCIÓN", "APROBACIÓN", "REPITENCIA")
+med_anual <- datos %>% group_by(AÑO) %>%
+  summarise(across(all_of(clave), median), .groups = "drop") %>%
+  pivot_longer(-AÑO, names_to = "Indicador", values_to = "Mediana")
+write.csv(med_anual, file.path(tables_dir, "Mediana_anual_indicadores_clave.csv"), row.names = FALSE)
 
-```{r diagramas_dispersion, results='hide'}
-# Definir los 5 pares de variables solicitados
+p_tiempo <- ggplot(med_anual, aes(AÑO, Mediana, group = 1)) +
+  geom_line(color = paleta$azul, linewidth = 0.9) + geom_point(color = paleta$azul, size = 2) +
+  facet_wrap(~ Indicador, scales = "free_y") + tema +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Mediana anual de los indicadores clave", x = NULL, y = "Mediana del año")
+print(p_tiempo)
+ggsave(file.path(figures_dir, "Evolucion_mediana_anual.png"), p_tiempo, width = 10, height = 6, dpi = 150)
+
+corr_anio <- data.frame(
+  Indicador = indicadores,
+  r_con_AÑO = vapply(X, function(v) cor(v, as.numeric(as.character(datos$AÑO))), numeric(1))
+)
+corr_anio <- corr_anio[order(-abs(corr_anio$r_con_AÑO)), ]
+write.csv(corr_anio, file.path(tables_dir, "Correlacion_con_anio.csv"), row.names = FALSE)
+kable(head(corr_anio, 6), digits = 3, row.names = FALSE,
+      caption = "Correlación de cada indicador con el año calendario (solo diagnóstico).")
+```
+
+```{r saltos}
+rep_med <- med_anual$Mediana[med_anual$Indicador == "REPITENCIA"]
+names(rep_med) <- med_anual$AÑO[med_anual$Indicador == "REPITENCIA"]
+```
+
+La repitencia tiene una correlación de `r fnum(corr_anio$r_con_AÑO[corr_anio$Indicador == "REPITENCIA"], 2)` con el
+año calendario y su mediana pasa de `r fnum(rep_med["2019"], 3)` en 2019 a `r fnum(rep_med["2020"], 3)` en 2020 y
+`r fnum(rep_med["2024"], 3)` en 2024. Si `AÑO` entra como variable numérica en la matriz de correlaciones, parte de lo
+que se lee como «relación entre indicadores» es en realidad **tendencia temporal compartida**. La coincidencia del
+salto con 2020 es una pista, no una explicación: requiere confirmarse con la fuente administrativa. Por eso `AÑO` se
+trata como categoría y las correlaciones se verifican también **dentro de cada año** (sección 6).
+
+## 6. Relaciones bivariadas y sensibilidad
+
+```{r pares_clave}
 pares <- list(
   c("COBERTURA_NETA", "COBERTURA_BRUTA"),
   c("APROBACIÓN_SECUNDARIA", "REPROBACIÓN_SECUNDARIA"),
   c("DESERCIÓN", "DESERCIÓN_SECUNDARIA"),
   c("REPITENCIA", "REPITENCIA_PRIMARIA"),
-  c("APROBACIÓN", "REPROBACIÓN") # Quinto par añadido para complementar el análisis
+  c("APROBACIÓN", "REPROBACIÓN"),
+  c("DESERCIÓN", "REPITENCIA"),
+  c("COBERTURA_NETA", "DESERCIÓN"),
+  c("POBLACIÓN_5_16", "COBERTURA_NETA")
 )
+X_anio <- centrar_por_grupo(X, datos$AÑO)         # sin diferencias entre años
+X_mun <- centrar_por_grupo(X, datos$ID_MUNICIPIO) # solo variación dentro del municipio
+desde_2016 <- datos$AÑO >= "2016"
 
-# Generar gráficos secuenciales y exportarlos
-for (i in seq_along(pares)) {
-  var1 <- pares[[i]][1]
-  var2 <- pares[[i]][2]
-  
-  if (var1 %in% names(datos) && var2 %in% names(datos)) {
-    p <- ggplot(datos, aes_string(x = var1, y = var2)) +
-      geom_point(alpha = 0.5, color = "#2c3e50", size = 2) +
-      geom_smooth(method = "lm", color = "#e74c3c", se = FALSE, linetype = "dashed") +
-      labs(
-        title = paste("Relación entre", var1, "y", var2), 
-        x = var1, 
-        y = var2
-      ) +
-      theme_minimal()
-    
-    print(p)
-            ggsave(file.path(figures_dir,
-              paste0("dispersion_", safe_file_name(var1), "_vs_",
-                safe_file_name(var2), ".png")),
-          plot = p, width = 6, height = 4)
-  }
+sens <- do.call(rbind, lapply(pares, function(p) {
+  cl <- correlacion_cluster(datos[[p[1]]], datos[[p[2]]], datos$ID_MUNICIPIO, B = 1000)
+  data.frame(
+    Par = paste(p, collapse = " ~ "),
+    r_Pearson = unname(cl["r"]), IC95_inf = unname(cl["lo"]), IC95_sup = unname(cl["hi"]),
+    r_2016_2024 = cor(datos[[p[1]]][desde_2016], datos[[p[2]]][desde_2016]),
+    r_dentro_de_año = cor(X_anio[[p[1]]], X_anio[[p[2]]]),
+    r_dentro_de_municipio = cor(X_mun[[p[1]]], X_mun[[p[2]]]),
+    r_Spearman = cor(datos[[p[1]]], datos[[p[2]]], method = "spearman")
+  )
+}))
+rownames(sens) <- NULL
+write.csv(sens, file.path(tables_dir, "Correlaciones_clave_sensibilidad.csv"), row.names = FALSE)
+kable(sens, digits = 3,
+      caption = "Correlaciones clave. IC95: bootstrap por municipio (1.000 réplicas). Las demás columnas son verificaciones de sensibilidad.")
+```
+
+```{r dispersion, results='hide'}
+for (i in 1:5) {
+  v1 <- pares[[i]][1]; v2 <- pares[[i]][2]
+  p <- ggplot(datos, aes(x = .data[[v1]], y = .data[[v2]])) +
+    geom_point(alpha = 0.25, color = paleta$azul, size = 1.2) +
+    geom_smooth(method = "lm", color = paleta$naranja, se = FALSE, linetype = "dashed", linewidth = 0.9) +
+    annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 1.5, size = 4,
+             label = paste0("r = ", fnum(sens$r_Pearson[i], 2), "  (IC95 ", fnum(sens$IC95_inf[i], 2), " a ", fnum(sens$IC95_sup[i], 2), ")")) +
+    tema + labs(title = paste(v1, "vs", v2), x = v1, y = v2,
+                subtitle = "Cada punto es un registro municipio-año")
+  print(p)
+  ggsave(file.path(figures_dir, paste0("dispersion_", safe_file_name(v1), "_vs_", safe_file_name(v2), ".png")),
+         p, width = 6.5, height = 4.5, dpi = 150)
 }
 ```
 
----
+Lectura (siempre como **asociación**, no causalidad):
 
-## 6. Matriz de Correlación Completa (Pearson)
+- Pares del mismo fenómeno medido en distinto nivel (`COBERTURA_NETA`~`COBERTURA_BRUTA`, `DESERCIÓN`~`DESERCIÓN_SECUNDARIA`, `REPITENCIA`~`REPITENCIA_PRIMARIA`) tienen
+  coeficientes entre `r fnum(min(sens$r_Pearson[c(1, 3, 4)]), 2)` y `r fnum(max(sens$r_Pearson[c(1, 3, 4)]), 2)`, estables en las cuatro especificaciones. Es redundancia de medición, no un hallazgo sustantivo.
+- `APROBACIÓN`~`REPROBACIÓN`: `r fnum(sens$r_Pearson[5], 3)`. Es fuerte y negativa pero **no «perfecta»**: la deserción absorbe parte de la diferencia (aprobación + reprobación + deserción ≈ 1).
+- `DESERCIÓN`~`REPITENCIA`: `r fnum(sens$r_Pearson[6], 2)` y `COBERTURA_NETA`~`DESERCIÓN`: `r fnum(sens$r_Pearson[7], 2)` (IC95 que incluye 0). La cobertura agregada no está asociada linealmente con la deserción.
+- `POBLACIÓN_5_16`~`COBERTURA_NETA`: la correlación cambia según la especificación (de `r fnum(sens$r_dentro_de_año[8], 2)` dentro de año a `r fnum(sens$r_dentro_de_municipio[8], 2)` dentro de municipio) y Pearson está dominado por pocos municipios muy grandes; la lectura segura es «sin relación lineal clara».
 
-Asociación lineal cruzada entre todas las variables cuantitativas del sistema educativo.
+## 7. Matriz de correlación (30 indicadores, sin AÑO)
 
-```{r matriz_correlacion, fig.height=10, fig.width=10}
-# Matriz de Correlación ignorando valores faltantes
-matriz_corr <- cor(variables_numericas, use = "pairwise.complete.obs")
-matriz_corr[!is.finite(matriz_corr)] <- NA_real_
-
-# Guardar matriz de correlación en CSV
+```{r matriz_correlacion, fig.height=10, fig.width=11}
+matriz_corr <- cor(X)
 write.csv(matriz_corr, file.path(tables_dir, "Matriz_Correlacion.csv"))
 
-# Transformación de la matriz para el mapa de calor (Heatmap)
-melted_corr <- melt(matriz_corr)
+orden <- hclust(as.dist(1 - abs(matriz_corr)))$order
+niveles <- colnames(matriz_corr)[orden]
+cl <- as.data.frame(as.table(matriz_corr))
+names(cl) <- c("V1", "V2", "r")
+cl$V1 <- factor(cl$V1, levels = niveles); cl$V2 <- factor(cl$V2, levels = niveles)
 
-# Graficar el Heatmap
-p_corr <- ggplot(melted_corr, aes(Var1, Var2, fill = value)) +
-  geom_tile(color = "white") +
-  scale_fill_gradient2(
-    low = "#2980b9", high = "#c0392b", mid = "white", 
-    midpoint = 0, limit = c(-1,1), name = "Pearson (r)"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 8),
-    axis.text.y = element_text(size = 8),
-    axis.title = element_blank(),
-    panel.grid.major = element_blank()
-  ) +
-  labs(title = "Matriz de Correlación (Todas las Variables Numéricas)")
-
-# Mostrar y guardar gráfico
+p_corr <- ggplot(cl, aes(V1, V2, fill = r)) +
+  geom_tile(color = "white", linewidth = 0.2) +
+  scale_fill_gradient2(low = paleta$azul, mid = "#f0efec", high = "#e34948",
+                       midpoint = 0, limits = c(-1, 1), name = "r de Pearson") +
+  tema + theme(axis.text.x = element_text(angle = 50, hjust = 1, size = 7),
+               axis.text.y = element_text(size = 7), axis.title = element_blank(),
+               panel.grid = element_blank()) +
+  labs(title = "Correlaciones entre los 30 indicadores", subtitle = "Ordenados por similitud; AÑO no participa")
 print(p_corr)
-ggsave(file.path(figures_dir, "Heatmap_Correlacion.png"), plot = p_corr,
-  width = 10, height = 10)
+ggsave(file.path(figures_dir, "Heatmap_Correlacion.png"), p_corr, width = 11, height = 10, dpi = 140)
+
+tri <- which(upper.tri(matriz_corr), arr.ind = TRUE)
+pares_corr <- data.frame(Var1 = rownames(matriz_corr)[tri[, 1]], Var2 = colnames(matriz_corr)[tri[, 2]],
+                         r = matriz_corr[tri])
+pares_red <- pares_corr[abs(pares_corr$r) >= 0.9, ]
+pares_red <- pares_red[order(-abs(pares_red$r)), ]
+write.csv(pares_red, file.path(tables_dir, "Pares_redundantes.csv"), row.names = FALSE)
+kable(pares_red, digits = 3, row.names = FALSE, caption = "Pares con |r| >= 0,90 (redundancia estadística).")
 ```
 
----
+De las `r nrow(pares_corr)` parejas, `r sum(abs(pares_corr$r) >= 0.9)` tienen |r| ≥ 0,90 y `r sum(abs(pares_corr$r) >= 0.7)` tienen |r| ≥ 0,70.
+Los bloques visibles agrupan indicadores que miden lo mismo por nivel educativo (cobertura neta/bruta,
+deserción por nivel, aprobación y reprobación). La correlación alta indica **redundancia**, no causalidad.
+Antes de modelar se deben elegir pocos representantes por bloque (como hace el taller de PCA). No se
+presentan valores p: con 13.802 filas y 435 pares casi todo sería «significativo» y las filas no son independientes.
 
-## 7. Interpretación de las gráficas
+## 8. Conclusiones corregidas
 
-### 7.1 Variables categóricas
-
-Los códigos DANE se trataron como identificadores categóricos y no como
-medidas. Por ello, no se interpretan sus valores numéricos ni se incluyen
-en los histogramas, boxplots o correlaciones. La frecuencia de municipios
-y departamentos permite describir la cobertura territorial del registro,
-pero no debe confundirse con el tamaño de la población ni con el desempeño
-educativo.
-
-### 7.2 Histogramas de población y cobertura
-
-El histograma de `POBLACIÓN_5_16` muestra una distribución asimétrica a la
-derecha: la mayoría de los municipios concentra poblaciones relativamente
-pequeñas, mientras que unos pocos municipios presentan valores mucho más
-altos. Esta diferencia explica por qué la media puede superar claramente a
-la mediana y justifica complementar el histograma con el boxplot. Los
-municipios grandes no se consideran errores automáticamente; representan la
-heterogeneidad demográfica del país.
-
-Los histogramas de `TASA_MATRICULACIÓN_5_16` y de las coberturas netas
-tienden a concentrarse en valores altos, aunque la cobertura neta disminuye
-progresivamente entre primaria, secundaria y media. Las observaciones por
-encima de 1 representan coberturas superiores al 100 %, posibles cuando la
-matrícula registrada no coincide exactamente con la población de referencia.
-En consecuencia, estos valores deben revisarse, pero no eliminarse sin una
-justificación territorial o administrativa.
-
-En las coberturas brutas la dispersión es mayor y los valores superiores al
-100 % son más esperables, porque el indicador incluye estudiantes con
-extraedad. La diferencia entre cobertura bruta y neta permite identificar
-municipios donde la matrícula incluye estudiantes fuera de la edad teórica
-del nivel educativo.
-
-### 7.3 Histogramas de eficiencia educativa
-
-Las tasas de `DESERCIÓN`, `REPROBACIÓN` y `REPITENCIA` se concentran cerca
-de cero y presentan colas hacia la derecha. Esto significa que la situación
-habitual es de tasas bajas, pero existe un grupo de municipios con valores
-considerablemente mayores que requieren atención. La deserción secundaria
-tiende a ser más dispersa que la de transición y primaria, lo que es
-compatible con un mayor riesgo de abandono durante la adolescencia.
-
-Las variables de `APROBACIÓN` se concentran en valores altos, cercanos a
-uno. La cola hacia valores inferiores identifica municipios con resultados
-menos favorables. Esta lectura debe hacerse junto con reprobación y
-deserción: una aprobación alta no implica que todos los municipios tengan
-el mismo comportamiento ni que exista causalidad entre los indicadores.
-
-### 7.4 Boxplots normalizados
-
-La normalización Min-Max permite comparar la posición relativa de variables
-que originalmente están en escalas muy diferentes, especialmente población
-y tasas. Los boxplots muestran la mediana, el rango intercuartílico y los
-valores atípicos de cada indicador. Las variables de población presentan la
-mayor separación entre la zona central y los extremos, mientras que las
-tasas de eficiencia suelen agruparse cerca de sus límites naturales.
-
-Los puntos fuera de los bigotes son observaciones atípicas según la regla
-del rango intercuartílico; no son necesariamente errores. Los valores
-extremos de población pueden corresponder a municipios grandes y los
-valores altos de cobertura bruta pueden reflejar extraedad o flujos de
-matrícula. Por esta razón se conservan para el análisis exploratorio y se
-señalan para una revisión posterior.
-
-### 7.5 Gráficas de dispersión y asociaciones
-
-```{r correlaciones_clave, include=FALSE}
-pares_correlacion <- data.frame(
-  Relacion = c(
-    "Cobertura neta - cobertura bruta",
-    "Aprobación - reprobación",
-    "Deserción - repitencia",
-    "Cobertura neta - deserción",
-    "Aprobación - repitencia",
-    "Población - cobertura neta"
-  ),
-  r = c(
-    cor_segura(datos$COBERTURA_NETA, datos$COBERTURA_BRUTA),
-    cor_segura(datos$APROBACIÓN, datos$REPROBACIÓN),
-    cor_segura(datos$DESERCIÓN, datos$REPITENCIA),
-    cor_segura(datos$COBERTURA_NETA, datos$DESERCIÓN),
-    cor_segura(datos$APROBACIÓN, datos$REPITENCIA),
-    cor_segura(datos$POBLACIÓN_5_16, datos$COBERTURA_NETA)
-  )
-)
-```
-
-La relación entre cobertura neta y cobertura bruta presenta una asociación
-lineal positiva (`r round(pares_correlacion$r[1], 3)`). Los municipios con
-mayor cobertura neta suelen mostrar también mayor cobertura bruta, aunque la
-cobertura bruta puede aumentar por la presencia de estudiantes fuera de la
-edad teórica.
-
-La relación entre aprobación y reprobación es negativa
-(`r round(pares_correlacion$r[2], 3)`): cuando aumenta la proporción de
-estudiantes aprobados, tiende a disminuir la proporción reprobada. La
-relación entre deserción y repitencia es
-`r ifelse(pares_correlacion$r[3] >= 0, "positiva", "negativa")`
-(`r round(pares_correlacion$r[3], 3)`), pero su magnitud indica cuánto se
-mueven conjuntamente ambos fenómenos, no que uno cause al otro.
-
-La asociación entre cobertura neta y deserción es
-`r ifelse(abs(pares_correlacion$r[4]) < 0.2, "muy débil", "distinta de cero")`
-(`r round(pares_correlacion$r[4], 3)`). Esto sugiere que la cobertura
-agregada, por sí sola, no explica las diferencias municipales en deserción.
-La relación entre aprobación y repitencia es
-`r ifelse(pares_correlacion$r[5] < 0, "negativa", "positiva")`
-(`r round(pares_correlacion$r[5], 3)`), mientras que la relación entre
-población y cobertura neta es `r ifelse(abs(pares_correlacion$r[6]) < 0.2,
-"muy débil", "moderada o fuerte")`
-(`r round(pares_correlacion$r[6], 3)`). En ambos casos, el tamaño de la
-asociación es más informativo que su significancia aislada.
-
-### 7.6 Heatmap de correlaciones
-
-En el mapa de calor, los tonos rojos representan asociaciones positivas y
-los azules asociaciones negativas; los tonos próximos al blanco indican
-relaciones lineales débiles. Se observan bloques de alta asociación entre
-indicadores de cobertura, porque describen dimensiones relacionadas de la
-matrícula. También aparecen relaciones entre aprobación, reprobación,
-deserción y repitencia, aunque su intensidad cambia según el nivel educativo.
-
-Una correlación alta indica redundancia estadística potencial, no causalidad.
-Si dos coberturas se calculan a partir de componentes similares, su
-correlación puede ser elevada sin que una variable produzca a la otra.
-Antes de aplicar modelos multivariados conviene revisar las variables con
-correlaciones casi perfectas y las columnas constantes excluidas del heatmap.
-
-### 7.7 Lectura conjunta
-
-Consideradas en conjunto, las gráficas describen un sistema heterogéneo:
-la población está concentrada en municipios pequeños, las coberturas son
-generalmente altas pero caen en educación media, y los indicadores de
-deserción, reprobación y repitencia son bajos en la mayoría de municipios
-con algunos casos extremos. La interpretación adecuada combina forma de la
-distribución, valores atípicos y asociaciones bivariadas; ningún gráfico
-aislado permite establecer causas.
-
-## 8. Conclusiones del Análisis
-
-Con base en los gráficos y el modelo estadístico construido, se destaca lo siguiente:
-
-1. **Variables Geográficas vs. Métricas:** Se aplicó la separación dictada por el diccionario de datos: los Códigos DANE municipales y departamentales fueron tratados como dimensiones categóricas, dejando un espacio analítico puramente enfocado en tasas, porcentajes y coberturas.
-2. **Distribuciones (Histogramas):** Se observa que las variables de *Aprobación* tienen un marcado sesgo hacia la derecha (alta concentración cerca al 100%), mientras que las métricas de *Deserción* y *Reprobación* tienen distribuciones sesgadas fuertemente hacia la izquierda, denotando valores bajos mayoritarios con una larga cola de casos críticos.
-3. **Identificación de Atípicos (Boxplots):** En el plano normalizado, la *Deserción* y la *Repitencia* presentan una gran cantidad de municipios por fuera de los "bigotes" superiores, indicando enclaves territoriales con crisis educativas severas.
-4. **Relaciones Lineales Bivariadas:** 
-   - Se confirma una correlación negativa perfecta entre Aprobación y Reprobación, como es naturalmente esperado.
-   - La Deserción Secundaria tracciona sustancialmente el indicador de Deserción General, indicando que el abandono escolar es prevalente en la educación media/secundaria más que en preescolar o primaria.
-5. **Matriz de Correlación Multivariada:** Se detectan bloques altamente interconectados. Las variables de Aprobación por niveles (Transición, Primaria, Secundaria) correlacionan positivamente entre sí, y negativamente contra cualquier tipo de Reprobación y Deserción, con un patrón cromático en la matriz que divide visualmente las métricas positivas frente a los déficits del sistema educativo.
+1. **Unidad de análisis.** Son registros municipio-año de `r fint(panel$municipios)` municipios; el panel es desbalanceado y sub-representa 2011-2015. Los resultados describen el conjunto completo y no se pueden leer como una foto de un solo año.
+2. **Categóricas.** Las 3 categóricas se analizaron aparte: el municipio explica una mediana de `r fnum(median(eta$MUNICIPIO), 0)` % de la varianza de un indicador, el departamento `r fnum(median(eta$DEPARTAMENTO), 0)` % y el año `r fnum(median(eta$AÑO), 0)` %; son persistencia del mismo territorio, no un patrón nuevo.
+3. **Tiempo.** `AÑO` es una categoría. Su inclusión como número mezclaba tendencia con relación entre indicadores; la repitencia, en particular, cambia de nivel desde 2020.
+4. **Distribuciones.** Población, deserción, reprobación y repitencia tienen cola derecha; la aprobación tiene cola izquierda. (La versión anterior describía estos sesgos al revés.)
+5. **Atípicos.** Se cuantifican con la regla IQR y se conservan. No se interpretan como crisis sin validación externa; las tasas de municipios pequeños pueden ser inestables.
+6. **Asociaciones.** Las correlaciones más altas son redundancias entre niveles del mismo indicador. Aprobación y reprobación están fuertemente asociadas (r = `r fnum(sens$r_Pearson[5], 2)`), no perfectamente; cobertura neta y deserción no muestran asociación lineal.
+7. **Inferencia.** Se reportan magnitudes con intervalos por municipio y su robustez (2016-2024, dentro de año, dentro de municipio, Spearman); no se usan valores p sin ajuste.
+8. **Pendiente de validación.** Definición y denominadores de las tasas > 100 %, causa del salto de 2020, qué municipios faltan en 2011-2015 y sensibilidad con ponderación por población.

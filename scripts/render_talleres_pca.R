@@ -21,7 +21,8 @@ rmds <- c(
   file.path("reports", "taller-pca", "componentes-principales-i", "componentes-principales-i.Rmd"),
   file.path("reports", "taller-pca", "componentes-principales-ii", "componentes-principales-ii.Rmd"),
   file.path("reports", "taller-pca", "analisis-factorial-i", "analisis-factorial-i.Rmd"),
-  file.path("reports", "taller-pca", "analisis-factorial-ii", "analisis-factorial-ii.Rmd")
+  file.path("reports", "taller-pca", "analisis-factorial-ii", "analisis-factorial-ii.Rmd"),
+  file.path("reports", "taller-factorial", "taller-factorial.Rmd")
 )
 
 for (rmd_rel in rmds) {

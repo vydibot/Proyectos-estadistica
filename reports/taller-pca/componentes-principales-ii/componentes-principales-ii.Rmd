@@ -575,7 +575,46 @@ knitr::kable(
 
 ---
 
-# 6. Conclusión para el cliente
+# 6. ¿Cambia el mapa con las 33 columnas y el one-hot geográfico?
+
+El mapa de este taller usa 6 variables. Aquí se repite el corte de decisión (PC1 ≤ 0) con los **30 indicadores** y con las tres formas de incluir la geografía en one-hot —**solo departamentos, solo municipios y ambos**—, siempre con `AÑO` en one-hot y solo con `educacion_limpio.csv`. El detalle del cálculo y de las variantes está en el Taller I (punto 7) y en `scripts/analisis_33_variables.R`. Se mide con la misma etiqueta de interés (`DESERCIÓN` > 6,5 % o `COBERTURA_NETA` ≤ 60 %) y se orienta PC1 para que los valores bajos sean los de peores condiciones.
+
+```{r ampliacion-33-mapa}
+source(file.path(project_root, "scripts", "helpers_33.R"))
+r33 <- cargar_33(project_root)
+P33 <- r33$pca
+etq_peso <- function(p) ifelse(p == "z", "estandarizado", ifelse(p == "natural", "centrado", "—"))
+tab_mapa <- function(base) {
+  t <- P33[P33$base == base, ]
+  data.frame(
+    `Codificación` = t$codificacion, `Peso one-hot` = etq_peso(t$peso), `Columnas` = fint(t$columnas),
+    `Registros marcados con PC1 ≤ 0 (%)` = fnum(t$marcados_pc1, 1),
+    `Grupo de interés encontrado (%)` = fnum(t$capturados_pc1, 1),
+    `AUC de PC1` = fnum(t$auc_pc1, 2), `AUC de PC1+PC2` = fnum(t$auc_pc12, 2),
+    check.names = FALSE
+  )
+}
+knitr::kable(tab_mapa("30 indicadores"), format = "pipe", align = "llrrrrr",
+             caption = "Corte PC1 ≤ 0 con los 30 indicadores y cada codificación de la geografía.")
+knitr::kable(tab_mapa("6 variables"), format = "pipe", align = "llrrrrr",
+             caption = "El mismo corte con las 6 variables del taller.")
+g2 <- function(base, cod, peso = "—") fila_pca(P33, base, cod, peso)
+m6 <- g2("6 variables", "Solo numéricas"); m30 <- g2("30 indicadores", "Solo numéricas")
+d6 <- g2("6 variables", "+ AÑO + departamentos", "z"); u6 <- g2("6 variables", "+ AÑO + municipios", "z"); x6 <- g2("6 variables", "+ AÑO + ambos", "z")
+d30 <- g2("30 indicadores", "+ AÑO + departamentos", "z"); u30 <- g2("30 indicadores", "+ AÑO + municipios", "z"); x30 <- g2("30 indicadores", "+ AÑO + ambos", "z")
+```
+
+```{r figura-33-mapa, results='asis', echo=FALSE}
+mostrar_img("pca33_captura.png", "Registros marcados y grupo de interés capturado con PC1 ≤ 0 en cada variante")
+```
+
+> ⭐ **Qué ve:** Con las 6 variables, PC1 ≤ 0 marca el `r fnum(m6$marcados_pc1)` % de los registros y encuentra el `r fnum(m6$capturados_pc1)` % del grupo de interés. Con los 30 indicadores marca el `r fnum(m30$marcados_pc1)` % y encuentra el `r fnum(m30$capturados_pc1)` %. Con geografía y los 30 indicadores, el corte casi no se mueve (encuentra `r fnum(d30$capturados_pc1)` % con departamentos, `r fnum(u30$capturados_pc1)` % con municipios y `r fnum(x30$capturados_pc1)` % con ambos). Con 6 variables el resultado sí cambia: baja a `r fnum(d6$capturados_pc1)` % con departamentos y a `r fnum(x6$capturados_pc1)` % con ambos, y con solo el año a `r fnum(g2("6 variables", "+ AÑO", "z")$capturados_pc1)` %.
+>
+> ⭐ **Qué significa para el cliente:** Más columnas no mejoran la priorización. Los 30 indicadores incluyen muchas versiones por nivel del mismo fenómeno, así que PC1 mezcla más cosas y encuentra menos del grupo de interés que con las 6 variables elegidas. La geografía en one-hot no agrega capacidad para encontrarlo: el AUC de PC1+PC2 queda entre `r fnum(min(P33$auc_pc12), 2)` y `r fnum(max(P33$auc_pc12), 2)` en todas las variantes. Con pocas variables, además, las columnas de geografía (estandarizadas) pueden desordenar PC1 y PC2.
+>
+> ⭐ **Qué decide él:** Mantener el mapa de 6 variables sin one-hot geográfico para decidir. Si quiere ver lo territorial, ubicar los departamentos como grupos sobre el mismo mapa. Cuidado: la etiqueta de interés se define con dos variables que están dentro del PCA, así que estas cifras comparan variantes entre sí; no validan el corte de forma independiente.
+
+# 7. Conclusión para el cliente
 
 1. **Capacidad explicativa:** El mapa factorial de dos dimensiones concentra el **`r fnum(var_total_mapa)` %** de la información total (PC1 el `r fnum(var_pc1)` % y PC2 el `r fnum(var_pc2)` %); el resto queda fuera del plano.
 2. **Brújula de gestión:** En el biplot, aprobación y deserción van en contra, las coberturas van juntas, y la población y la repitencia no se leen bien en este plano.

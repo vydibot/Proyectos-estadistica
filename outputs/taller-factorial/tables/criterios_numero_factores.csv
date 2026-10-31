@@ -1,0 +1,6 @@
+"Criterio","Factores_sugeridos"
+"Kaiser (autovalor de R > 1)",6
+"Análisis paralelo (MinRes, 50 simulaciones)",7
+"MAP de Velicer (mínimo)",5
+"BIC (mínimo entre 1 y 10 factores)",10
+"Hipótesis de política: acceso y permanencia",2

@@ -26,11 +26,11 @@ reports <- c(
   file.path(project_root, "reports", "entrega-corte-1", "Analisis_Indicadores_Educativos.Rmd"),
   file.path(project_root, "reports", "taller-01", "taller-01.Rmd"),
   file.path(project_root, "reports", "taller-02", "checklist-taller-02.Rmd"),
-  file.path(project_root, "reports", "taller-02", "taller-02-html.Rmd")
+  file.path(project_root, "reports", "taller-factorial", "taller-factorial.Rmd")
 )
 
-# Los talleres 1 y 2 leen data/raw/educacion_limpio_talleres.csv, la versión del dataset con
-# la que se hicieron. Si algún informe falla, se informa y se sigue con los demás.
+# Los talleres 1, 2 y factorial analizan las 33 variables de data/raw/educacion_limpio.csv. Las versiones
+# historicas (dataset reducido de los talleres) estan en reports/*/archive. Si algun informe falla, se informa y se sigue.
 tejer <- function(report) {
   if (rmarkdown::pandoc_available()) {
     rmarkdown::render(

@@ -1,5 +1,5 @@
 ---
-title: "Taller 2.1 - Diagnóstico multivariado del dataset"
+title: "Taller 2.1 (corregido) - Diagnóstico multivariado de las 33 variables"
 author: "Luisa Fernanda Velasco López 20212020106
 Jairo Arturo Barrera Mosquera 20222020142
 David lugo Piñeros 20222020180
@@ -12,217 +12,359 @@ output:
     code_folding: show
 ---
 
-Este documento revisa el dataset para covarianzas, correlaciones y distancias de Mahalanobis.
-Todos los resultados se guardan en `outputs/taller-02/tables` y `outputs/taller-02/figures`.
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
                       fig.width = 10, fig.height = 7, fig.align = "center")
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
-    expected_data <- file.path(path, "data", "raw", "educacion_limpio_talleres.csv")
-    if (file.exists(expected_data) && dir.exists(file.path(path, "reports"))) {
-      return(path)
-    }
+    if (file.exists(file.path(path, "data", "raw", "educacion_limpio.csv")) &&
+        dir.exists(file.path(path, "reports"))) return(path)
     parent <- dirname(path)
     if (parent == path) stop("No se encontró la raíz del proyecto.")
     path <- parent
   }
 }
-
 project_root <- find_project_root()
 knitr::opts_knit$set(root.dir = project_root)
+source(file.path(project_root, "scripts", "helpers_datos.R"))
 tables_dir <- file.path(project_root, "outputs", "taller-02", "tables")
 figures_dir <- file.path(project_root, "outputs", "taller-02", "figures")
 dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
 
-paquetes <- c("ggplot2", "dplyr", "tidyr", "reshape2", "knitr")
+paquetes <- c("ggplot2", "dplyr", "tidyr", "knitr")
 faltantes <- paquetes[!vapply(paquetes, requireNamespace, logical(1), quietly = TRUE)]
 if (length(faltantes) > 0) {
   stop("Faltan paquetes R. Ejecute scripts/install_dependencies.R: ",
        paste(faltantes, collapse = ", "))
 }
-library(ggplot2)
-library(dplyr)
-library(tidyr)
-library(reshape2)
-library(knitr)
-```
+library(ggplot2); library(dplyr); library(tidyr); library(knitr)
+tema <- theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = paleta$rejilla),
+        plot.title = element_text(face = "bold"))
 
-## 1. Carga y limpieza
-
-Los códigos geográficos se excluyen porque identifican lugares, pero no son magnitudes. Además,
-`APROBACIÓN_TRANSICIÓN` y `REPROBACIÓN_TRANSICIÓN` son constantes en este archivo: se reportan y
-se excluyen de los gráficos y cálculos que requieren variación.
-
-```{r carga_limpieza}
-datos <- read.csv(file.path(project_root, "data", "raw", "educacion_limpio_talleres.csv"),
-                  check.names = FALSE,
-                  stringsAsFactors = FALSE)
-
-columnas_requeridas <- c(
-  "CÓDIGO_MUNICIPIO", "CÓDIGO_DEPARTAMENTO", "POBLACIÓN_5_16",
-  "COBERTURA_NETA", "COBERTURA_BRUTA", "DESERCIÓN", "APROBACIÓN",
-  "REPROBACIÓN", "REPITENCIA"
-)
-columnas_faltantes <- setdiff(columnas_requeridas, names(datos))
-if (length(columnas_faltantes) > 0) {
-  stop("Faltan columnas requeridas: ", paste(columnas_faltantes, collapse = ", "))
+# Archivos de la versión anterior que ya no produce este informe
+for (obsoleto in c(file.path(tables_dir, c("Datos_normalizados.csv", "Comparacion_entre_dentro_municipio.csv", "Mahalanobis_por_departamento.csv")),
+                   file.path(figures_dir, c("Boxplots_normalizados.png", "mahalanobis_por_departamento.png")))) {
+  if (file.exists(obsoleto)) file.remove(obsoleto)
 }
-
-excluir <- c("CÓDIGO_MUNICIPIO", "CÓDIGO_DEPARTAMENTO")
-X <- datos[, vapply(datos, is.numeric, logical(1)), drop = FALSE]
-X <- X[, !names(X) %in% excluir, drop = FALSE]
-
-# Convierte Inf y NaN a NA antes de cualquier cálculo o gráfico.
-X[] <- lapply(X, function(x) {
-  x[!is.finite(x)] <- NA_real_
-  x
-})
-
-es_constante <- vapply(X, function(x) {
-  valores <- x[is.finite(x)]
-  length(valores) == 0 || length(unique(valores)) <= 1
-}, logical(1))
-
-columnas_constantes <- names(X)[es_constante]
-write.csv(data.frame(Variable = columnas_constantes,
-                     Motivo = "Constante o sin variación"),
-          file.path(tables_dir, "Columnas_excluidas.csv"), row.names = FALSE)
-
-# Evita rangos cero, correlaciones indefinidas y matrices singulares.
-X <- X[, !es_constante, drop = FALSE]
-write.csv(data.frame(Variable = names(X)),
-          file.path(tables_dir, "Variables_usadas.csv"), row.names = FALSE)
-
-cat("Columnas constantes excluidas:\n")
-print(columnas_constantes)
 ```
 
-## 2. Tamaño y faltantes
+Este documento revisa las **33 variables** de `data/raw/educacion_limpio.csv` (30 indicadores numéricos, `AÑO`, `DEPARTAMENTO` y `MUNICIPIO`)
+para covarianzas, correlaciones y distancias de Mahalanobis. Los 30 indicadores entran a las matrices de covarianza y correlación y a Mahalanobis; las 3 categóricas
+se incorporan mediante su asociación con los indicadores (Taller 1) y como columnas one-hot (sección 2.1). Usa **solo `data/raw/educacion_limpio.csv`**. Todos los resultados se regeneran en
+`outputs/taller-02/tables` y `outputs/taller-02/figures`.
+
+## 0. Qué se corrigió respecto a la versión anterior
+
+| Problema | Corrección |
+|---|---|
+| `AÑO` entraba como columna numérica en correlaciones, covarianzas y Mahalanobis (el filtro solo excluía códigos geográficos que no existen en el archivo limpio). Una versión intermedia leía el dataset de los talleres (5.063 registros, sin año ni nombres), que no contiene las 33 variables. | `AÑO` es categoría ordenada; los 30 indicadores se seleccionan con `columnas_indicadores()`, que falla si `AÑO` aparece. Se muestra además cuánto cambiaban los resultados con el error. |
+| Las tablas guardadas (5.063 filas, 30 variables, dos columnas «constantes» que ya no existen) no correspondían a estos datos. | Todas las tablas se regeneran y se comprueba su tamaño con `stopifnot()` contra el archivo actual. |
+| Mahalanobis con umbral χ² sin discutir su supuesto ni el mal condicionamiento de la matriz (aprobación + reprobación + deserción ≈ 1). | Se reporta el condicionamiento, la fracción de registros marcados frente al 1 % esperado bajo normalidad, y una versión sin los indicadores redundantes. |
+| Los atípicos se presentaban sin contexto. | Se cuantifica su distribución por año y se aclara que «atípico» es una distancia estadística, no un diagnóstico. |
+| Boxplots Min-Max (no aportan información). | Se eliminaron de este taller; los boxplots por indicador en escala original están en el Taller 1. |
+
+## 1. Carga, tipos y selección de indicadores
+
+```{r carga}
+datos <- cargar_educacion(project_root)
+indicadores <- columnas_indicadores(datos)
+X <- datos[, indicadores]
+panel <- resumen_panel(datos)
+
+es_constante <- vapply(X, function(v) length(unique(v)) <= 1, logical(1))
+columnas_constantes <- indicadores[es_constante]
+duplicados <- sum(duplicated(datos[, c("AÑO", "ID_MUNICIPIO")]))
+
+# Comprobaciones: si el archivo cambia, el informe falla en vez de mostrar cifras viejas.
+stopifnot(!"AÑO" %in% names(X), ncol(X) == 30, nrow(X) == nrow(datos),
+          !anyNA(X), duplicados == 0)
+
+write.csv(data.frame(Variable = columnas_constantes,
+                     Motivo = rep("Constante o sin variación", length(columnas_constantes))),
+          file.path(tables_dir, "Columnas_excluidas.csv"), row.names = FALSE)
+X <- X[, !es_constante, drop = FALSE]
+write.csv(data.frame(Variable = names(X)), file.path(tables_dir, "Variables_usadas.csv"), row.names = FALSE)
+```
+
+`AÑO`, `MUNICIPIO` y `DEPARTAMENTO` son identificadores/categorías y no participan. Se usan **`r ncol(X)` indicadores**
+sobre **`r fint(nrow(X))` registros municipio-año** de **`r fint(panel$municipios)` municipios**.
+Columnas constantes excluidas: `r if (length(columnas_constantes)) paste(columnas_constantes, collapse = ", ") else "ninguna"`.
+Filas duplicadas por municipio-año: `r duplicados`.
+
+## 2. Tamaño, faltantes y condicionamiento
 
 ```{r diagnostico}
-n <- nrow(X)
-p <- ncol(X)
-filas_completas <- sum(complete.cases(X))
+R <- cor(X)
+autovalores <- eigen(R, symmetric = TRUE, only.values = TRUE)$values
+suma_tres <- datos$APROBACIÓN + datos$REPROBACIÓN + datos$DESERCIÓN
+# Registros con TODOS los indicadores de tasa en cero (solo la población es positiva)
+tasas <- setdiff(names(X), "POBLACIÓN_5_16")
+todo_cero <- rowSums(X[, tasas] == 0) == length(tasas)
+
 diagnostico <- data.frame(
-  filas = n,
-  variables = p,
-  razon_n_p = n / p,
+  filas = nrow(X), variables = ncol(X), municipios = panel$municipios,
+  razon_n_p = nrow(X) / ncol(X),
   porcentaje_faltantes = mean(is.na(as.matrix(X))) * 100,
-  filas_completas = filas_completas
+  filas_completas = sum(complete.cases(X)),
+  registros_todo_cero = sum(todo_cero),
+  menor_autovalor_correlacion = min(autovalores),
+  numero_condicion = max(autovalores) / min(autovalores),
+  rango_matriz = qr(R)$rank
 )
 write.csv(diagnostico, file.path(tables_dir, "Diagnostico_dataset.csv"), row.names = FALSE)
-kable(diagnostico, digits = 3)
+kable(t(diagnostico), digits = 6, col.names = "valor", caption = "Diagnóstico del dataset")
 ```
+
+La razón n/p es `r fnum(diagnostico$razon_n_p, 0)`: hay datos de sobra para estimar una matriz de covarianzas de `r ncol(X)` variables.
+El problema es otro: el **número de condición de la matriz de correlaciones es `r format(diagnostico$numero_condicion, scientific = TRUE, digits = 3)`**
+(menor autovalor `r format(diagnostico$menor_autovalor_correlacion, scientific = TRUE, digits = 2)`). La matriz es invertible
+(rango `r diagnostico$rango_matriz` de `r ncol(X)`), pero está cerca de ser singular porque aprobación + reprobación + deserción
+suma entre `r fnum(min(suma_tres), 3)` y `r fnum(max(suma_tres), 3)` (mediana `r fnum(median(suma_tres), 3)`; `r sum(suma_tres < 0.99)` registros suman menos de 0,99). Cualquier método que invierta
+la matriz (Mahalanobis, regresión) amplifica el ruido en esas direcciones.
+
+Además, **`r sum(todo_cero)` registros tienen todos los indicadores de tasa en cero** con población positiva
+(`r paste(unique(paste0(datos$MUNICIPIO[todo_cero], " (", datos$DEPARTAMENTO[todo_cero], ")")), collapse = "; ")`, años
+`r paste(sort(as.character(datos$AÑO[todo_cero])), collapse = ", ")`). Una cobertura y una aprobación de exactamente 0 en un municipio con
+`r fint(min(datos$POBLACIÓN_5_16[todo_cero]))` a `r fint(max(datos$POBLACIÓN_5_16[todo_cero]))` niños en edad escolar es más compatible con **ausencia de información
+codificada como cero** que con un resultado educativo real. Explican por qué la suma aprobación + reprobación + deserción es 0 en esos casos.
+Se conservan en el análisis, se señalan y se recomienda confirmarlos con la fuente.
+
+### 2.1 Las 33 columnas con one-hot: ¿se pueden invertir?
+
+Las categóricas solo pueden entrar a una matriz de covarianzas como columnas one-hot (una por categoría). Se comprueba cuántas columnas resultan y cuántas son
+linealmente dependientes, para cada codificación de la geografía (con `AÑO` siempre en one-hot).
+
+```{r diseno_33}
+A <- onehot(datos$AÑO, "AÑO="); D <- onehot(datos$DEPARTAMENTO, "DEP="); Mu <- onehot(datos$ID_MUNICIPIO, "MUN=")
+Znum <- scale(as.matrix(X))
+variantes <- list(
+  "Solo numéricas" = Znum,
+  "+ AÑO" = cbind(Znum, A),
+  "+ AÑO + departamentos" = cbind(Znum, A, D),
+  "+ AÑO + municipios" = cbind(Znum, A, Mu),
+  "+ AÑO + ambos" = cbind(Znum, A, D, Mu)
+)
+diseno <- do.call(rbind, lapply(names(variantes), function(nm) {
+  M <- variantes[[nm]]; k <- ncol(M)
+  rango <- qr(cor(M), tol = 1e-9)$rank   # tolerancia estricta: solo dependencias exactas
+  data.frame(Codificacion = nm, Columnas = k, Rango = rango, Dependencias_exactas = k - rango)
+}))
+write.csv(diseno, file.path(tables_dir, "Diseno_33_columnas.csv"), row.names = FALSE)
+kable(diseno, caption = "Columnas y rango de la matriz de correlaciones con cada codificación de las categóricas.")
+```
+
+Con las 33 columnas y one-hot de municipios y departamentos hay **`r fint(diseno$Columnas[5])` columnas**, pero la matriz tiene **`r fint(diseno$Dependencias_exactas[5])` dependencias exactas**:
+cada departamento es la suma de sus municipios y cada categórica tiene un nivel redundante. Por eso **«ambos» no se puede invertir** (no hay distancia de Mahalanobis ni KMO), mientras que
+«solo departamentos» (`r fint(diseno$Columnas[3])` columnas, `r diseno$Dependencias_exactas[3]` dependencias) y «solo municipios» (`r fint(diseno$Columnas[4])`, `r diseno$Dependencias_exactas[4]`) solo tienen la redundancia trivial de cada categórica.
+Por eso la distancia de Mahalanobis de este taller usa los 30 indicadores y la geografía se analiza aparte.
 
 ## 3. Resumen estadístico
 
 ```{r resumen}
 resumen <- data.frame(
   Variable = names(X),
-  Media = vapply(X, mean, numeric(1), na.rm = TRUE),
-  Desv_Est = vapply(X, sd, numeric(1), na.rm = TRUE),
-  Minimo = vapply(X, min, numeric(1), na.rm = TRUE),
-  Mediana = vapply(X, median, numeric(1), na.rm = TRUE),
-  Maximo = vapply(X, max, numeric(1), na.rm = TRUE),
-  Faltantes = vapply(X, function(x) sum(is.na(x)), integer(1))
+  Media = vapply(X, mean, numeric(1)),
+  Desv_Est = vapply(X, sd, numeric(1)),
+  Minimo = vapply(X, min, numeric(1)),
+  Mediana = vapply(X, median, numeric(1)),
+  Maximo = vapply(X, max, numeric(1)),
+  Faltantes = vapply(X, function(x) sum(is.na(x)), numeric(1))
 )
 write.csv(resumen, file.path(tables_dir, "Resumen_estadistico.csv"), row.names = FALSE)
-kable(resumen, digits = 4)
+kable(resumen, digits = 4, row.names = FALSE)
 ```
 
-## 4. Boxplot sin rangos cero
-
-La normalización solo se aplica a variables con rango positivo. Así no se produce `0 / 0 = NaN`
-en las variables de transición ni en ninguna otra columna constante.
-
-```{r boxplot}
-normalizar <- function(x) {
-  rango <- range(x, na.rm = TRUE)
-  if (!all(is.finite(rango)) || diff(rango) == 0) return(rep(NA_real_, length(x)))
-  (x - rango[1]) / diff(rango)
-}
-
-datos_norm <- X %>% mutate(across(everything(), normalizar))
-datos_norm_largo <- datos_norm %>%
-  pivot_longer(everything(), names_to = "Variable", values_to = "Valor_normalizado") %>%
-  filter(is.finite(Valor_normalizado))
-
-p_box <- ggplot(datos_norm_largo,
-                aes(x = reorder(Variable, Valor_normalizado, FUN = median, na.rm = TRUE),
-                    y = Valor_normalizado)) +
-  geom_boxplot(fill = "#2ecc71", color = "#1e8449", outlier.color = "#c0392b") +
-  coord_flip() +
-  theme_minimal() +
-  labs(title = "Boxplots de variables normalizadas", x = NULL, y = "Escala [0, 1]")
-print(p_box)
-ggsave(file.path(figures_dir, "Boxplots_normalizados.png"), p_box,
-  width = 10, height = 10, dpi = 150)
-write.csv(datos_norm_largo, file.path(tables_dir, "Datos_normalizados.csv"), row.names = FALSE)
-```
-
-## 5. Correlación y heatmap
+## 4. Correlaciones y el efecto del error con `AÑO`
 
 ```{r correlacion}
-matriz_corr <- cor(X, use = "pairwise.complete.obs")
-matriz_corr[!is.finite(matriz_corr)] <- NA_real_
-write.csv(matriz_corr, file.path(tables_dir, "Matriz_correlacion.csv"))
+write.csv(R, file.path(tables_dir, "Matriz_correlacion.csv"))
 
-corr_largo <- melt(matriz_corr, varnames = c("Variable_1", "Variable_2"),
-                   value.name = "Correlacion", na.rm = TRUE)
-corr_largo <- corr_largo[is.finite(corr_largo$Correlacion), ]
-
-p_heatmap <- ggplot(corr_largo, aes(Variable_1, Variable_2, fill = Correlacion)) +
-  geom_tile(color = "white") +
-  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
-                       midpoint = 0, limits = c(-1, 1), na.value = "grey90") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-        axis.text.y = element_text(size = 8), axis.title = element_blank(),
-        panel.grid = element_blank()) +
-  labs(title = "Heatmap de correlaciones de Pearson", fill = "r")
+orden <- hclust(as.dist(1 - abs(R)))$order
+niveles <- colnames(R)[orden]
+cl <- as.data.frame(as.table(R)); names(cl) <- c("V1", "V2", "r")
+cl$V1 <- factor(cl$V1, levels = niveles); cl$V2 <- factor(cl$V2, levels = niveles)
+p_heatmap <- ggplot(cl, aes(V1, V2, fill = r)) +
+  geom_tile(color = "white", linewidth = 0.2) +
+  scale_fill_gradient2(low = paleta$azul, mid = "#f0efec", high = "#e34948",
+                       midpoint = 0, limits = c(-1, 1), name = "r") +
+  tema + theme(axis.text.x = element_text(angle = 50, hjust = 1, size = 7),
+               axis.text.y = element_text(size = 7), axis.title = element_blank(),
+               panel.grid = element_blank()) +
+  labs(title = "Correlaciones de Pearson entre los 30 indicadores", subtitle = "AÑO excluido")
 print(p_heatmap)
-ggsave(file.path(figures_dir, "Heatmap_correlacion.png"), p_heatmap,
-  width = 12, height = 10, dpi = 150)
+ggsave(file.path(figures_dir, "Heatmap_correlacion.png"), p_heatmap, width = 11, height = 10, dpi = 140)
 ```
 
-## 6. Covarianza y Mahalanobis
+```{r comparacion_anio}
+# Reproduce el error anterior: AÑO como columna numérica.
+anio_num <- as.numeric(as.character(datos$AÑO))
+R_con <- cor(cbind(X, AÑO = anio_num))
+r_anio <- R_con["AÑO", names(X)]
+comparacion <- data.frame(Indicador = names(X), r_con_AÑO = unname(r_anio))
+comparacion <- comparacion[order(-abs(comparacion$r_con_AÑO)), ]
+write.csv(comparacion, file.path(tables_dir, "Comparacion_con_sin_anio.csv"), row.names = FALSE)
+kable(head(comparacion, 8), digits = 3, row.names = FALSE,
+      caption = "Indicadores más asociados al año calendario: esa asociación entraba, sin avisar, en la versión anterior.")
+
+# Mide que parte de cada correlación entre indicadores es tendencia temporal compartida
+X_anio <- centrar_por_grupo(X, datos$AÑO)
+R_anio <- cor(X_anio)
+dif <- abs(R - R_anio)
+diag(dif) <- NA
+mayor_cambio <- which(dif == max(dif, na.rm = TRUE), arr.ind = TRUE)[1, ]
+```
+
+La repitencia (`r fnum(r_anio["REPITENCIA"], 2)`), la repitencia secundaria (`r fnum(r_anio["REPITENCIA_SECUNDARIA"], 2)`) y la
+primaria (`r fnum(r_anio["REPITENCIA_PRIMARIA"], 2)`) tienen una tendencia temporal clara. Al restar la media anual de cada indicador
+(control del año), la correlación entre indicadores cambia en mediana `r fnum(median(dif, na.rm = TRUE), 3)`, pero el cambio máximo es
+`r fnum(max(dif, na.rm = TRUE), 3)` (entre `r rownames(R)[mayor_cambio[1]]` y `r colnames(R)[mayor_cambio[2]]`) y
+`r sum(dif[upper.tri(dif)] > 0.1, na.rm = TRUE)` pares cambian más de 0,10. **La estructura general es estable, pero las correlaciones
+que involucran repitencia incluyen tendencia temporal compartida**; la versión anterior, además, trataba a `AÑO` como un indicador más
+(con correlaciones de hasta `r fnum(max(abs(r_anio)), 2)` con los indicadores).
+
+```{r redundancia}
+tri <- which(upper.tri(R), arr.ind = TRUE)
+pares_corr <- data.frame(Var1 = rownames(R)[tri[, 1]], Var2 = colnames(R)[tri[, 2]], r = R[tri])
+resumen_r <- data.frame(
+  umbral = c("|r| >= 0,90", "|r| >= 0,70", "|r| >= 0,50"),
+  pares = c(sum(abs(pares_corr$r) >= 0.9), sum(abs(pares_corr$r) >= 0.7), sum(abs(pares_corr$r) >= 0.5)),
+  de = nrow(pares_corr))
+kable(resumen_r, caption = "Redundancia entre indicadores.")
+```
+
+## 5. Covarianzas
+
+```{r covarianza}
+S <- cov(X)
+write.csv(S, file.path(tables_dir, "Matriz_covarianzas.csv"))
+varianzas <- data.frame(Variable = names(X), Varianza = diag(S))
+varianzas <- varianzas[order(-varianzas$Varianza), ]
+kable(head(varianzas, 4), digits = 4, row.names = FALSE,
+      caption = "Las cuatro varianzas mayores: POBLACIÓN_5_16 domina por escala.")
+
+comprimir <- function(x, p = 0.35) sign(x) * abs(x)^p
+S_sub <- S[rownames(S) != "POBLACIÓN_5_16", colnames(S) != "POBLACIÓN_5_16"]
+S_largo <- as.data.frame(as.table(S_sub)); names(S_largo) <- c("V1", "V2", "Cov")
+S_largo$V1 <- factor(S_largo$V1, levels = niveles[niveles != "POBLACIÓN_5_16"])
+S_largo$V2 <- factor(S_largo$V2, levels = niveles[niveles != "POBLACIÓN_5_16"])
+S_largo$Cov_vis <- comprimir(S_largo$Cov)
+p_cov <- ggplot(S_largo, aes(V1, V2, fill = Cov_vis)) +
+  geom_tile(color = "white", linewidth = 0.2) +
+  scale_fill_gradient2(low = paleta$azul, mid = "#f0efec", high = "#e34948", midpoint = 0,
+                       name = "Cov.\n(escala\ncomprimida)", labels = NULL) +
+  tema + theme(axis.text.x = element_text(angle = 50, hjust = 1, size = 7),
+               axis.text.y = element_text(size = 7), axis.title = element_blank(),
+               panel.grid = element_blank()) +
+  labs(title = "Covarianzas (sin POBLACIÓN_5_16; color con escala comprimida)",
+       subtitle = "El color solo indica signo y orden de magnitud")
+print(p_cov)
+ggsave(file.path(figures_dir, "covarianzas.png"), p_cov, width = 10, height = 9, dpi = 140)
+```
+
+La covarianza conserva las unidades: la varianza de `POBLACIÓN_5_16` (`r format(varianzas$Varianza[1], scientific = TRUE, digits = 3)`)
+es incomparable con la de las tasas (entre 0 y 1). Por eso la covarianza sirve para construir la distancia de Mahalanobis, pero **no para comparar
+la fuerza de asociación entre pares**; para eso se usa la correlación.
+
+## 6. Distancias de Mahalanobis
 
 ```{r mahalanobis}
-S <- cov(X, use = "pairwise.complete.obs")
-write.csv(S, file.path(tables_dir, "Matriz_covarianzas.csv"))
+Z <- scale(X)
+D2 <- mahalanobis(Z, colMeans(Z), cov(Z))   # distancia al cuadrado
+p_var <- ncol(X)
+umbral <- qchisq(0.99, df = p_var)
+atipico <- D2 > umbral
 
-filas_X_completas <- complete.cases(X)
-X_completa <- X[filas_X_completas, , drop = FALSE]
-# Se estandariza para evitar que POBLACIÓN_5_16 domine numéricamente a las tasas.
-# Mahalanobis es invariante ante este cambio de escala.
-X_mahalanobis <- as.data.frame(scale(X_completa))
-S_mahalanobis <- cov(X_mahalanobis)
-matriz_invertible <- nrow(X_mahalanobis) > ncol(X_mahalanobis) &&
-  qr(S_mahalanobis)$rank == ncol(S_mahalanobis)
+# Versión sin los indicadores casi colineales (REPROBACIÓN y niveles)
+sin_reprob <- setdiff(names(X), grep("^REPROBACIÓN", names(X), value = TRUE))
+Zr <- scale(X[, sin_reprob])
+D2r <- mahalanobis(Zr, colMeans(Zr), cov(Zr))
+umbral_r <- qchisq(0.99, df = length(sin_reprob))
 
-if (matriz_invertible) {
-  distancias <- mahalanobis(X_mahalanobis,
-                            center = colMeans(X_mahalanobis),
-                            cov = S_mahalanobis)
-  write.csv(data.frame(Fila = which(filas_X_completas), Mahalanobis = distancias),
-            file.path(tables_dir, "Distancias_Mahalanobis.csv"), row.names = FALSE)
-  cat("Distancias calculadas para", length(distancias), "filas completas.\n")
-} else {
-  write.csv(data.frame(Fila = integer(0), Mahalanobis = numeric(0)),
-            file.path(tables_dir, "Distancias_Mahalanobis.csv"), row.names = FALSE)
-  cat("No se pudo invertir la matriz de covarianzas.\n")
-}
+# Versión con el error anterior (AÑO como numérica)
+Za <- scale(cbind(X, AÑO = anio_num))
+D2a <- mahalanobis(Za, colMeans(Za), cov(Za))
+umbral_a <- qchisq(0.99, df = ncol(Za))
+
+top_k <- 100
+sol <- function(a, b) length(intersect(order(-a)[1:top_k], order(-b)[1:top_k]))
+sens <- data.frame(
+  Version = c("Base: 30 indicadores", paste0("Sin REPROBACIÓN (", length(sin_reprob), " indicadores)"),
+              "Con AÑO numérico (error anterior)"),
+  Variables = c(p_var, length(sin_reprob), ncol(Za)),
+  Umbral_chi2_99 = c(umbral, umbral_r, umbral_a),
+  Marcados = c(sum(atipico), sum(D2r > umbral_r), sum(D2a > umbral_a)),
+  Pct_marcados = 100 * c(mean(atipico), mean(D2r > umbral_r), mean(D2a > umbral_a)),
+  Coinciden_top100_con_base = c(top_k, sol(D2, D2r), sol(D2, D2a))
+)
+write.csv(sens, file.path(tables_dir, "Mahalanobis_sensibilidad.csv"), row.names = FALSE)
+kable(sens, digits = 2, caption = "Mahalanobis: versión base y verificaciones de sensibilidad.")
+
+dist_df <- data.frame(Fila = seq_len(nrow(X)), AÑO = as.character(datos$AÑO),
+                      MUNICIPIO = datos$MUNICIPIO, DEPARTAMENTO = datos$DEPARTAMENTO,
+                      Mahalanobis_D2 = D2, Atipico = atipico)
+write.csv(dist_df, file.path(tables_dir, "Distancias_Mahalanobis.csv"), row.names = FALSE)
 ```
 
-## 7. Resultado del checklist
+Bajo normalidad multivariada, D² sigue una χ² con `r p_var` grados de libertad y solo un **1 %** de los registros superaría el
+percentil 99 (`r fnum(umbral, 1)`). Aquí lo supera el **`r fnum(100 * mean(atipico), 1)` %** (`r fint(sum(atipico))` registros): los indicadores son
+acotados, asimétricos y con muchos ceros, así que el supuesto no se cumple y **el umbral χ² marca de más**. Úselo como ranking de rareza relativa, no como prueba
+de anomalía.
 
-```{r resultado}
-cat("Filas:", n, " | Variables usadas:", p, " | n/p:", round(n / p, 2), "\n")
-cat("Filas completas:", filas_completas, "\n")
-cat("Columnas constantes excluidas:", paste(columnas_constantes, collapse = ", "), "\n")
-cat("Los CSV quedaron en outputs/taller-02/tables y las imágenes en outputs/taller-02/figures.\n")
+```{r mahalanobis_graficos}
+umbral_graf <- umbral
+p_indice <- ggplot(dist_df, aes(Fila, Mahalanobis_D2, color = Atipico)) +
+  geom_point(alpha = 0.5, size = 0.8) +
+  geom_hline(yintercept = umbral_graf, linetype = "dashed", color = paleta$naranja) +
+  scale_color_manual(values = c("FALSE" = paleta$azul, "TRUE" = paleta$naranja),
+                     labels = c("Bajo el umbral", "Sobre el umbral")) +
+  scale_y_log10() +
+  tema + labs(title = "Distancia de Mahalanobis (D²) por registro", subtitle = "Eje en escala logarítmica",
+              y = "D²", x = "Índice de fila", color = NULL)
+print(p_indice)
+ggsave(file.path(figures_dir, "mahalanobis_indice.png"), p_indice, width = 11, height = 5.5, dpi = 150)
+
+p_qq <- ggplot(dist_df, aes(sample = Mahalanobis_D2)) +
+  stat_qq(distribution = qchisq, dparams = list(df = p_var), color = paleta$azul, alpha = 0.4, size = 0.8) +
+  stat_qq_line(distribution = qchisq, dparams = list(df = p_var), color = paleta$naranja, linetype = "dashed") +
+  tema + labs(title = "QQ-plot: D² frente a la χ² teórica", subtitle = "Una cola que se despega indica que no hay normalidad multivariada",
+              x = "Cuantiles teóricos", y = "D² observada")
+print(p_qq)
+ggsave(file.path(figures_dir, "mahalanobis_qqplot.png"), p_qq, width = 7, height = 7, dpi = 150)
 ```
+
+```{r mahalanobis_anio}
+por_anio <- dist_df %>% group_by(AÑO) %>%
+  summarise(Registros = n(), Marcados = sum(Atipico), Pct_marcados = 100 * mean(Atipico), .groups = "drop")
+write.csv(por_anio, file.path(tables_dir, "Mahalanobis_por_anio.csv"), row.names = FALSE)
+
+p_anio <- ggplot(por_anio, aes(AÑO, Pct_marcados)) +
+  geom_col(fill = paleta$azul, width = 0.7) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = paleta$naranja) +
+  tema + labs(title = "Porcentaje de registros sobre el umbral por año",
+              subtitle = "La línea naranja es el 1 % esperado bajo normalidad", x = NULL, y = "% de registros marcados")
+print(p_anio)
+ggsave(file.path(figures_dir, "mahalanobis_por_anio.png"), p_anio, width = 10, height = 5, dpi = 150)
+
+top10 <- dist_df[order(-dist_df$Mahalanobis_D2), ][1:10, c("AÑO", "MUNICIPIO", "DEPARTAMENTO", "Mahalanobis_D2")]
+kable(top10, digits = 1, row.names = FALSE, caption = "Diez registros con mayor distancia (candidatos a revisión, no diagnósticos). Los registros de Papunaua tienen todos los indicadores en cero.")
+```
+
+El porcentaje marcado varía entre `r fnum(min(por_anio$Pct_marcados), 1)` % y `r fnum(max(por_anio$Pct_marcados), 1)` % según el año
+(el año con más marcados es `r por_anio$AÑO[which.max(por_anio$Pct_marcados)]`). Una fila lejana del centro multivariado puede reflejar un municipio
+pequeño con tasas inestables, un valor fuera de rango (coberturas > 1) o una combinación inusual de indicadores. **«Atípico» describe distancia, no crisis ni error.**
+En las versiones de sensibilidad coinciden con la base `r sens$Coinciden_top100_con_base[2]` de los 100 registros más lejanos (sin REPROBACIÓN) y `r sens$Coinciden_top100_con_base[3]` (con el error de `AÑO`): el ranking de rareza es robusto a ambos cambios, aunque el número de marcados varía.
+
+## 7. Conclusiones corregidas
+
+1. **Selección de variables.** El análisis multivariado usa 30 indicadores; `AÑO` y los identificadores quedan fuera. La versión anterior mezclaba una variable temporal con los indicadores.
+2. **Datos.** `r fint(nrow(X))` registros municipio-año de `r fint(panel$municipios)` municipios, sin faltantes, constantes ni duplicados; no corresponde tratarlos como observaciones independientes.
+3. **Correlación.** `r resumen_r$pares[1]` pares superan |r| = 0,90 y `r resumen_r$pares[2]` superan 0,70: hay bloques redundantes. La estructura general es estable al controlar el año, salvo en los pares con repitencia.
+4. **Condicionamiento.** La matriz es invertible pero casi singular (aprobación + reprobación + deserción ≈ 1). Se recomienda trabajar con pocos representantes por bloque, como en el taller de PCA.
+5. **Mahalanobis.** `r fnum(100 * mean(atipico), 1)` % de registros supera el umbral χ² (esperado 1 %), por incumplimiento de normalidad; sirve como ranking. Las distancias no distinguen error de captura de municipio pequeño o situación real.
+6. **Las 33 columnas.** Con one-hot, «ambos» (departamentos y municipios) deja `r diseno$Dependencias_exactas[5]` dependencias exactas y no se puede invertir; las categóricas no entran a Mahalanobis.
+7. **Ceros sospechosos.** `r sum(todo_cero)` registros (`r paste(unique(datos$MUNICIPIO[todo_cero]), collapse = ", ")`) tienen todos los indicadores de tasa en cero; figuran entre los cinco registros de mayor distancia de Mahalanobis y probablemente son datos ausentes codificados como 0.
+8. **Pendiente de validación.** Revisión de los registros con coberturas > 100 %, causa del cambio de nivel desde 2020 y evaluación con una distancia robusta (MCD) o por municipio; ninguna se hizo en este taller.

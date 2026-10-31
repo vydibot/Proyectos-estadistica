@@ -8,6 +8,7 @@ required_packages <- c(
   "dplyr",
   "tidyr",
   "reshape2",
+  "tibble",
   "readr",
   "forcats",
   "scales",
@@ -16,7 +17,9 @@ required_packages <- c(
   "ggrepel",
   # Análisis factorial
   "psych",
-  "GPArotation"
+  "GPArotation",
+  "commonmark",
+  "jsonlite"
 )
 
 missing_packages <- required_packages[

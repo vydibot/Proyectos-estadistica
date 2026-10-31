@@ -1,0 +1,830 @@
+{
+  "dims": {
+    "numericas": 30,
+    "anio": 14,
+    "departamentos": 33,
+    "municipios": 1123,
+    "total_dummies": 1170
+  },
+  "pca": [
+    {
+      "base": "6 variables",
+      "codificacion": "Solo numéricas",
+      "peso": "—",
+      "columnas": 6,
+      "pct_pc1": 30.5819821557351,
+      "pct_pc12": 54.2755159470679,
+      "n80": 4,
+      "n_kaiser": 2,
+      "pct_numericas_en_varianza": 100,
+      "info_indicadores_en_pc12": 54.2755159470679,
+      "masa_numericas_pc12": 100,
+      "r2_pc1_base": 100,
+      "r2_pc2_base": 100,
+      "auc_pc1": 0.909107224460504,
+      "auc_pc12": 0.913017792869273,
+      "marcados_pc1": 46.4280539052311,
+      "capturados_pc1": 95.2888390353337
+    },
+    {
+      "base": "6 variables",
+      "codificacion": "+ AÑO",
+      "peso": "z",
+      "columnas": 20,
+      "pct_pc1": 10.4430314421865,
+      "pct_pc12": 18.9963426405344,
+      "n80": 13,
+      "n_kaiser": 14,
+      "pct_numericas_en_varianza": 30,
+      "info_indicadores_en_pc12": 46.1698713795338,
+      "masa_numericas_pc12": 73.1005523677986,
+      "r2_pc1_base": 95.1745659254762,
+      "r2_pc2_base": 37.2943580566574,
+      "auc_pc1": 0.767353214393158,
+      "auc_pc12": 0.922190547337253,
+      "marcados_pc1": 43.6241124474714,
+      "capturados_pc1": 78.9119461581604
+    },
+    {
+      "base": "6 variables",
+      "codificacion": "+ AÑO",
+      "peso": "natural",
+      "columnas": 20,
+      "pct_pc1": 26.5713813320888,
+      "pct_pc12": 47.1933260757716,
+      "n80": 5,
+      "n_kaiser": null,
+      "pct_numericas_en_varianza": 86.6266331999428,
+      "info_indicadores_en_pc12": 54.2613917299671,
+      "masa_numericas_pc12": 99.5885177217647,
+      "r2_pc1_base": 99.9785263914953,
+      "r2_pc2_base": 99.9069233960571,
+      "auc_pc1": 0.90733675232947,
+      "auc_pc12": 0.912232814028751,
+      "marcados_pc1": 46.2976380234749,
+      "capturados_pc1": 95.176668536175
+    },
+    {
+      "base": "6 variables",
+      "codificacion": "+ AÑO + departamentos",
+      "peso": "z",
+      "columnas": 53,
+      "pct_pc1": 4.45565227177069,
+      "pct_pc12": 8.01565004594199,
+      "n80": 37,
+      "n_kaiser": 43,
+      "pct_numericas_en_varianza": 11.3207547169811,
+      "info_indicadores_en_pc12": 45.8656362744939,
+      "masa_numericas_pc12": 64.0694444449698,
+      "r2_pc1_base": 89.792776105486,
+      "r2_pc2_base": 45.7893496502323,
+      "auc_pc1": 0.856866467315701,
+      "auc_pc12": 0.904980975859077,
+      "marcados_pc1": 46.3411099840603,
+      "capturados_pc1": 89.2877173303421
+    },
+    {
+      "base": "6 variables",
+      "codificacion": "+ AÑO + departamentos",
+      "peso": "natural",
+      "columnas": 53,
+      "pct_pc1": 23.5290733131585,
+      "pct_pc12": 41.7440511419969,
+      "n80": 8,
+      "n_kaiser": null,
+      "pct_numericas_en_varianza": 76.2590259300692,
+      "info_indicadores_en_pc12": 54.2571734936823,
+      "masa_numericas_pc12": 99.1234287070252,
+      "r2_pc1_base": 99.9687626815464,
+      "r2_pc2_base": 99.9247320743819,
+      "auc_pc1": 0.90681696399844,
+      "auc_pc12": 0.912151385656577,
+      "marcados_pc1": 46.4787711925808,
+      "capturados_pc1": 95.2888390353337
+    },
+    {
+      "base": "6 variables",
+      "codificacion": "+ AÑO + municipios",
+      "peso": "z",
+      "columnas": 1143,
+      "pct_pc1": 0.230945746106323,
+      "pct_pc12": 0.421739564583252,
+      "n80": 907,
+      "n_kaiser": 1125,
+      "pct_numericas_en_varianza": 0.5249343832021,
+      "info_indicadores_en_pc12": 51.1943555326546,
+      "masa_numericas_pc12": 63.4180937276562,
+      "r2_pc1_base": 95.2667732727012,
+      "r2_pc2_base": 88.6835810099397,
+      "auc_pc1": 0.890226388140259,
+      "auc_pc12": 0.89106456373968,
+      "marcados_pc1": 46.9279814519635,
+      "capturados_pc1": 94.1671340437465
+    },
+    {
+      "base": "6 variables",
+      "codificacion": "+ AÑO + municipios",
+      "peso": "natural",
+      "columnas": 1143,
+      "pct_pc1": 23.2278929328637,
+      "pct_pc12": 41.2556666117964,
+      "n80": 10,
+      "n_kaiser": null,
+      "pct_numericas_en_varianza": 75.7055873348696,
+      "info_indicadores_en_pc12": 54.2615841059679,
+      "masa_numericas_pc12": 99.5596213637049,
+      "r2_pc1_base": 99.978825750536,
+      "r2_pc2_base": 99.9082286315398,
+      "auc_pc1": 0.907356257807733,
+      "auc_pc12": 0.912226094438153,
+      "marcados_pc1": 46.3048833502391,
+      "capturados_pc1": 95.176668536175
+    },
+    {
+      "base": "6 variables",
+      "codificacion": "+ AÑO + ambos",
+      "peso": "z",
+      "columnas": 1176,
+      "pct_pc1": 0.267046141798149,
+      "pct_pc12": 0.509082185628299,
+      "n80": 901,
+      "n_kaiser": 1125,
+      "pct_numericas_en_varianza": 0.510204081632653,
+      "info_indicadores_en_pc12": 41.1777576316558,
+      "masa_numericas_pc12": 40.8681217400897,
+      "r2_pc1_base": 83.3300300931054,
+      "r2_pc2_base": 5.61923771830365,
+      "auc_pc1": 0.870847695486073,
+      "auc_pc12": 0.879058801877398,
+      "marcados_pc1": 46.7758295899145,
+      "capturados_pc1": 89.6803140773977
+    },
+    {
+      "base": "6 variables",
+      "codificacion": "+ AÑO + ambos",
+      "peso": "natural",
+      "columnas": 1176,
+      "pct_pc1": 20.8835070463741,
+      "pct_pc12": 37.0510814834529,
+      "n80": 19,
+      "n_kaiser": null,
+      "pct_numericas_en_varianza": 67.6659912558525,
+      "info_indicadores_en_pc12": 54.2572092377905,
+      "masa_numericas_pc12": 99.0942255079257,
+      "r2_pc1_base": 99.9687197757302,
+      "r2_pc2_base": 99.9256220222228,
+      "auc_pc1": 0.906834462932288,
+      "auc_pc12": 0.912150452380105,
+      "marcados_pc1": 46.4715258658165,
+      "capturados_pc1": 95.2888390353337
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "Solo numéricas",
+      "peso": "—",
+      "columnas": 30,
+      "pct_pc1": 25.5560446362775,
+      "pct_pc12": 48.4928889746837,
+      "n80": 7,
+      "n_kaiser": 6,
+      "pct_numericas_en_varianza": 100,
+      "info_indicadores_en_pc12": 48.4928889746836,
+      "masa_numericas_pc12": 100,
+      "r2_pc1_base": 100,
+      "r2_pc2_base": 100,
+      "auc_pc1": 0.832103702695074,
+      "auc_pc12": 0.851473389231305,
+      "marcados_pc1": 47.7249673960296,
+      "capturados_pc1": 84.913067863152
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "+ AÑO",
+      "peso": "z",
+      "columnas": 44,
+      "pct_pc1": 17.6070014974982,
+      "pct_pc12": 33.609260226662,
+      "n80": 16,
+      "n_kaiser": 17,
+      "pct_numericas_en_varianza": 68.1818181818182,
+      "info_indicadores_en_pc12": 48.3466988962845,
+      "masa_numericas_pc12": 98.0527669334803,
+      "r2_pc1_base": 99.780917694063,
+      "r2_pc2_base": 99.3298551403239,
+      "auc_pc1": 0.838162906861295,
+      "auc_pc12": 0.840618170603592,
+      "marcados_pc1": 47.8626286045501,
+      "capturados_pc1": 86.0347728547392
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "+ AÑO",
+      "peso": "natural",
+      "columnas": 44,
+      "pct_pc1": 24.8037422642879,
+      "pct_pc12": 47.0844435058734,
+      "n80": 8,
+      "n_kaiser": null,
+      "pct_numericas_en_varianza": 97.004888883439,
+      "info_indicadores_en_pc12": 48.4923687550672,
+      "masa_numericas_pc12": 99.9032455712379,
+      "r2_pc1_base": 99.9991926664297,
+      "r2_pc2_base": 99.9976479992307,
+      "auc_pc1": 0.832592366255765,
+      "auc_pc12": 0.850889391479008,
+      "marcados_pc1": 47.7249673960296,
+      "capturados_pc1": 84.913067863152
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "+ AÑO + departamentos",
+      "peso": "z",
+      "columnas": 77,
+      "pct_pc1": 10.3091326101108,
+      "pct_pc12": 19.6843594912849,
+      "n80": 39,
+      "n_kaiser": 43,
+      "pct_numericas_en_varianza": 38.961038961039,
+      "info_indicadores_en_pc12": 48.2873411257967,
+      "masa_numericas_pc12": 95.5628771169582,
+      "r2_pc1_base": 99.6249283612956,
+      "r2_pc2_base": 99.4575963125712,
+      "auc_pc1": 0.848659887315266,
+      "auc_pc12": 0.84743514860118,
+      "marcados_pc1": 47.8119113172004,
+      "capturados_pc1": 87.7734155916994
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "+ AÑO + departamentos",
+      "peso": "natural",
+      "columnas": 77,
+      "pct_pc1": 24.083176585396,
+      "pct_pc12": 45.7304783522789,
+      "n80": 9,
+      "n_kaiser": null,
+      "pct_numericas_en_varianza": 94.1385536124141,
+      "info_indicadores_en_pc12": 48.4922440376321,
+      "masa_numericas_pc12": 99.8198357658011,
+      "r2_pc1_base": 99.9990718554121,
+      "r2_pc2_base": 99.9977870693134,
+      "auc_pc1": 0.833211781850171,
+      "auc_pc12": 0.851102505161369,
+      "marcados_pc1": 47.7032314157369,
+      "capturados_pc1": 84.913067863152
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "+ AÑO + municipios",
+      "peso": "z",
+      "columnas": 1167,
+      "pct_pc1": 0.719651934768527,
+      "pct_pc12": 1.36394382648272,
+      "n80": 907,
+      "n_kaiser": 1126,
+      "pct_numericas_en_varianza": 2.5706940874036,
+      "info_indicadores_en_pc12": 48.2893266816487,
+      "masa_numericas_pc12": 91.0162438432565,
+      "r2_pc1_base": 99.6297500566547,
+      "r2_pc2_base": 99.476949108339,
+      "auc_pc1": 0.829128743949394,
+      "auc_pc12": 0.847394691066122,
+      "marcados_pc1": 47.8264019707289,
+      "capturados_pc1": 84.6326416152552
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "+ AÑO + municipios",
+      "peso": "natural",
+      "columnas": 1167,
+      "pct_pc1": 24.0291085404845,
+      "pct_pc12": 45.6137244648091,
+      "n80": 9,
+      "n_kaiser": null,
+      "pct_numericas_en_varianza": 93.9689511505589,
+      "info_indicadores_en_pc12": 48.492375475796,
+      "masa_numericas_pc12": 99.8970014834782,
+      "r2_pc1_base": 99.9992038669246,
+      "r2_pc2_base": 99.9976800272573,
+      "auc_pc1": 0.832582800171928,
+      "auc_pc12": 0.850893917869897,
+      "marcados_pc1": 47.7249673960296,
+      "capturados_pc1": 84.913067863152
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "+ AÑO + ambos",
+      "peso": "z",
+      "columnas": 1200,
+      "pct_pc1": 0.716435720791037,
+      "pct_pc12": 1.3623573645587,
+      "n80": 901,
+      "n_kaiser": 1126,
+      "pct_numericas_en_varianza": 2.5,
+      "info_indicadores_en_pc12": 47.9908025225992,
+      "masa_numericas_pc12": 88.0504766121609,
+      "r2_pc1_base": 99.140385226613,
+      "r2_pc2_base": 98.6852940695947,
+      "auc_pc1": 0.843076794141189,
+      "auc_pc12": 0.853636537437896,
+      "marcados_pc1": 47.4061730184031,
+      "capturados_pc1": 86.4273696017947
+    },
+    {
+      "base": "30 indicadores",
+      "codificacion": "+ AÑO + ambos",
+      "peso": "natural",
+      "columnas": 1200,
+      "pct_pc1": 23.352641292483,
+      "pct_pc12": 44.3430617093485,
+      "n80": 10,
+      "n_kaiser": null,
+      "pct_numericas_en_varianza": 91.2767326216603,
+      "info_indicadores_en_pc12": 48.4922446670256,
+      "masa_numericas_pc12": 99.8135753384019,
+      "r2_pc1_base": 99.9990756385793,
+      "r2_pc2_base": 99.9977942005942,
+      "auc_pc1": 0.833200302549567,
+      "auc_pc12": 0.851108244811671,
+      "marcados_pc1": 47.7032314157369,
+      "capturados_pc1": 84.913067863152
+    }
+  ],
+  "fa": [
+    {
+      "codificacion": "Solo numéricas",
+      "columnas": 30,
+      "segundos": 0.288889646530151,
+      "kmo_global": 0.598181890133151,
+      "pct_comun": 45.9784843246449,
+      "h2_numericas_media": 0.459784843246449,
+      "h2_dummies_media": null,
+      "pct_comun_en_numericas": 100,
+      "congruencia_con_solo_numericas": 1,
+      "heywood_numericas": 0
+    },
+    {
+      "codificacion": "+ AÑO",
+      "columnas": 43,
+      "segundos": 0.328247547149658,
+      "kmo_global": 0.47457752650765,
+      "pct_comun": 32.5291247660646,
+      "h2_numericas_media": 0.459320587571456,
+      "h2_dummies_media": 0.0159927709433908,
+      "pct_comun_en_numericas": 98.5136323807189,
+      "congruencia_con_solo_numericas": 0.999479397809905,
+      "heywood_numericas": 0
+    },
+    {
+      "codificacion": "+ AÑO + departamentos",
+      "columnas": 75,
+      "segundos": 0.370048522949219,
+      "kmo_global": 0.163576711544603,
+      "pct_comun": 19.0903117029023,
+      "h2_numericas_media": 0.460194168592062,
+      "h2_dummies_media": 0.0113757493203306,
+      "pct_comun_en_numericas": 96.4246526204385,
+      "congruencia_con_solo_numericas": 0.999880170608594,
+      "heywood_numericas": 0
+    },
+    {
+      "codificacion": "+ AÑO + municipios",
+      "columnas": 1165,
+      "segundos": 62.1556923389435,
+      "kmo_global": 0.000492256926225208,
+      "pct_comun": 1.29155359256043,
+      "h2_numericas_media": 0.462902357928654,
+      "h2_dummies_media": 0.00102161111495097,
+      "pct_comun_en_numericas": 92.2937496490673,
+      "congruencia_con_solo_numericas": 0.999886754513644,
+      "heywood_numericas": 0
+    },
+    {
+      "codificacion": "+ AÑO + ambos",
+      "columnas": 1197,
+      "segundos": 70.3994216918945,
+      "kmo_global": null,
+      "pct_comun": 1.2888775800165,
+      "h2_numericas_media": 0.461731387434171,
+      "h2_dummies_media": 0.00135040532114167,
+      "pct_comun_en_numericas": 89.7852162481246,
+      "congruencia_con_solo_numericas": 0.99973832957355,
+      "heywood_numericas": 0
+    }
+  ],
+  "eta": [
+    {
+      "indicador": "POBLACIÓN_5_16",
+      "AÑO": 0.00494683055681788,
+      "DEPARTAMENTO": 71.0667180624468,
+      "MUNICIPIO": 98.8564308574263,
+      "_row": "POBLACIÓN_5_16"
+    },
+    {
+      "indicador": "TASA_MATRICULACIÓN_5_16",
+      "AÑO": 1.1807624815547,
+      "DEPARTAMENTO": 9.47972122279118,
+      "MUNICIPIO": 62.814354462037,
+      "_row": "TASA_MATRICULACIÓN_5_16"
+    },
+    {
+      "indicador": "COBERTURA_NETA",
+      "AÑO": 1.58202026997261,
+      "DEPARTAMENTO": 9.89345468366775,
+      "MUNICIPIO": 58.9752674141442,
+      "_row": "COBERTURA_NETA"
+    },
+    {
+      "indicador": "COBERTURA_NETA_TRANSICIÓN",
+      "AÑO": 6.69578942266567,
+      "DEPARTAMENTO": 11.6214001481007,
+      "MUNICIPIO": 43.1608051121916,
+      "_row": "COBERTURA_NETA_TRANSICIÓN"
+    },
+    {
+      "indicador": "COBERTURA_NETA_PRIMARIA",
+      "AÑO": 2.94127774153349,
+      "DEPARTAMENTO": 7.71130553635822,
+      "MUNICIPIO": 53.7980582111359,
+      "_row": "COBERTURA_NETA_PRIMARIA"
+    },
+    {
+      "indicador": "COBERTURA_NETA_SECUNDARIA",
+      "AÑO": 1.56797318922667,
+      "DEPARTAMENTO": 22.1181282381387,
+      "MUNICIPIO": 69.5353461953394,
+      "_row": "COBERTURA_NETA_SECUNDARIA"
+    },
+    {
+      "indicador": "COBERTURA_NETA_MEDIA",
+      "AÑO": 5.53107174517163,
+      "DEPARTAMENTO": 27.9254893059346,
+      "MUNICIPIO": 72.2130787203366,
+      "_row": "COBERTURA_NETA_MEDIA"
+    },
+    {
+      "indicador": "COBERTURA_BRUTA",
+      "AÑO": 2.55953107629135,
+      "DEPARTAMENTO": 9.20325809227309,
+      "MUNICIPIO": 58.5740330959469,
+      "_row": "COBERTURA_BRUTA"
+    },
+    {
+      "indicador": "COBERTURA_BRUTA_TRANSICIÓN",
+      "AÑO": 3.05933228276969,
+      "DEPARTAMENTO": 22.8850499864234,
+      "MUNICIPIO": 54.1137651514539,
+      "_row": "COBERTURA_BRUTA_TRANSICIÓN"
+    },
+    {
+      "indicador": "COBERTURA_BRUTA_PRIMARIA",
+      "AÑO": 6.41385653562794,
+      "DEPARTAMENTO": 12.9275322154661,
+      "MUNICIPIO": 53.6669740595179,
+      "_row": "COBERTURA_BRUTA_PRIMARIA"
+    },
+    {
+      "indicador": "COBERTURA_BRUTA_SECUNDARIA",
+      "AÑO": 1.87998131219682,
+      "DEPARTAMENTO": 12.3668923982507,
+      "MUNICIPIO": 59.3772485027074,
+      "_row": "COBERTURA_BRUTA_SECUNDARIA"
+    },
+    {
+      "indicador": "COBERTURA_BRUTA_MEDIA",
+      "AÑO": 1.44505539136262,
+      "DEPARTAMENTO": 13.3905863578933,
+      "MUNICIPIO": 64.0589555253349,
+      "_row": "COBERTURA_BRUTA_MEDIA"
+    },
+    {
+      "indicador": "DESERCIÓN",
+      "AÑO": 5.19083411047522,
+      "DEPARTAMENTO": 23.6124075402667,
+      "MUNICIPIO": 39.8602405253741,
+      "_row": "DESERCIÓN"
+    },
+    {
+      "indicador": "DESERCIÓN_TRANSICIÓN",
+      "AÑO": 3.40442254587582,
+      "DEPARTAMENTO": 15.2168921909814,
+      "MUNICIPIO": 27.6898078876526,
+      "_row": "DESERCIÓN_TRANSICIÓN"
+    },
+    {
+      "indicador": "DESERCIÓN_PRIMARIA",
+      "AÑO": 5.5967991481791,
+      "DEPARTAMENTO": 24.9546286765183,
+      "MUNICIPIO": 40.7614876403294,
+      "_row": "DESERCIÓN_PRIMARIA"
+    },
+    {
+      "indicador": "DESERCIÓN_SECUNDARIA",
+      "AÑO": 3.85530560426615,
+      "DEPARTAMENTO": 18.2936331135855,
+      "MUNICIPIO": 34.0133611661816,
+      "_row": "DESERCIÓN_SECUNDARIA"
+    },
+    {
+      "indicador": "DESERCIÓN_MEDIA",
+      "AÑO": 2.25815322025121,
+      "DEPARTAMENTO": 7.99265142044747,
+      "MUNICIPIO": 14.1247868088298,
+      "_row": "DESERCIÓN_MEDIA"
+    },
+    {
+      "indicador": "APROBACIÓN",
+      "AÑO": 9.14079939690184,
+      "DEPARTAMENTO": 22.1761755289202,
+      "MUNICIPIO": 44.9739749103951,
+      "_row": "APROBACIÓN"
+    },
+    {
+      "indicador": "APROBACIÓN_PRIMARIA",
+      "AÑO": 6.13767427728996,
+      "DEPARTAMENTO": 28.2348715978742,
+      "MUNICIPIO": 50.5300343505958,
+      "_row": "APROBACIÓN_PRIMARIA"
+    },
+    {
+      "indicador": "APROBACIÓN_SECUNDARIA",
+      "AÑO": 8.73889906622738,
+      "DEPARTAMENTO": 17.9107699320015,
+      "MUNICIPIO": 43.5594033024876,
+      "_row": "APROBACIÓN_SECUNDARIA"
+    },
+    {
+      "indicador": "APROBACIÓN_MEDIA",
+      "AÑO": 5.50181891079525,
+      "DEPARTAMENTO": 14.3066844037692,
+      "MUNICIPIO": 43.3890529130359,
+      "_row": "APROBACIÓN_MEDIA"
+    },
+    {
+      "indicador": "REPROBACIÓN",
+      "AÑO": 14.0961221577458,
+      "DEPARTAMENTO": 16.7486496315929,
+      "MUNICIPIO": 32.2025707585528,
+      "_row": "REPROBACIÓN"
+    },
+    {
+      "indicador": "REPROBACIÓN_PRIMARIA",
+      "AÑO": 9.6160164244831,
+      "DEPARTAMENTO": 24.0015069716723,
+      "MUNICIPIO": 38.3116429301232,
+      "_row": "REPROBACIÓN_PRIMARIA"
+    },
+    {
+      "indicador": "REPROBACIÓN_SECUNDARIA",
+      "AÑO": 12.8018751824168,
+      "DEPARTAMENTO": 12.338525221156,
+      "MUNICIPIO": 30.0067088136481,
+      "_row": "REPROBACIÓN_SECUNDARIA"
+    },
+    {
+      "indicador": "REPROBACIÓN_MEDIA",
+      "AÑO": 7.66301495806211,
+      "DEPARTAMENTO": 7.14906871194804,
+      "MUNICIPIO": 22.0585311578346,
+      "_row": "REPROBACIÓN_MEDIA"
+    },
+    {
+      "indicador": "REPITENCIA",
+      "AÑO": 55.4292516735815,
+      "DEPARTAMENTO": 5.62373024432123,
+      "MUNICIPIO": 10.6560582602704,
+      "_row": "REPITENCIA"
+    },
+    {
+      "indicador": "REPITENCIA_TRANSICIÓN",
+      "AÑO": 17.8353686674604,
+      "DEPARTAMENTO": 14.3017215885479,
+      "MUNICIPIO": 21.3457269218835,
+      "_row": "REPITENCIA_TRANSICIÓN"
+    },
+    {
+      "indicador": "REPITENCIA_PRIMARIA",
+      "AÑO": 48.043232566054,
+      "DEPARTAMENTO": 9.40892189113594,
+      "MUNICIPIO": 15.7674308543153,
+      "_row": "REPITENCIA_PRIMARIA"
+    },
+    {
+      "indicador": "REPITENCIA_SECUNDARIA",
+      "AÑO": 50.4957608615917,
+      "DEPARTAMENTO": 2.08109343774076,
+      "MUNICIPIO": 9.03701330155842,
+      "_row": "REPITENCIA_SECUNDARIA"
+    },
+    {
+      "indicador": "REPITENCIA_MEDIA",
+      "AÑO": 26.2473238209946,
+      "DEPARTAMENTO": 2.19977824759146,
+      "MUNICIPIO": 8.0746642199979,
+      "_row": "REPITENCIA_MEDIA"
+    }
+  ],
+  "eta_resumen": {
+    "AÑO": [5.56393544667537, 0.00494683055681788, 55.4292516735815],
+    "DEPARTAMENTO": [13.8461539732206, 2.08109343774076, 71.0667180624468],
+    "MUNICIPIO": [43.2749290126137, 8.0746642199979, 98.8564308574263]
+  },
+  "fa30": {
+    "kmo": 0.598181890133155,
+    "kmo_min": 0.334161834939352,
+    "kmo_menores_05": 8,
+    "pa": 7,
+    "pa_con_anio": 17,
+    "pa_con_anio_depto": 43,
+    "pct_comun_2": 45.9808906303247,
+    "pct_comun_k": 75.436603600772,
+    "k": 7,
+    "heywood_2": 0,
+    "heywood_k": 3,
+    "rmsea_2": 0.324962950785381,
+    "tli_2": 0.212035318726949,
+    "rmsea_k": 0.322263362451285,
+    "tli_k": 0.224885292521857,
+    "phi_2": -0.0144252033448199,
+    "top2": [
+      [0.99, 0.96, 0.92, 0.89],
+      [-0.97, -0.85, 0.84, -0.82]
+    ],
+    "topk": [
+      [1.01, 0.89, 0.86],
+      [0.98, 0.89, 0.84],
+      [0.91, 0.86, 0.79],
+      [1.03, 0.84, 0.82],
+      [1.02, 0.89, 0.86],
+      [0.99, -0.4, -0.35],
+      [0.39, -0.33, 0.31]
+    ],
+    "omision_desercion": 66.783523225241,
+    "omision_cobertura": 10.5053191489362,
+    "omision_union": 46.7190128996074,
+    "solape_ambos": 481,
+    "solape_cupo": 2761,
+    "solape_pct": 17.4212241941326,
+    "h2_cmp": [
+      {
+        "variable": "POBLACIÓN_5_16",
+        "h2_6": 0.00296767381550943,
+        "h2_30": 0.00248408681194837,
+        "_row": "POBLACIÓN_5_16"
+      },
+      {
+        "variable": "COBERTURA_NETA",
+        "h2_6": 0.351204658756748,
+        "h2_30": 0.976029628799802,
+        "_row": "COBERTURA_NETA"
+      },
+      {
+        "variable": "COBERTURA_NETA_MEDIA",
+        "h2_6": 0.995000883418777,
+        "h2_30": 0.388494058487905,
+        "_row": "COBERTURA_NETA_MEDIA"
+      },
+      {
+        "variable": "DESERCIÓN",
+        "h2_6": 0.305827667691211,
+        "h2_30": 0.285609933800277,
+        "_row": "DESERCIÓN"
+      },
+      {
+        "variable": "APROBACIÓN",
+        "h2_6": 0.995000516864221,
+        "h2_30": 0.936051222959425,
+        "_row": "APROBACIÓN"
+      },
+      {
+        "variable": "REPITENCIA",
+        "h2_6": 0.081121076492068,
+        "h2_30": 0.2191495347618,
+        "_row": "REPITENCIA"
+      }
+    ],
+    "kmo_vars": [
+      {
+        "variable": "POBLACIÓN_5_16",
+        "KMO": 0.905277314581368
+      },
+      {
+        "variable": "TASA_MATRICULACIÓN_5_16",
+        "KMO": 0.991052218569007
+      },
+      {
+        "variable": "COBERTURA_NETA",
+        "KMO": 0.847621932958299
+      },
+      {
+        "variable": "COBERTURA_NETA_TRANSICIÓN",
+        "KMO": 0.942355692316391
+      },
+      {
+        "variable": "COBERTURA_NETA_PRIMARIA",
+        "KMO": 0.874202536453295
+      },
+      {
+        "variable": "COBERTURA_NETA_SECUNDARIA",
+        "KMO": 0.880227137326714
+      },
+      {
+        "variable": "COBERTURA_NETA_MEDIA",
+        "KMO": 0.888776234739757
+      },
+      {
+        "variable": "COBERTURA_BRUTA",
+        "KMO": 0.598331889191661
+      },
+      {
+        "variable": "COBERTURA_BRUTA_TRANSICIÓN",
+        "KMO": 0.498280722658571
+      },
+      {
+        "variable": "COBERTURA_BRUTA_PRIMARIA",
+        "KMO": 0.504723796186822
+      },
+      {
+        "variable": "COBERTURA_BRUTA_SECUNDARIA",
+        "KMO": 0.571765546111751
+      },
+      {
+        "variable": "COBERTURA_BRUTA_MEDIA",
+        "KMO": 0.477262764483376
+      },
+      {
+        "variable": "DESERCIÓN",
+        "KMO": 0.403935772428812
+      },
+      {
+        "variable": "DESERCIÓN_TRANSICIÓN",
+        "KMO": 0.694664333994343
+      },
+      {
+        "variable": "DESERCIÓN_PRIMARIA",
+        "KMO": 0.334161834939352
+      },
+      {
+        "variable": "DESERCIÓN_SECUNDARIA",
+        "KMO": 0.78728176381669
+      },
+      {
+        "variable": "DESERCIÓN_MEDIA",
+        "KMO": 0.57595553826618
+      },
+      {
+        "variable": "APROBACIÓN",
+        "KMO": 0.517066476473655
+      },
+      {
+        "variable": "APROBACIÓN_PRIMARIA",
+        "KMO": 0.45967044139623
+      },
+      {
+        "variable": "APROBACIÓN_SECUNDARIA",
+        "KMO": 0.751781466340926
+      },
+      {
+        "variable": "APROBACIÓN_MEDIA",
+        "KMO": 0.625792915201633
+      },
+      {
+        "variable": "REPROBACIÓN",
+        "KMO": 0.478975378489098
+      },
+      {
+        "variable": "REPROBACIÓN_PRIMARIA",
+        "KMO": 0.418794209745703
+      },
+      {
+        "variable": "REPROBACIÓN_SECUNDARIA",
+        "KMO": 0.828425754797816
+      },
+      {
+        "variable": "REPROBACIÓN_MEDIA",
+        "KMO": 0.713038995061806
+      },
+      {
+        "variable": "REPITENCIA",
+        "KMO": 0.523595382902565
+      },
+      {
+        "variable": "REPITENCIA_TRANSICIÓN",
+        "KMO": 0.338442645727183
+      },
+      {
+        "variable": "REPITENCIA_PRIMARIA",
+        "KMO": 0.503516916372098
+      },
+      {
+        "variable": "REPITENCIA_SECUNDARIA",
+        "KMO": 0.505324246014682
+      },
+      {
+        "variable": "REPITENCIA_MEDIA",
+        "KMO": 0.659369356984463
+      }
+    ]
+  },
+  "n_vul": 1783
+}

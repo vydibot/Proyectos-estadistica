@@ -1,0 +1,16 @@
+"paquete","declarado_en_install_dependencies","instalado"
+"commonmark",TRUE,TRUE
+"corrplot",TRUE,TRUE
+"dplyr",TRUE,TRUE
+"DT",TRUE,TRUE
+"forcats",TRUE,TRUE
+"ggplot2",TRUE,TRUE
+"ggrepel",TRUE,FALSE
+"GPArotation",TRUE,TRUE
+"jsonlite",TRUE,TRUE
+"psych",TRUE,TRUE
+"readr",TRUE,TRUE
+"rmarkdown",TRUE,TRUE
+"scales",TRUE,TRUE
+"tibble",TRUE,TRUE
+"tidyr",TRUE,TRUE

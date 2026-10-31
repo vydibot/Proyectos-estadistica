@@ -1,0 +1,136 @@
+"codificacion","peso","k","autovalor"
+"Solo numéricas","z",1,7.66681339088324
+"Solo numéricas","z",2,6.88105330152185
+"Solo numéricas","z",3,3.48367080355977
+"Solo numéricas","z",4,2.56147669007335
+"Solo numéricas","z",5,1.60011383816963
+"Solo numéricas","z",6,1.10285306744523
+"Solo numéricas","z",7,0.999021158760774
+"Solo numéricas","z",8,0.874611630401768
+"Solo numéricas","z",9,0.753273033573604
+"Solo numéricas","z",10,0.619975789987845
+"Solo numéricas","z",11,0.538227982054399
+"Solo numéricas","z",12,0.450164468760694
+"Solo numéricas","z",13,0.422383013920016
+"Solo numéricas","z",14,0.360636692374438
+"Solo numéricas","z",15,0.32384971638722
+"+ AÑO","z",1,7.7470806588992
+"+ AÑO","z",2,7.04099384083208
+"+ AÑO","z",3,3.91345547473921
+"+ AÑO","z",4,2.81402237662457
+"+ AÑO","z",5,1.65875905523817
+"+ AÑO","z",6,1.3260650649875
+"+ AÑO","z",7,1.18561206371538
+"+ AÑO","z",8,1.12166138579433
+"+ AÑO","z",9,1.09883516310894
+"+ AÑO","z",10,1.0934793141032
+"+ AÑO","z",11,1.09070625183375
+"+ AÑO","z",12,1.08569621851961
+"+ AÑO","z",13,1.06744289441316
+"+ AÑO","z",14,1.06059286483818
+"+ AÑO","z",15,1.05296836536963
+"+ AÑO","natural",1,7.67087387546789
+"+ AÑO","natural",2,6.89059123659983
+"+ AÑO","natural",3,3.50793080495758
+"+ AÑO","natural",4,2.57763137291784
+"+ AÑO","natural",5,1.6020923298262
+"+ AÑO","natural",6,1.1056413631793
+"+ AÑO","natural",7,0.999251870994912
+"+ AÑO","natural",8,0.878259335700608
+"+ AÑO","natural",9,0.755302703424327
+"+ AÑO","natural",10,0.623871456499193
+"+ AÑO","natural",11,0.542130091988779
+"+ AÑO","natural",12,0.452187169463675
+"+ AÑO","natural",13,0.425676381631148
+"+ AÑO","natural",14,0.362471303497466
+"+ AÑO","natural",15,0.324500394025102
+"+ AÑO + departamentos","z",1,7.93803210978532
+"+ AÑO + departamentos","z",2,7.21892469850403
+"+ AÑO + departamentos","z",3,4.09680075505301
+"+ AÑO + departamentos","z",4,3.00580584128748
+"+ AÑO + departamentos","z",5,2.11045413495668
+"+ AÑO + departamentos","z",6,1.84637222896344
+"+ AÑO + departamentos","z",7,1.44641465295536
+"+ AÑO + departamentos","z",8,1.38454550496481
+"+ AÑO + departamentos","z",9,1.2449335603294
+"+ AÑO + departamentos","z",10,1.175409019873
+"+ AÑO + departamentos","z",11,1.1456795836381
+"+ AÑO + departamentos","z",12,1.12593208656674
+"+ AÑO + departamentos","z",13,1.11067043291031
+"+ AÑO + departamentos","z",14,1.10354745254227
+"+ AÑO + departamentos","z",15,1.10082274334367
+"+ AÑO + departamentos","natural",1,7.67480771519526
+"+ AÑO + departamentos","natural",2,6.89854504967503
+"+ AÑO + departamentos","natural",3,3.51484490313935
+"+ AÑO + departamentos","natural",4,2.58425164626863
+"+ AÑO + departamentos","natural",5,1.61537601217576
+"+ AÑO + departamentos","natural",6,1.10845153957696
+"+ AÑO + departamentos","natural",7,1.0005684862421
+"+ AÑO + departamentos","natural",8,0.884587605542996
+"+ AÑO + departamentos","natural",9,0.758903327007978
+"+ AÑO + departamentos","natural",10,0.628443388021039
+"+ AÑO + departamentos","natural",11,0.543676230192751
+"+ AÑO + departamentos","natural",12,0.456564255447918
+"+ AÑO + departamentos","natural",13,0.426713183374491
+"+ AÑO + departamentos","natural",14,0.36462763078681
+"+ AÑO + departamentos","natural",15,0.325698879371734
+"+ AÑO + municipios","z",1,8.39833807874871
+"+ AÑO + municipios","z",2,7.51888637630468
+"+ AÑO + municipios","z",3,4.2519742378459
+"+ AÑO + municipios","z",4,3.15448535556203
+"+ AÑO + municipios","z",5,2.34117274640809
+"+ AÑO + municipios","z",6,1.99658004528885
+"+ AÑO + municipios","z",7,1.67844720283368
+"+ AÑO + municipios","z",8,1.56160365195597
+"+ AÑO + municipios","z",9,1.42967905926814
+"+ AÑO + municipios","z",10,1.36196099084912
+"+ AÑO + municipios","z",11,1.26615764213062
+"+ AÑO + municipios","z",12,1.24067249666039
+"+ AÑO + municipios","z",13,1.2145497134754
+"+ AÑO + municipios","z",14,1.18394799338411
+"+ AÑO + municipios","z",15,1.17754192934804
+"+ AÑO + municipios","natural",1,7.67139834368844
+"+ AÑO + municipios","natural",2,6.89098334930056
+"+ AÑO + municipios","natural",3,3.50821488611851
+"+ AÑO + municipios","natural",4,2.57786704715439
+"+ AÑO + municipios","natural",5,1.60261658818715
+"+ AÑO + municipios","natural",6,1.10588386739043
+"+ AÑO + municipios","natural",7,1.00012159553334
+"+ AÑO + municipios","natural",8,0.878524001963115
+"+ AÑO + municipios","natural",9,0.755579903435015
+"+ AÑO + municipios","natural",10,0.624136466040668
+"+ AÑO + municipios","natural",11,0.542330358352664
+"+ AÑO + municipios","natural",12,0.452394814537267
+"+ AÑO + municipios","natural",13,0.425863027487353
+"+ AÑO + municipios","natural",14,0.362764005702264
+"+ AÑO + municipios","natural",15,0.324718571617289
+"+ AÑO + ambos","z",1,8.59722864949245
+"+ AÑO + ambos","z",2,7.751059725212
+"+ AÑO + ambos","z",3,4.49097390433928
+"+ AÑO + ambos","z",4,3.48616212430744
+"+ AÑO + ambos","z",5,2.9020828603675
+"+ AÑO + ambos","z",6,2.84265328432397
+"+ AÑO + ambos","z",7,2.30565147127764
+"+ AÑO + ambos","z",8,2.19906478465461
+"+ AÑO + ambos","z",9,2.13529513306516
+"+ AÑO + ambos","z",10,2.10746502706166
+"+ AÑO + ambos","z",11,2.09267047691988
+"+ AÑO + ambos","z",12,2.07188631178575
+"+ AÑO + ambos","z",13,2.06668767524973
+"+ AÑO + ambos","z",14,2.06067279211823
+"+ AÑO + ambos","z",15,2.04874130526571
+"+ AÑO + ambos","natural",1,7.67533213177527
+"+ AÑO + ambos","natural",2,6.89893902223809
+"+ AÑO + ambos","natural",3,3.51513115222518
+"+ AÑO + ambos","natural",4,2.58449034812388
+"+ AÑO + ambos","natural",5,1.61590358948255
+"+ AÑO + ambos","natural",6,1.10869818600304
+"+ AÑO + ambos","natural",7,1.00143803001613
+"+ AÑO + ambos","natural",8,0.884862669136313
+"+ AÑO + ambos","natural",9,0.759185973506479
+"+ AÑO + ambos","natural",10,0.62871467525183
+"+ AÑO + ambos","natural",11,0.543880142267223
+"+ AÑO + ambos","natural",12,0.456785686778308
+"+ AÑO + ambos","natural",13,0.426904085720362
+"+ AÑO + ambos","natural",14,0.364917981307932
+"+ AÑO + ambos","natural",15,0.325921993505235

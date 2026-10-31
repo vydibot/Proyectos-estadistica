@@ -560,7 +560,64 @@ Respondiendo a la solicitud del Director de Cobertura y Equidad Territorial:
 5. **Costo de unificar:** con los umbrales de la ficha, el `r fnum(omitidos_desercion)` % de registros con deserción superior a 6,5 % queda fuera del 20 % inferior del factor; para la unión de criterios se omite el `r fnum(omitidos_union)` %.
 6. **Decisión:** no fusionar los criterios de asignación con base solo en este factor exploratorio. Mantener los indicadores específicos de cada fondo y validar cualquier umbral de priorización; $PC_1$ puede servir como resumen descriptivo para ordenar.
 
-# 12. Resumen integral del análisis factorial
+# 12. Ampliación: ¿qué cambia con las 33 columnas y el one-hot geográfico?
+
+Hasta aquí el análisis factorial usó 6 variables. Aquí se repite con las **33 columnas** de `educacion_limpio.csv`: los **30 indicadores** y las categóricas `AÑO`, `DEPARTAMENTO` y `MUNICIPIO` en one-hot (una columna por categoría menos una de referencia, para evitar la singularidad exacta). Se comparan cuatro codificaciones: **solo numéricas**, **+ AÑO**, **+ AÑO + departamentos**, **+ AÑO + municipios** y **+ AÑO + ambos**. Las variantes con one-hot se estiman por ejes principales con dos factores para poder compararlas; el modelo de los 30 indicadores se estima por MinRes con rotación oblicua. El cálculo está en `scripts/analisis_33_variables.R`.
+
+> **Advertencia metodológica.** El análisis factorial supone variables continuas; las columnas one-hot son binarias. Las variantes con geografía se usan aquí para **diagnosticar** qué pasa al agregarlas, no como un modelo que se recomiende adoptar.
+
+```{r ampliacion-33-fa}
+source(file.path(project_root, "scripts", "helpers_33.R"))
+r33 <- cargar_33(project_root)
+F33 <- r33$fa
+m33 <- r33$m
+f30 <- m33$fa30
+
+fila_fa <- function(cod) F33[F33$codificacion == cod, ]
+fa_num <- fila_fa("Solo numéricas"); fa_a <- fila_fa("+ AÑO"); fa_d <- fila_fa("+ AÑO + departamentos")
+fa_m <- fila_fa("+ AÑO + municipios"); fa_x <- fila_fa("+ AÑO + ambos")
+
+comparacion_6_30 <- data.frame(
+  Medida = c("KMO global", "Variables con KMO < 0,5", "Factores que sugiere el análisis paralelo",
+             "% de la varianza común con 2 factores", "% del grupo de interés que queda fuera del 20 % inferior de un factor único"),
+  `6 variables` = c(fnum(kmo$MSA, 3), as.character(sum(kmo$MSAi < 0.5)), as.character(nf_pa_registros),
+                    fnum(100 * sum(f2$communality) / length(f2$communality), 1), fnum(omitidos_union, 1)),
+  `30 indicadores` = c(fnum(f30$kmo, 3), as.character(f30$kmo_menores_05), as.character(f30$pa),
+                       fnum(f30$pct_comun_2, 1), fnum(f30$omision_union, 1)),
+  check.names = FALSE
+)
+knitr::kable(comparacion_6_30, format = "pipe", align = "lrr",
+             caption = "Análisis factorial con 6 variables y con los 30 indicadores.")
+
+tabla_fa <- data.frame(
+  `Codificación` = F33$codificacion, `Columnas` = fint(F33$columnas),
+  `KMO global` = ifelse(is.na(F33$kmo_global), "no existe (matriz singular)", fnum(F33$kmo_global, 3)),
+  `% de la varianza común (2 factores)` = fnum(F33$pct_comun, 1),
+  `% de la varianza común que viene de los 30 indicadores` = fnum(F33$pct_comun_en_numericas, 1),
+  `Comunalidad media de las columnas one-hot` = ifelse(is.na(F33$h2_dummies_media), "—", fnum(F33$h2_dummies_media, 3)),
+  `Congruencia de las cargas con «solo numéricas»` = fnum(F33$congruencia_con_solo_numericas, 3),
+  check.names = FALSE
+)
+knitr::kable(tabla_fa, format = "pipe", align = "lrrrrrr",
+             caption = "Análisis factorial con 2 factores y cada codificación de las categóricas.")
+write.csv(F33, file.path(dir_tablas, "comparacion_33_variables.csv"), row.names = FALSE)
+```
+
+```{r figuras-33-fa, results='asis', echo=FALSE}
+mostrar_img("fa30_paralelo.png", "Análisis paralelo con los 30 indicadores")
+mostrar_img("fa33_variantes.png", "Análisis factorial de 2 factores con cada codificación de las categóricas")
+```
+
+> 📋 **Qué ve / Describir:**
+> Con los 30 indicadores, el KMO global sube a `r fnum(f30$kmo, 3)` (con 6 variables era `r fnum(kmo$MSA, 3)`), aunque `r f30$kmo_menores_05` indicadores siguen por debajo de 0,5 (el menor, `r fnum(f30$kmo_min, 2)`). El análisis paralelo sugiere `r f30$pa` factores, y dos factores explican `r fnum(f30$pct_comun_2, 1)` % de la varianza común. Agregar `AÑO` eleva el número de factores sugeridos a `r f30$pa_con_anio` y agregar además los departamentos a `r f30$pa_con_anio_depto`. Con las columnas one-hot el KMO baja de `r fnum(fa_num$kmo_global, 2)` a `r fnum(fa_a$kmo_global, 2)` (+ año), `r fnum(fa_d$kmo_global, 2)` (+ departamentos) y `r fnum(fa_m$kmo_global, 3)` (+ municipios); con ambos no se puede calcular. La varianza común cae de `r fnum(fa_num$pct_comun, 1)` % a `r fnum(fa_a$pct_comun, 1)` %, `r fnum(fa_d$pct_comun, 1)` % y `r fnum(fa_m$pct_comun, 1)` %.
+>
+> 🔎 **Qué significa / Analizar:**
+> Las columnas one-hot **no comparten varianza con ningún factor**: su comunalidad media es `r fnum(fa_d$h2_dummies_media, 3)` con departamentos y `r fnum(fa_m$h2_dummies_media, 3)` con municipios, y las cargas de los 30 indicadores prácticamente no cambian (congruencia `r fnum(min(F33$congruencia_con_solo_numericas), 3)` o más). Es decir, el one-hot **no revela una dimensión latente nueva**; solo agrega ruido que infla el número de factores sugeridos y hunde el KMO. «Ambos» es redundante: cada municipio pertenece a un solo departamento, así que las columnas son linealmente dependientes y la matriz es singular. Además, el modelo de los 30 indicadores cambia el sentido de los factores respecto al de 6 variables: la comunalidad de cobertura neta pasa de `r fnum(r33$m$fa30$h2_cmp$h2_6[2], 2)` a `r fnum(r33$m$fa30$h2_cmp$h2_30[2], 2)` y la de cobertura media de `r fnum(r33$m$fa30$h2_cmp$h2_6[3], 2)` a `r fnum(r33$m$fa30$h2_cmp$h2_30[3], 2)`: con 6 variables cada factor lo definía casi una sola variable, y con 30 lo definen familias de indicadores.
+>
+> ⚖️ **Qué decide él / Decisión:**
+> Para el análisis factorial, la mejor codificación es **sin one-hot geográfico**. Si se quiere contexto territorial, usarlo para comparar grupos de puntajes factoriales, no como variables del modelo. Con los 30 indicadores, un factor único sigue dejando fuera al `r fnum(f30$omision_union, 1)` % del grupo de interés (`r fnum(omitidos_union, 1)` % con 6 variables): ampliar variables no resuelve la limitación de un solo factor.
+
+# 13. Resumen integral del análisis factorial
 
 Este análisis estudia si seis indicadores educativos pueden resumirse mediante dimensiones latentes. Se usaron `r miles(n_total)` registros municipio-año de 2011–2024, con las variables estandarizadas y estimación por máxima verosimilitud. Como cada municipio aporta observaciones de varios años, los resultados a nivel de registro son descriptivos y no modelan explícitamente la dependencia temporal dentro de municipio.
 
@@ -575,6 +632,10 @@ La solución oblicua de dos factores reduce el RMSR de `r fnum(f1$rms, 3)` a `r 
 ## Sensibilidad a la unidad de análisis
 
 Al promediar por combinación de departamento y municipio se obtienen `r nrow(X_municipio)` perfiles. En ellos, el KMO es `r fnum(kmo_municipio$MSA, 3)` y el análisis paralelo sugiere `r pa_municipios$nfact` factores. Las cargas de dos factores también cambian al pasar de registros municipio-año a perfiles promediados; el promedio es una comprobación de sensibilidad y no reemplaza un modelo longitudinal.
+
+## Ampliación con las 33 columnas
+
+Con los 30 indicadores el KMO global es `r fnum(f30$kmo, 3)` y el análisis paralelo sugiere `r f30$pa` factores. Agregar las categóricas en one-hot (año, departamentos, municipios o ambos) no aporta factores interpretables: sus comunalidades son cercanas a cero, el KMO cae (`r fnum(fa_d$kmo_global, 2)` con departamentos, `r fnum(fa_m$kmo_global, 3)` con municipios), el número de factores sugeridos crece (`r f30$pa_con_anio` con año, `r f30$pa_con_anio_depto` con departamentos) y «ambos» es singular. La mejor codificación es sin one-hot geográfico.
 
 ## Implicación para la decisión
 

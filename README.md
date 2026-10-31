@@ -34,7 +34,9 @@ variables y sirven de antecedente para las entregas de corte.
 | Taller | Archivo |
 |---|---|
 | Taller 1 | `reports/taller-01/taller-01.Rmd` |
-| Taller 2 | `reports/taller-02/checklist-taller-02.Rmd` y `reports/taller-02/taller-02-html.Rmd` |
+| Taller 2 | `reports/taller-02/checklist-taller-02.Rmd` |
+| **Taller factorial** (análisis factorial completo de las 33 variables) | `reports/taller-factorial/taller-factorial.Rmd` |
+| **Informe y evaluación final** del repositorio | `reports/informe-final/informe-final.Rmd` |
 | Componentes principales I | `reports/taller-pca/componentes-principales-i/componentes-principales-i.Rmd` |
 | Componentes principales II | `reports/taller-pca/componentes-principales-ii/componentes-principales-ii.Rmd` |
 | Análisis factorial I | `reports/taller-pca/analisis-factorial-i/analisis-factorial-i.Rmd` |
@@ -45,8 +47,8 @@ variables y sirven de antecedente para las entregas de corte.
 | Archivo | Descripción |
 |---|---|
 | `data/raw/educacion.csv` | Datos originales del Ministerio de Educación Nacional: 15.707 registros municipio-año y 41 variables. **No se modifica.** |
-| `data/raw/educacion_limpio.csv` | Dataset depurado: **13.802 registros y 33 variables** (año, municipio, departamento y 30 indicadores numéricos), sin valores faltantes. Lo usan los informes de corte y los talleres de PCA y análisis factorial. |
-| `data/raw/educacion_limpio_talleres.csv` | Versión anterior del dataset depurado, con la que se hicieron los talleres 1 y 2: 5.063 registros y 34 columnas numéricas (incluye los códigos DANE de municipio y departamento, sin nombres de municipio ni año). Se conserva como registro; **no se modifica.** |
+| `data/raw/educacion_limpio.csv` | Dataset depurado: **13.802 registros y 33 variables** (año, municipio, departamento y 30 indicadores numéricos), sin valores faltantes. Lo usan los informes de corte y todos los talleres (1, 2, PCA, factorial y taller factorial). |
+| `data/raw/educacion_limpio_talleres.csv` | Versión anterior y reducida del dataset depurado (5.063 registros; códigos DANE, sin año ni nombres). **Registro histórico:** ningún informe vigente la usa, porque todos analizan las 33 variables de `educacion_limpio.csv`. No se modifica. |
 
 El dataset depurado **lo genera el informe de corte** a partir de `educacion.csv`, en la sección
 «Carga, Depuración y Limpieza de Datos». Si el archivo se daña o queda desactualizado, basta con volver
@@ -63,13 +65,17 @@ reports/
   entrega-corte-2/                Informe del Corte 2: Corte 1 + PCA (.Rmd y .html)
   taller-01/                      Taller 1 (archive/: archivos históricos)
   taller-02/                      Taller 2
-  taller-pca/                     Talleres de componentes principales y análisis factorial
+  taller-pca/                     Talleres de componentes principales y análisis factorial I y II
+  taller-factorial/               Análisis factorial completo de las 33 variables (.Rmd, .html y README)
+  informe-final/                  Informe y evaluación final del repositorio
 outputs/
   entrega-corte-1/                Histogramas, boxplots y gráficos de Mahalanobis del Corte 1
   entrega-corte-2/                Lo mismo para el Corte 2, más pca/ con las tablas y figuras del PCA
   taller-01/, taller-02/          tables/ y figures/ de cada taller
-  taller-pca/                     tables/ y figures/ de cada taller de PCA y análisis factorial
-scripts/                          Instalación, validación y renderizado
+  taller-pca/                     tables/ y figures/ de cada taller de PCA y análisis factorial, y analisis-33-variables/
+  taller-factorial/, informe-final/   tables/ y figures/
+scripts/                          Instalación, validación, renderizado, análisis con 33 columnas y presentaciones
+presentacion/                     Presentaciones para el cliente (.pptx); ignorada por git
 informe_calendario_pca.md         Cronograma y roles del sprint de PCA
 ```
 
@@ -104,13 +110,13 @@ figuras en alta resolución.
 **Con los scripts**, desde la raíz del proyecto:
 
 ```r
-source("scripts/render_reports.R")       # Corte 2, Corte 1, Taller 1 y Taller 2
-source("scripts/render_talleres_pca.R")  # Talleres de PCA y análisis factorial
+source("scripts/render_reports.R")       # Corte 2, Corte 1, Taller 1, Taller 2 y Taller factorial
+source("scripts/render_talleres_pca.R")  # Talleres de PCA, análisis factorial I y II y Taller factorial
 ```
 
 `render_reports.R` teje primero el Corte 2, que regenera `educacion_limpio.csv`. Si un informe falla,
-sigue con los demás y al final lista los que no se generaron. Los talleres 1 y 2 leen
-`educacion_limpio_talleres.csv`, la versión del dataset con la que se hicieron.
+sigue con los demás y al final lista los que no se generaron. Los talleres 1, 2 y factorial analizan las
+33 variables de `educacion_limpio.csv`; las versiones históricas (dataset reducido) están en `reports/*/archive/`.
 
 **Validación del proyecto:**
 
@@ -120,6 +126,34 @@ source("scripts/check_project.R")
 
 Confirma que existen los datos y los `.Rmd` de todas las entregas, que `educacion_limpio.csv` tiene
 13.802 filas y 33 columnas, y que sus variables numéricas no tienen valores faltantes ni infinitos.
+
+## Análisis con las 33 columnas y presentaciones
+
+El PCA y el análisis factorial de los talleres usan 6 variables. Para repetirlos con las 33 columnas de
+`educacion_limpio.csv` (30 indicadores, año, municipio y departamento) y comparar el one-hot de
+**solo departamentos, solo municipios y ambos**:
+
+```bash
+Rscript scripts/analisis_33_variables.R          # tarda unos 4 minutos; escribe outputs/taller-pca/analisis-33-variables/
+```
+
+Las secciones correspondientes están en los informes de componentes principales I y II y se leen con
+`scripts/helpers_33.R`. Las presentaciones para el cliente (una por taller y una integrada) se generan con:
+
+```bash
+Rscript scripts/presentacion_resultados.R        # recalcula cifras y figuras
+python scripts/presentacion_construir.py         # genera los .pptx en presentacion/ (requiere python-pptx)
+```
+
+**Evaluación final del repositorio** (informes, outputs y presentaciones; cobertura de las 33 variables, vigencia y cifras cruzadas):
+
+```bash
+Rscript scripts/evaluar_repositorio.R            # tablas en outputs/informe-final/
+Rscript -e 'rmarkdown::render("reports/informe-final/informe-final.Rmd")'
+```
+
+`scripts/helpers_datos.R` concentra la carga de datos: en `educacion_limpio.csv` el año es una categoría
+(nunca un indicador). `check_project.R` lo verifica.
 
 ## Convenciones
 
