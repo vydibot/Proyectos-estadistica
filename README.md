@@ -40,25 +40,6 @@ análisis factorial a los 30 indicadores y las 3 categóricas.
 | **Informe y evaluación final** del repositorio | `reports/informe-final/informe-final.Rmd` |
 | Componentes principales I | `reports/taller-pca/componentes-principales-i/componentes-principales-i.Rmd` |
 | Componentes principales II | `reports/taller-pca/componentes-principales-ii/componentes-principales-ii.Rmd` |
-| Análisis factorial I | `reports/taller-pca/analisis-factorial-i/analisis-factorial-i.Rmd` |
-| Análisis factorial II | `reports/taller-pca/analisis-factorial-ii/analisis-factorial-ii.Rmd` |
-
-### Taller factorial
-
-`reports/taller-factorial/taller-factorial.Rmd` tiene 19 puntos en 5 partes y cierra con las preguntas
-conceptuales de las clases de análisis factorial. Su `README.md` lista qué tabla y qué figura sale de cada punto.
-
-| Parte | Puntos | Contenido |
-|---|---|---|
-| A. Los datos | 1–2 | Las 33 variables y la adecuación de la matriz (KMO, Bartlett) |
-| B. Un factor común | 3–6 | Un factor (máxima verosimilitud): parte común y propia, si alcanza (correlaciones frente al producto de las cargas) y qué agrega un segundo factor |
-| C. Girar y comprobar | 7–11 | Sin girar, varimax y oblimin, correlación entre factores, otro método (MinRes, ejes principales) y cuántos factores caben |
-| D. Profundización | 12–16 | Solución con más factores, ajuste, estabilidad, puntajes por año y territorio, categóricas en one-hot |
-| E. Decisión y cierre | 17–19 | Un índice frente a dos fondos, comparación con las 6 variables, conclusiones y límites |
-
-Resultado principal: un solo factor equivale a **acceso** (cobertura) y deja casi toda la permanencia y el
-rendimiento como parte propia. Con dos factores aparecen **Acceso** y **Rendimiento y permanencia**, que casi
-no se correlacionan y se mantienen al girar, al cambiar de método, por período y por municipio.
 
 ## Datos
 
@@ -83,18 +64,17 @@ reports/
   entrega-corte-2/                Informe del Corte 2: Corte 1 + PCA (.Rmd y .html)
   taller-01/                      Taller 1 (archive/: archivos históricos)
   taller-02/                      Taller 2
-  taller-pca/                     Talleres de componentes principales y análisis factorial I y II
+  taller-pca/                     Talleres de componentes principales I y II
   taller-factorial/               Análisis factorial completo de las 33 variables (.Rmd, .html y README)
   informe-final/                  Informe y evaluación final del repositorio
 outputs/
   entrega-corte-1/                Histogramas, boxplots y gráficos de Mahalanobis del Corte 1
   entrega-corte-2/                Lo mismo para el Corte 2, más pca/ con las tablas y figuras del PCA
   taller-01/, taller-02/          tables/ y figures/ de cada taller
-  taller-pca/                     tables/ y figures/ de cada taller de PCA y análisis factorial, y analisis-33-variables/
+  taller-pca/                     tables/ y figures/ de cada taller de PCA y analisis-33-variables/
   taller-factorial/, informe-final/   tables/ y figures/
 scripts/                          Instalación, validación, renderizado, análisis con 33 columnas y presentaciones
 presentacion/                     Presentaciones para el cliente (.pptx); ignorada por git
-informe_calendario_pca.md         Cronograma y roles del sprint de PCA
 ```
 
 ## Requisitos
@@ -129,7 +109,7 @@ figuras en alta resolución.
 
 ```r
 source("scripts/render_reports.R")       # Corte 2, Corte 1, Taller 1, Taller 2 y Taller factorial
-source("scripts/render_talleres_pca.R")  # Talleres de PCA, análisis factorial I y II y Taller factorial
+source("scripts/render_talleres_pca.R")  # Talleres de PCA y Taller factorial
 ```
 
 `render_reports.R` teje primero el Corte 2, que regenera `educacion_limpio.csv`. Si un informe falla,
