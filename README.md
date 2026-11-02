@@ -28,8 +28,9 @@ Principales sobre todas las variables.
 | **Corte 1** | `reports/entrega-corte-1/Analisis_Indicadores_Educativos.Rmd` | Limpieza de los datos, análisis univariado, bivariado y multivariado (matriz de covarianzas, estandarización y distancias de Mahalanobis). |
 | **Corte 2** | `reports/entrega-corte-2/Analisis_Indicadores_Educativos.Rmd` | Todo el Corte 1 más el **PCA con las 30 variables numéricas**: ¿un número o varios? y el mapa de los municipios (biplot, grupos, cortes de decisión). |
 
-Los talleres son ejercicios cortos que deja el docente para entender cada técnica. Trabajan con pocas
-variables y sirven de antecedente para las entregas de corte.
+Los talleres son ejercicios que deja el docente para entender cada técnica y sirven de antecedente para
+las entregas de corte. Los de `taller-pca/` trabajan con 6 variables; el taller factorial aplica el
+análisis factorial a los 30 indicadores y las 3 categóricas.
 
 | Taller | Archivo |
 |---|---|
@@ -41,6 +42,23 @@ variables y sirven de antecedente para las entregas de corte.
 | Componentes principales II | `reports/taller-pca/componentes-principales-ii/componentes-principales-ii.Rmd` |
 | Análisis factorial I | `reports/taller-pca/analisis-factorial-i/analisis-factorial-i.Rmd` |
 | Análisis factorial II | `reports/taller-pca/analisis-factorial-ii/analisis-factorial-ii.Rmd` |
+
+### Taller factorial
+
+`reports/taller-factorial/taller-factorial.Rmd` tiene 19 puntos en 5 partes y cierra con las preguntas
+conceptuales de las clases de análisis factorial. Su `README.md` lista qué tabla y qué figura sale de cada punto.
+
+| Parte | Puntos | Contenido |
+|---|---|---|
+| A. Los datos | 1–2 | Las 33 variables y la adecuación de la matriz (KMO, Bartlett) |
+| B. Un factor común | 3–6 | Un factor (máxima verosimilitud): parte común y propia, si alcanza (correlaciones frente al producto de las cargas) y qué agrega un segundo factor |
+| C. Girar y comprobar | 7–11 | Sin girar, varimax y oblimin, correlación entre factores, otro método (MinRes, ejes principales) y cuántos factores caben |
+| D. Profundización | 12–16 | Solución con más factores, ajuste, estabilidad, puntajes por año y territorio, categóricas en one-hot |
+| E. Decisión y cierre | 17–19 | Un índice frente a dos fondos, comparación con las 6 variables, conclusiones y límites |
+
+Resultado principal: un solo factor equivale a **acceso** (cobertura) y deja casi toda la permanencia y el
+rendimiento como parte propia. Con dos factores aparecen **Acceso** y **Rendimiento y permanencia**, que casi
+no se correlacionan y se mantienen al girar, al cambiar de método, por período y por municipio.
 
 ## Datos
 
@@ -129,7 +147,7 @@ Confirma que existen los datos y los `.Rmd` de todas las entregas, que `educacio
 
 ## Análisis con las 33 columnas y presentaciones
 
-El PCA y el análisis factorial de los talleres usan 6 variables. Para repetirlos con las 33 columnas de
+El PCA y el análisis factorial de `reports/taller-pca/` usan 6 variables. Para repetirlos con las 33 columnas de
 `educacion_limpio.csv` (30 indicadores, año, municipio y departamento) y comparar el one-hot de
 **solo departamentos, solo municipios y ambos**:
 
@@ -138,7 +156,8 @@ Rscript scripts/analisis_33_variables.R          # tarda unos 4 minutos; escribe
 ```
 
 Las secciones correspondientes están en los informes de componentes principales I y II y se leen con
-`scripts/helpers_33.R`. Las presentaciones para el cliente (una por taller y una integrada) se generan con:
+`scripts/helpers_33.R`. El punto 16 del taller factorial también lee esta salida, así que este script
+debe correr antes de tejer ese informe. Las presentaciones para el cliente (una por taller y una integrada) se generan con:
 
 ```bash
 Rscript scripts/presentacion_resultados.R        # recalcula cifras y figuras
