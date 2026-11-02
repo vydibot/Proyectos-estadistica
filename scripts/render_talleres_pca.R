@@ -1,5 +1,6 @@
 # --------------------------------------------------------------------------
-# Renderizado de los talleres de PCA y análisis factorial.
+# Renderizado de los talleres de PCA y del taller factorial
+# (actividades de Análisis factorial I y II con 9 indicadores).
 # Si Pandoc está disponible (viene con RStudio) se usa rmarkdown::render; si no,
 # se teje con knitr a Markdown y se convierte a HTML con commonmark.
 #
@@ -20,8 +21,6 @@ if (!file.exists(file.path(project_root, "data", "raw", "educacion_limpio.csv"))
 rmds <- c(
   file.path("reports", "taller-pca", "componentes-principales-i", "componentes-principales-i.Rmd"),
   file.path("reports", "taller-pca", "componentes-principales-ii", "componentes-principales-ii.Rmd"),
-  file.path("reports", "taller-pca", "analisis-factorial-i", "analisis-factorial-i.Rmd"),
-  file.path("reports", "taller-pca", "analisis-factorial-ii", "analisis-factorial-ii.Rmd"),
   file.path("reports", "taller-factorial", "taller-factorial.Rmd")
 )
 
@@ -45,4 +44,4 @@ for (rmd_rel in rmds) {
   cat("HTML generado:", sub("\\.Rmd$", ".html", rmd_path), "\n")
 }
 
-cat("\nEntregas generadas. Revise los archivos .html en reports/taller-pca/.\n")
+cat("\nEntregas generadas. Revise los archivos .html en reports/taller-pca/ y reports/taller-factorial/.\n")

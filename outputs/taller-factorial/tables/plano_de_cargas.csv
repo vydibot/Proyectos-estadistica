@@ -1,0 +1,28 @@
+"Giro","Variable","Grupo","Acceso","Rendimiento"
+"Sin girar","Cob. transición","Acceso",0.539086355298172,-0.0994818079118267
+"Sin girar","Cob. primaria","Acceso",0.664485027610902,-0.0912583131956631
+"Sin girar","Cob. secundaria","Acceso",0.997496283450486,-0.00350403720888318
+"Sin girar","Cob. media","Acceso",0.82828173138337,0.0846435206209704
+"Sin girar","Aprob. primaria","Permanencia y rendimiento",0.184357661586423,0.702767715602562
+"Sin girar","Aprob. secundaria","Permanencia y rendimiento",0.0306026543100712,0.896130609185507
+"Sin girar","Aprob. media","Permanencia y rendimiento",0.0864031226161485,0.711254594747713
+"Sin girar","Deserción","Permanencia y rendimiento",-0.131404621477607,-0.499866021234054
+"Sin girar","Repitencia","Permanencia y rendimiento",-0.0787250398999611,-0.310017315627804
+"Varimax","Cob. transición","Acceso",0.547306216376911,-0.0310907396062289
+"Varimax","Cob. primaria","Acceso",0.670683608392512,-0.00720618345437906
+"Varimax","Cob. secundaria","Acceso",0.990060749882,0.121617537047027
+"Varimax","Cob. media","Acceso",0.811127701816694,0.187848352327386
+"Varimax","Aprob. primaria","Permanencia y rendimiento",0.094769585904994,0.720339458218313
+"Varimax","Aprob. secundaria","Permanencia y rendimiento",-0.0820208003097199,0.892893711192191
+"Varimax","Aprob. media","Permanencia y rendimiento",-0.00347594973001047,0.716475063014079
+"Varimax","Deserción","Permanencia y rendimiento",-0.0676800706611538,-0.512398889309235
+"Varimax","Repitencia","Permanencia y rendimiento",-0.0392249072006467,-0.317442553151622
+"Oblimin","Cob. transición","Acceso",0.549857633679408,-0.0990864232369089
+"Oblimin","Cob. primaria","Acceso",0.674332987843018,-0.0905901764824179
+"Oblimin","Cob. secundaria","Acceso",0.997686100560623,-0.00173164329734907
+"Oblimin","Cob. media","Acceso",0.818867712757914,0.0866198934869063
+"Oblimin","Aprob. primaria","Permanencia y rendimiento",0.107492756070737,0.707149698281503
+"Oblimin","Aprob. secundaria","Permanencia y rendimiento",-0.0673716150125697,0.901350802565595
+"Oblimin","Aprob. media","Permanencia y rendimiento",0.00862937776640847,0.715509461716844
+"Oblimin","Deserción","Permanencia y rendimiento",-0.076731945154888,-0.502983339613911
+"Oblimin","Repitencia","Permanencia y rendimiento",-0.0448175383774364,-0.311945697120778

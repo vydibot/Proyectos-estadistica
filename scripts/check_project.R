@@ -20,9 +20,7 @@ required_paths <- c(
   file.path(project_root, "reports", "taller-02", "checklist-taller-02.Rmd"),
   file.path(project_root, "reports", "taller-factorial", "taller-factorial.Rmd"),
   file.path(project_root, "reports", "taller-pca", "componentes-principales-i", "componentes-principales-i.Rmd"),
-  file.path(project_root, "reports", "taller-pca", "componentes-principales-ii", "componentes-principales-ii.Rmd"),
-  file.path(project_root, "reports", "taller-pca", "analisis-factorial-i", "analisis-factorial-i.Rmd"),
-  file.path(project_root, "reports", "taller-pca", "analisis-factorial-ii", "analisis-factorial-ii.Rmd")
+  file.path(project_root, "reports", "taller-pca", "componentes-principales-ii", "componentes-principales-ii.Rmd")
 )
 
 missing_paths <- required_paths[!file.exists(required_paths)]

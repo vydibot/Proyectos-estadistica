@@ -1,6 +1,6 @@
 ---
-title: "Taller Factorial – Análisis factorial completo de las 33 variables educativas municipales"
-subtitle: "Un factor, rotación, número de factores, estabilidad, puntajes por categoría y decisión"
+title: "Taller Factorial – Análisis factorial I y II con nueve indicadores educativos"
+subtitle: "¿Acceso y permanencia son dos dimensiones con nombre, o una sola?"
 author: "Equipo: Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva"
 date: "`r Sys.Date()`"
 output:
@@ -12,8 +12,9 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 6, fig.align = "center")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 9, fig.height = 5.5, fig.align = "center")
 tryCatch(Sys.setlocale("LC_ALL", "C.UTF-8"), error = function(e) NULL)
+# La raíz se busca por sus carpetas, no por el nombre del .Rproj
 find_project_root <- function(start = getwd()) {
   path <- normalizePath(start, mustWork = TRUE)
   repeat {
@@ -26,12 +27,15 @@ find_project_root <- function(start = getwd()) {
 project_root <- find_project_root()
 knitr::opts_knit$set(root.dir = project_root)
 source(file.path(project_root, "scripts", "helpers_datos.R"))
-tables_dir <- file.path(project_root, "outputs", "taller-factorial", "tables")
-figures_dir <- file.path(project_root, "outputs", "taller-factorial", "figures")
+
+# Salidas del taller: se regeneran completas en cada tejido
+out_dir <- file.path(project_root, "outputs", "taller-factorial")
+unlink(file.path(out_dir, c("tables", "figures")), recursive = TRUE)
+tables_dir <- file.path(out_dir, "tables"); figures_dir <- file.path(out_dir, "figures")
 dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
 
-for (p in c("psych", "GPArotation", "ggplot2", "dplyr", "tidyr", "knitr")) {
+for (p in c("psych", "GPArotation", "ggplot2", "ggrepel", "dplyr", "tidyr", "knitr")) {
   if (!requireNamespace(p, quietly = TRUE)) stop("Falta el paquete ", p, ". Ejecute scripts/install_dependencies.R")
 }
 suppressPackageStartupMessages({ library(psych); library(ggplot2); library(dplyr); library(tidyr); library(knitr) })
@@ -40,795 +44,440 @@ tema <- theme_minimal(base_size = 11) +
         panel.grid.major.y = element_line(color = paleta$rejilla), plot.title = element_text(face = "bold"),
         plot.subtitle = element_text(color = "#52514e"), legend.position = "top")
 coma <- function(x, d = 1) formatC(x, format = "f", digits = d, decimal.mark = ",", big.mark = ".")
+# Tablas con coma decimal
+kable <- function(...) knitr::kable(..., format.args = list(decimal.mark = ",", big.mark = "."))
 guardar_tabla <- function(df, nombre) write.csv(df, file.path(tables_dir, nombre), row.names = FALSE)
-guardar_fig <- function(p, nombre, w = 10, h = 6) ggsave(file.path(figures_dir, nombre), p, width = w, height = h, dpi = 150, bg = "white")
-set.seed(20261030)
+guardar_fig <- function(p, nombre, w = 9, h = 5.5) ggsave(file.path(figures_dir, nombre), p, width = w, height = h, dpi = 150, bg = "white")
+set.seed(20261102)
 ```
 
 ## Ficha técnica del caso
 
 **Cliente:** Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.
 
-**Decisión estratégica:** Decidir si los indicadores educativos municipales revelan dimensiones latentes estables que justifiquen nombrar y financiar dos fondos (acceso y permanencia), y qué tan sólida es esa conclusión.
+**Encargo:** El Ministerio quiere repartir recursos en **dos fondos**, uno de **acceso** (infraestructura y cupos) y otro de **permanencia y rendimiento** (tutorías, alimentación, acompañamiento). Pregunta si los indicadores municipales sostienen esas dos dimensiones o si en el fondo miden una sola «calidad educativa» del municipio.
 
-**Pregunta de fondo:** ¿Cuántos factores comunes hay entre los 30 indicadores? ¿Se pueden nombrar? ¿Son estables ante el estimador, el período y la unidad de análisis? ¿Qué aportan las 3 categóricas (`AÑO`, `DEPARTAMENTO`, `MUNICIPIO`)?
+**Datos:** `data/raw/educacion_limpio.csv`, registros municipio-año 2011–2024. Siguiendo la actividad práctica de las notas de clase, se escogen **9 de los 30 indicadores**.
 
-**Datos:** `data/raw/educacion_limpio.csv`, las **33 variables**: 30 indicadores numéricos, `AÑO`, `DEPARTAMENTO` y `MUNICIPIO`.
+# Parte A. Análisis factorial I
 
-**Cómo está organizado:**
+## Actividad 1. Las variables escogidas y el KMO
 
-| Parte | Puntos | Qué responde |
-|---|---|---|
-| A. Los datos | 1 y 2 | Qué variables entran y si tiene sentido factorizar |
-| B. Un factor común | 3 a 6 | Parte común y propia, si un factor alcanza y qué pasa con dos |
-| C. Girar y comprobar | 7 a 11 | Sin girar, varimax y oblimin, correlación entre factores, otro método y cuántos factores caben |
-| D. Profundización | 12 a 16 | Solución con más factores, ajuste, estabilidad, puntajes por año y territorio, categóricas en one-hot |
-| E. Decisión y cierre | 17 a 19 | Qué le recomendamos al cliente, comparación con 6 variables y límites |
-| Preguntas Conceptuales | — | Respuestas a las preguntas conceptuales de las dos notas de clase |
+Escogemos las variables que, según el cliente, deberían compartir algo: **cuatro de acceso** (cobertura neta por nivel) y **cinco de permanencia y rendimiento** (aprobación por nivel, deserción y repitencia). Tres criterios guían la elección:
 
-# Parte A. Los datos
-
-## 1. Las 33 variables y cómo entra cada una al análisis
-
-El análisis factorial supone variables continuas. Por eso los **30 indicadores** forman el modelo factorial y las **3 categóricas** se tratan de tres formas complementarias:
-(a) se describen y se mide cuánta varianza de cada indicador explican (R² ajustado); (b) se prueban como columnas one-hot en el modelo (punto 16, solo como diagnóstico, porque son binarias); y
-(c) se usan para **leer los puntajes factoriales** por año, departamento y municipio (punto 15).
+* **Sin indicadores agregados junto a sus niveles.** `COBERTURA_NETA` es un promedio ponderado de sus niveles; meter los dos repetiría la misma información.
+* **Sin la identidad aprobación + reprobación + deserción ≈ 1.** Si entran las tres tasas generales, una se deduce de las otras dos y la matriz queda casi singular. Por eso no entra la reprobación.
+* **Sin la población.** `POBLACIÓN_5_16` mide el tamaño del municipio, no sus condiciones; no esperamos que comparta nada con las demás.
 
 ```{r variables}
 datos <- cargar_educacion(project_root)
-indicadores <- columnas_indicadores(datos)
-X <- datos[, indicadores]
+vars <- c("COBERTURA_NETA_TRANSICIÓN", "COBERTURA_NETA_PRIMARIA", "COBERTURA_NETA_SECUNDARIA", "COBERTURA_NETA_MEDIA",
+          "APROBACIÓN_PRIMARIA", "APROBACIÓN_SECUNDARIA", "APROBACIÓN_MEDIA", "DESERCIÓN", "REPITENCIA")
+corta <- c(COBERTURA_NETA_TRANSICIÓN = "Cob. transición", COBERTURA_NETA_PRIMARIA = "Cob. primaria",
+           COBERTURA_NETA_SECUNDARIA = "Cob. secundaria", COBERTURA_NETA_MEDIA = "Cob. media",
+           APROBACIÓN_PRIMARIA = "Aprob. primaria", APROBACIÓN_SECUNDARIA = "Aprob. secundaria",
+           APROBACIÓN_MEDIA = "Aprob. media", DESERCIÓN = "Deserción", REPITENCIA = "Repitencia")
+grupo <- c(rep("Acceso", 4), rep("Permanencia y rendimiento", 5)); names(grupo) <- vars
+X <- datos[, vars]
 n <- nrow(X); p <- ncol(X)
-panel <- resumen_panel(datos)
-stopifnot(p == 30, ncol(datos) - 1 == 33, !anyNA(X))   # 33 columnas originales (+ ID_MUNICIPIO derivado)
-
-familia <- function(v) {
-  f <- sub("_.*$", "", v)
-  f <- ifelse(f %in% c("TASA"), "COBERTURA", f)
-  f <- ifelse(f == "POBLACIÓN", "POBLACIÓN", f)
-  f
-}
-roles <- data.frame(
-  Variable = c(indicadores, "AÑO", "DEPARTAMENTO", "MUNICIPIO"),
-  Tipo = c(rep("Indicador numérico", 30), rep("Categórica", 3)),
-  Uso = c(rep("Entra al modelo factorial", 30),
-          "One-hot (diagnóstico), R², puntajes por año", "One-hot (diagnóstico), R², puntajes por departamento", "One-hot (diagnóstico), R², puntajes por municipio"),
-  Familia = c(familia(indicadores), "—", "—", "—")
-)
-guardar_tabla(roles, "variables_y_roles.csv")
-kable(as.data.frame(table(Tipo = roles$Tipo, Familia = roles$Familia)) %>% filter(Freq > 0) %>% tidyr::pivot_wider(names_from = Familia, values_from = Freq, values_fill = 0),
-      caption = "Cuántas variables hay por tipo y familia.")
-
-# Herramientas que se usan en todo el informe
+stopifnot(p >= 4, p <= 10, !anyNA(X))
 R <- cor(X)
-# Ordena y orienta una solución factorial para leerla igual en todos los puntos:
-# primero el factor de cobertura (Acceso) y luego el de aprobación (Rendimiento), los dos con signo «mayor = mejor».
-orientar <- function(f) {
-  L <- unclass(f$loadings); k <- ncol(L)
-  acc <- which.max(abs(L["COBERTURA_NETA", ]))
-  orden <- c(acc, setdiff(seq_len(k), acc))
-  L <- L[, orden, drop = FALSE]
-  s <- sign(L["COBERTURA_NETA", 1])
-  if (k > 1) s <- c(s, sign(L["APROBACIÓN", 2]), rep(1, k - 2))
-  L <- sweep(L, 2, s, `*`)
-  Phi <- if (is.null(f$Phi)) diag(k) else f$Phi[orden, orden] * outer(s, s)
-  nombres <- if (k == 1) "Factor único" else c("Acceso", "Rendimiento", if (k > 2) paste0("F", 3:k))
-  colnames(L) <- nombres; dimnames(Phi) <- list(nombres, nombres)
-  list(L = L, Phi = Phi)
-}
-# Las variables que más cargan en el factor j
-top_cargas <- function(L, j, top = 4) {
-  o <- order(-abs(L[, j]))[1:top]
-  paste0(rownames(L)[o], " (", coma(L[o, j], 2), ")", collapse = "; ")
-}
-# Diferencia entre la correlación observada y la que reproduce el modelo, pareja por pareja
-residuos <- function(L, Phi = diag(ncol(L))) { E <- R - L %*% Phi %*% t(L); diag(E) <- 0; E }
-resumen_residuos <- function(E) {
-  u <- abs(E[upper.tri(E)]); w <- which(abs(E) == max(abs(E)), arr.ind = TRUE)[1, ]
-  data.frame(Error_maximo = max(u), Pareja_con_mas_error = paste(rownames(E)[w], collapse = " y "),
-             Error_medio = mean(u), Pares_con_error_mayor_010_pct = 100 * mean(u > 0.10))
-}
-```
+panel <- resumen_panel(datos)
 
-Son **`r fint(n)` registros municipio-año** de **`r fint(panel$municipios)` municipios** en **`r panel$departamentos` departamentos** y `r panel$anios` años. Cada fila es un municipio en un año:
-las filas de un mismo municipio no son independientes, y eso condiciona la inferencia y la lectura de los factores (puntos 14 y 15).
+tab_vars <- data.frame(Variable = vars, Grupo = grupo, Media = colMeans(X), Desviacion = apply(X, 2, sd))
+guardar_tabla(tab_vars, "variables_usadas.csv")
+kable(tab_vars, digits = 3, row.names = FALSE, col.names = c("Variable", "Lo que esperamos que comparta", "Media", "Desviación"),
+      caption = "Las 9 variables del taller (proporciones entre 0 y 1).")
 
-## 2. ¿Tiene sentido factorizar? Adecuación de la matriz
-
-```{r adecuacion}
 kmo <- KMO(R)
-bart <- cortest.bartlett(R, n = n)
-autov <- eigen(R, symmetric = TRUE, only.values = TRUE)$values
-suma_tres <- datos$APROBACIÓN + datos$REPROBACIÓN + datos$DESERCIÓN
+kmo_tab <- data.frame(Variable = vars, KMO = as.numeric(kmo$MSAi))
+guardar_tabla(rbind(kmo_tab, data.frame(Variable = "GLOBAL", KMO = kmo$MSA)), "kmo.csv")
 
-kmo_tab <- data.frame(Variable = indicadores, KMO = as.numeric(kmo$MSAi), Familia = familia(indicadores))
-kmo_tab$Lectura <- cut(kmo_tab$KMO, c(-Inf, 0.5, 0.6, 0.7, 0.8, Inf), labels = c("inaceptable", "mediocre", "regular", "meritorio", "excelente"))
-guardar_tabla(kmo_tab, "kmo_por_variable.csv")
-
-adec <- data.frame(
-  Medida = c("KMO global", "Variables con KMO < 0,5", "Chi² de Bartlett", "Grados de libertad", "Valor p de Bartlett",
-             "Determinante de R", "Menor autovalor de R", "Número de condición de R"),
-  Valor = c(coma(kmo$MSA, 3), sum(kmo$MSAi < 0.5), coma(bart$chisq, 0), bart$df, ifelse(bart$p.value < 1e-300, "< 1e-300", format(bart$p.value, digits = 2, scientific = TRUE)),
-            format(det(R), digits = 3, scientific = TRUE), format(min(autov), digits = 3, scientific = TRUE),
-            format(max(autov) / min(autov), digits = 3, scientific = TRUE))
-)
-guardar_tabla(adec, "adecuacion.csv")
-kable(adec, caption = "Pruebas de adecuación de la matriz de correlaciones de los 30 indicadores.")
-
-p_kmo <- ggplot(kmo_tab, aes(reorder(Variable, KMO), KMO, fill = KMO < 0.5)) + geom_col(width = 0.75) + coord_flip() +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = paleta$naranja) +
-  scale_fill_manual(values = c(`FALSE` = paleta$azul, `TRUE` = paleta$naranja), guide = "none") +
-  tema + theme(axis.text.y = element_text(size = 8), panel.grid.major.y = element_blank()) +
-  labs(title = paste0("KMO por variable (global: ", coma(kmo$MSA, 3), ")"), subtitle = "Naranja: por debajo de 0,5", x = NULL, y = "KMO")
-print(p_kmo)
-guardar_fig(p_kmo, "kmo_por_variable.png", 9, 7.5)
+cor_larga <- as.data.frame(as.table(R)) %>%
+  mutate(Var1 = factor(corta[as.character(Var1)], levels = corta), Var2 = factor(corta[as.character(Var2)], levels = rev(corta)))
+p_cor <- ggplot(cor_larga, aes(Var1, Var2, fill = Freq)) + geom_tile(color = "white") +
+  geom_text(aes(label = coma(Freq, 2)), size = 3) +
+  scale_fill_gradient2(low = paleta$naranja, mid = "#f7f6f2", high = paleta$azul, limits = c(-1, 1), name = "r") +
+  tema + theme(axis.text.x = element_text(angle = 35, hjust = 1), panel.grid = element_blank()) +
+  labs(title = "Correlaciones entre las 9 variables", subtitle = "Dos bloques: cobertura por nivel y aprobación por nivel", x = NULL, y = NULL)
+print(p_cor)
+guardar_fig(p_cor, "correlaciones.png", 8, 6.5)
 ```
 
-> ⭐ **Qué ve:** El KMO global es **`r coma(kmo$MSA, 3)`** y `r sum(kmo$MSAi < 0.5)` de los 30 indicadores quedan por debajo de 0,5 (los más bajos: `r paste(head(kmo_tab$Variable[order(kmo_tab$KMO)], 3), collapse = ", ")`). La prueba de Bartlett rechaza la matriz identidad (valor p `r ifelse(bart$p.value < 1e-300, "< 1e-300", format(bart$p.value, digits = 2, scientific = TRUE))`), pero con `r fint(n)` filas casi cualquier matriz la rechaza. El número de condición de R es `r format(max(autov) / min(autov), digits = 3, scientific = TRUE)`.
+```{r kmo-tabla}
+kable(data.frame(Variable = c(vars, "**Global**"), KMO = coma(c(kmo$MSAi, kmo$MSA), 3)), row.names = FALSE, align = "lr",
+      caption = "KMO por variable y global.")
+```
+
+> ⭐ **Qué ve:** Son **`r fint(n)` registros municipio-año** de `r fint(panel$municipios)` municipios. El **KMO global es `r coma(kmo$MSA, 3)`** y ninguna variable baja de 0,5 (la menor es `r kmo_tab$Variable[which.min(kmo_tab$KMO)]`, con `r coma(min(kmo_tab$KMO), 3)`). La matriz muestra dos bloques: la cobertura de los cuatro niveles se mueve junta (hasta `r coma(max(R[1:4, 1:4][upper.tri(R[1:4, 1:4])]), 2)`) y la aprobación de los tres niveles también (hasta `r coma(max(R[5:7, 5:7][upper.tri(R[5:7, 5:7])]), 2)`), pero entre bloques las correlaciones son casi nulas (en valor absoluto, a lo sumo `r coma(max(abs(R[1:4, 5:9])), 2)`).
 >
-> ⭐ **Qué significa para el cliente:** Hay correlación suficiente para factorizar, pero el piso es débil (por debajo de 0,7, el umbral de «bueno» de las notas de clase) y la matriz está **casi pegada a ser singular**: aprobación + reprobación + deserción suma entre `r coma(min(suma_tres), 3)` y `r coma(max(suma_tres), 3)` (mediana `r coma(median(suma_tres), 3)`; `r sum(suma_tres < 0.99)` registros suman menos de 0,99, los de ceros sospechosos que muestra el Taller 2). Los índices de ajuste del modelo (punto 13) heredan esa fragilidad.
+> ⭐ **Qué significa para el cliente:** Hay algo común que buscar: el KMO queda entre «regular» y «bueno» según las referencias de clase. Ya se insinúa que lo común no es una sola cosa: el acceso y el rendimiento casi no se tocan.
 >
-> ⭐ **Qué decide él:** Factorizar los 30 indicadores como análisis **exploratorio**, y comprobar en los puntos 10 y 14 que las conclusiones no dependen del estimador, del período ni de repetir municipios.
+> ⭐ **Qué decide él:** Seguir con el análisis factorial sobre estas 9 variables.
 
+## Actividad 2. Un factor: parte común y parte propia
 
-# Parte B. Un factor común
+*`fa(datos, nfactors = 1, fm = "ml")` y gráfica de parte común y parte propia.*
 
-Cada indicador, en escala estándar, se parte en **carga × factor común + parte propia**, y su varianza en **carga² (parte común o comunalidad) + varianza propia (unicidad)**. Las Partes B y C usan máxima verosimilitud (`fm = "ml"`), como las notas de clase; el punto 10 comprueba que otro método da lo mismo.
+Cada variable, en escala estándar, se parte en **carga × factor común + parte propia**, y su varianza en **carga² (parte común) + parte propia**.
 
-## 3. Un solo factor: parte común y parte propia
-`fa(datos, nfactors = 1, fm = "ml")` y gráfica de parte común y parte propia.
-
-```{r un-factor, fig.height = 8}
-f1_ml <- suppressWarnings(fa(X, nfactors = 1, fm = "ml"))
-o1 <- orientar(f1_ml)
-reparto <- data.frame(Variable = indicadores, Familia = familia(indicadores), Carga = as.numeric(o1$L[, 1]),
-                      Comun = 100 * as.numeric(f1_ml$communality), Propia = 100 * as.numeric(f1_ml$uniquenesses))
-guardar_tabla(reparto, "un_factor_ml_comun_propia.csv")
+```{r un-factor}
+f1 <- suppressWarnings(fa(X, nfactors = 1, fm = "ml"))
+L1 <- as.numeric(f1$loadings[, 1]); names(L1) <- vars
+if (L1["COBERTURA_NETA_SECUNDARIA"] < 0) L1 <- -L1
+reparto <- data.frame(Variable = vars, Grupo = grupo, Carga = L1,
+                      Comun = 100 * as.numeric(f1$communality), Propia = 100 * as.numeric(f1$uniquenesses))
+guardar_tabla(reparto, "un_factor_comun_propia.csv")
 pct_comun1 <- mean(reparto$Comun)
-mas_comun <- reparto[order(-reparto$Comun), ]
 
 p_reparto <- reparto %>%
   select(Variable, `Parte común` = Comun, `Parte propia` = Propia) %>%
   pivot_longer(-Variable) %>%
-  mutate(Variable = factor(Variable, levels = reparto$Variable[order(reparto$Comun)]),
+  mutate(Variable = factor(corta[Variable], levels = corta[reparto$Variable[order(reparto$Comun)]]),
          name = factor(name, levels = c("Parte propia", "Parte común"))) %>%
-  ggplot(aes(value, Variable, fill = name)) + geom_col(width = 0.72) +
-  geom_text(data = filter(reparto, Comun >= 8), aes(x = Comun / 2, y = Variable, label = coma(Comun, 0)),
-            inherit.aes = FALSE, color = "white", fontface = "bold", size = 2.8) +
+  ggplot(aes(value, Variable, fill = name)) + geom_col(width = 0.7) +
+  geom_text(aes(label = ifelse(value >= 6, coma(value, 0), "")), position = position_stack(vjust = 0.5),
+            color = "white", fontface = "bold", size = 3.3) +
   scale_fill_manual(values = c(`Parte común` = paleta$azul, `Parte propia` = paleta$naranja),
                     breaks = c("Parte común", "Parte propia"), name = NULL) +
-  scale_x_continuous(labels = function(x) coma(x, 0), expand = c(0, 0)) +
-  tema + theme(axis.text.y = element_text(size = 8), panel.grid.major.y = element_blank()) +
-  labs(title = "Qué parte de cada indicador es factor común y qué parte es propia",
-       subtitle = paste0("Un factor (máxima verosimilitud). De cada 100 partes de la varianza de cada indicador;\nen promedio, ",
-                         coma(pct_comun1, 1), " son comunes"),
+  scale_x_continuous(expand = c(0, 0)) + tema + theme(panel.grid.major.y = element_blank()) +
+  labs(title = "Qué parte de cada variable es común y qué parte es propia",
+       subtitle = paste0("Un factor (máxima verosimilitud). De cada 100 partes; en promedio, ", coma(pct_comun1, 1), " son comunes"),
        x = "De cada 100", y = NULL)
 print(p_reparto)
-guardar_fig(p_reparto, "un_factor_comun_propia.png", 9, 8)
+guardar_fig(p_reparto, "un_factor_comun_propia.png", 9, 5)
+kable(reparto[, -2], digits = c(0, 3, 1, 1), row.names = FALSE, col.names = c("Variable", "Carga", "Parte común (de 100)", "Parte propia (de 100)"),
+      caption = "Un factor (ML): carga, parte común y parte propia.")
 ```
 
-> ⭐ **Qué ve:** Con un solo factor, en promedio **`r coma(pct_comun1, 1)` de cada 100 partes** de la varianza de un indicador son comunes. El factor lo definen los indicadores de cobertura: `r top_cargas(o1$L, 1, 4)`. En cobertura neta, `r coma(reparto$Comun[reparto$Variable == "COBERTURA_NETA"], 1)` de cada 100 partes son comunes; en aprobación, `r coma(reparto$Comun[reparto$Variable == "APROBACIÓN"], 1)`; en deserción, `r coma(reparto$Comun[reparto$Variable == "DESERCIÓN"], 1)`.
+> ⭐ **Qué ve:** El único factor lo definen las coberturas: secundaria (carga `r coma(L1["COBERTURA_NETA_SECUNDARIA"], 2)`), media (`r coma(L1["COBERTURA_NETA_MEDIA"], 2)`), primaria (`r coma(L1["COBERTURA_NETA_PRIMARIA"], 2)`) y transición (`r coma(L1["COBERTURA_NETA_TRANSICIÓN"], 2)`). Las cinco variables de permanencia y rendimiento tienen cargas de `r coma(min(abs(L1[5:9])), 2)` a `r coma(max(abs(L1[5:9])), 2)` en valor absoluto. En promedio, **`r coma(pct_comun1, 1)` de cada 100 partes** son comunes. La cobertura de secundaria queda con `r coma(reparto$Comun[3], 1)` de 100 partes comunes: el factor prácticamente *es* esa variable (con máxima verosimilitud llega al tope permitido, un caso límite que la actividad 4 de la Parte B revisa con otro método).
 >
-> ⭐ **Qué significa para el cliente:** Un único factor no es un «nivel educativo general» del municipio: es, en la práctica, **acceso**. Todo lo que tiene que ver con permanencia y rendimiento queda como parte propia.
+> ⭐ **Qué significa para el cliente:** Un solo factor no es una «calidad educativa general» del municipio: es **el acceso**. Todo lo de permanencia y rendimiento queda como parte propia.
 >
-> ⭐ **Qué decide él:** No resumir los 30 indicadores en un solo índice sin mirar qué deja por fuera (puntos 4 y 5).
+> ⭐ **Qué decide él:** No usar un índice de un factor para repartir los dos fondos sin mirar lo que deja por fuera.
 
-## 4. Los indicadores que son casi todo parte propia
-¿qué variable es casi toda propia y qué significa para el cliente?
+## Actividad 3. La variable que es casi toda propia
 
-```{r casi-propias}
-propias <- reparto[order(-reparto$Propia), c("Variable", "Familia", "Carga", "Comun", "Propia")]
-kable(head(propias, 10), digits = c(0, 0, 3, 1, 1), row.names = FALSE,
-      col.names = c("Variable", "Familia", "Carga", "Parte común (de 100)", "Parte propia (de 100)"),
-      caption = "Los 10 indicadores con más parte propia (un factor, ML).")
-por_familia1 <- reparto %>% group_by(Familia) %>%
-  summarise(Indicadores = n(), Parte_comun_media = mean(Comun), Parte_propia_media = mean(Propia), .groups = "drop") %>%
-  arrange(Parte_comun_media)
-guardar_tabla(por_familia1, "un_factor_por_familia.csv")
-kable(por_familia1, digits = 1, caption = "Parte común y propia promedio por familia de indicadores (un factor).")
-n_propia80 <- sum(reparto$Propia > 80)
+*¿Qué variable es casi toda propia? ¿Qué significa eso para su cliente?*
+
+```{r casi-propia}
+propias <- reparto[order(-reparto$Propia), c("Variable", "Grupo", "Comun", "Propia")]
+kable(propias, digits = 1, row.names = FALSE, col.names = c("Variable", "Grupo", "Parte común", "Parte propia"),
+      caption = "Variables ordenadas de más a menos parte propia (un factor).")
+
+# El costo de priorizar con el factor único: de los municipios-año con más deserción,
+# ¿cuántos quedan fuera del 20 % con peor puntaje del factor?
+f1s <- suppressWarnings(fa(X, nfactors = 1, fm = "ml", scores = "regression"))
+s1 <- as.numeric(f1s$scores); if (cor(s1, X$COBERTURA_NETA_SECUNDARIA) < 0) s1 <- -s1
+peor_factor <- s1 <= quantile(s1, 0.20)
+g_des <- X$DESERCIÓN >= quantile(X$DESERCIÓN, 0.8)
+g_rep <- X$REPITENCIA >= quantile(X$REPITENCIA, 0.8)
+g_apr <- X$APROBACIÓN_SECUNDARIA <= quantile(X$APROBACIÓN_SECUNDARIA, 0.2)
+costo <- data.frame(
+  Grupo = c("20 % con más deserción", "20 % con más repitencia", "20 % con menos aprobación en secundaria"),
+  Registros = c(sum(g_des), sum(g_rep), sum(g_apr)),
+  Fuera = c(sum(g_des & !peor_factor), sum(g_rep & !peor_factor), sum(g_apr & !peor_factor)))
+costo$Pct_fuera <- 100 * costo$Fuera / costo$Registros
+guardar_tabla(costo, "costo_factor_unico.csv")
+kable(costo, digits = 1, row.names = FALSE, col.names = c("Grupo prioritario", "Registros", "Fuera del 20 % peor del factor", "% fuera"),
+      caption = "Si se prioriza con el factor único (20 % con peor puntaje), ¿cuántos de cada grupo se escapan?")
 ```
 
-> ⭐ **Qué ve:** **`r n_propia80` de los 30 indicadores** tienen más de 80 de cada 100 partes propias: todos los que no son de cobertura. No son casos sueltos sino **familias completas**: en promedio, deserción tiene `r coma(por_familia1$Parte_propia_media[por_familia1$Familia == "DESERCIÓN"], 1)`, aprobación `r coma(por_familia1$Parte_propia_media[por_familia1$Familia == "APROBACIÓN"], 1)`, reprobación `r coma(por_familia1$Parte_propia_media[por_familia1$Familia == "REPROBACIÓN"], 1)` y repitencia `r coma(por_familia1$Parte_propia_media[por_familia1$Familia == "REPITENCIA"], 1)` de cada 100 partes propias. **POBLACIÓN_5_16** también es casi toda propia (`r coma(reparto$Propia[reparto$Variable == "POBLACIÓN_5_16"], 1)`), pero por otra razón.
+> ⭐ **Qué ve:** La más propia es **`r propias$Variable[1]`**, con `r coma(propias$Propia[1], 1)` de cada 100 partes propias, seguida de `r propias$Variable[2]` (`r coma(propias$Propia[2], 1)`) y `r propias$Variable[3]` (`r coma(propias$Propia[3], 1)`). Todas las de permanencia y rendimiento superan `r floor(min(reparto$Propia[5:9]))`. Si el Ministerio prioriza con el factor único, se le escapan **`r coma(costo$Pct_fuera[1], 0)` de cada 100** registros del grupo con más deserción y `r coma(costo$Pct_fuera[2], 0)` de cada 100 del grupo con más repitencia; con un factor que no tuviera nada que ver con esos grupos se esperarían 80.
 >
-> ⭐ **Qué significa para el cliente:** Que deserción, aprobación y repitencia sean casi todo propias **no quiere decir que estén mal medidas**: quiere decir que lo que miden no se puede deducir de la cobertura. Si el Ministerio prioriza con un índice de un factor, los municipios con deserción alta pero buena cobertura no aparecen. La población de 5 a 16 años es distinta: mide el **tamaño** del municipio, no sus condiciones educativas, y no comparte nada con ningún otro indicador ni con uno ni con dos factores.
+> ⭐ **Qué significa para el cliente:** Que la aprobación, la deserción y la repitencia sean casi todas propias **no significa que estén mal medidas**: significa que lo que miden no se puede deducir de la cobertura. Un municipio puede tener buena cobertura y mucha deserción, y un índice de acceso no lo ve: el factor único deja escapar casi tantos registros de deserción alta como un puntaje que no tuviera nada que ver con ella.
 >
-> ⭐ **Qué decide él:** Usar la población solo como escala (para repartir montos), y mirar la permanencia y el rendimiento aparte o con un segundo factor (punto 6).
+> ⭐ **Qué decide él:** La deserción y la repitencia se revisan directamente, no a través del factor de acceso.
 
-## 5. ¿Alcanza con un factor? Correlaciones frente al producto de las cargas
+## Actividad 4. ¿Alcanza con un factor? Correlaciones frente al producto de las cargas
 
-Si un solo factor explica por qué los indicadores se mueven juntos, la correlación entre dos indicadores debe ser aproximadamente el producto de sus cargas: $r_{ij} \approx \lambda_i \lambda_j$.
+*COmprobar si una habilidad alcanza: comparar las correlaciones con el producto de las cargas.*
 
-```{r producto-cargas, fig.height = 5.5}
-L1 <- o1$L[, 1]
-E1 <- residuos(o1$L)
-ejemplos <- data.frame(
-  Pareja = c("COBERTURA_NETA y COBERTURA_BRUTA", "APROBACIÓN y REPROBACIÓN", "DESERCIÓN y REPITENCIA"),
-  Correlacion_observada = c(R["COBERTURA_NETA", "COBERTURA_BRUTA"], R["APROBACIÓN", "REPROBACIÓN"], R["DESERCIÓN", "REPITENCIA"]),
-  Producto_de_cargas = c(L1["COBERTURA_NETA"] * L1["COBERTURA_BRUTA"], L1["APROBACIÓN"] * L1["REPROBACIÓN"], L1["DESERCIÓN"] * L1["REPITENCIA"]))
-ejemplos$Diferencia <- ejemplos$Correlacion_observada - ejemplos$Producto_de_cargas
-rownames(ejemplos) <- NULL
-kable(ejemplos, digits = 3, caption = "Tres parejas: correlación observada y la que reproduce un factor.")
+Si un solo factor explica por qué las variables se mueven juntas, la correlación entre dos de ellas debe parecerse al producto de sus cargas: $r_{ij} \approx \lambda_i \lambda_j$.
 
-res1 <- resumen_residuos(E1)
-kable(res1, digits = 3, col.names = c("Error máximo", "Pareja con más error", "Error medio", "% de parejas con error > 0,10"),
-      caption = paste0("Las ", p * (p - 1) / 2, " parejas de indicadores: correlación observada menos producto de cargas."))
-
+```{r producto-cargas}
 idx <- which(upper.tri(R), arr.ind = TRUE)
-pares1 <- data.frame(Var1 = rownames(R)[idx[, 1]], Var2 = colnames(R)[idx[, 2]], Observada = R[idx],
-                     Reproducida = (L1 %o% L1)[idx], Error = E1[idx])
-n_cob <- (familia(pares1$Var1) == "COBERTURA") + (familia(pares1$Var2) == "COBERTURA")
-pares1$Tipo <- factor(c("Ninguno de cobertura", "Uno de cobertura", "Los dos de cobertura")[n_cob + 1],
-                      levels = c("Los dos de cobertura", "Uno de cobertura", "Ninguno de cobertura"))
-sin_cob <- pares1[n_cob == 0, ]
-guardar_tabla(pares1[order(-abs(pares1$Error)), ], "un_factor_correlaciones_vs_producto.csv")
-kable(head(pares1[order(-abs(pares1$Error)), c("Var1", "Var2", "Observada", "Reproducida", "Error")], 6), digits = 3, row.names = FALSE,
-      caption = "Las seis parejas que un factor reproduce peor.")
+pares <- data.frame(Var1 = vars[idx[, 1]], Var2 = vars[idx[, 2]], Observada = R[idx], Producto = (L1 %o% L1)[idx])
+pares$Diferencia <- pares$Observada - pares$Producto
+pares$Tipo <- with(pares, ifelse(grupo[Var1] == "Acceso" & grupo[Var2] == "Acceso", "Las dos de acceso",
+                          ifelse(grupo[Var1] != "Acceso" & grupo[Var2] != "Acceso", "Las dos de permanencia", "Una de cada grupo")))
+pares <- pares[order(-abs(pares$Diferencia)), ]
+guardar_tabla(pares, "un_factor_correlaciones_vs_producto.csv")
+kable(head(pares[, 1:5], 8), digits = 3, row.names = FALSE,
+      col.names = c("Variable 1", "Variable 2", "Correlación observada", "Producto de cargas", "Diferencia"),
+      caption = paste0("Las 8 parejas (de ", nrow(pares), ") que un factor reproduce peor."))
+res_grupo <- pares %>% group_by(Tipo) %>% summarise(Parejas = n(), Diferencia_media = mean(abs(Diferencia)), Diferencia_maxima = max(abs(Diferencia)), .groups = "drop")
+kable(res_grupo, digits = 3, col.names = c("Tipo de pareja", "Parejas", "|Diferencia| media", "|Diferencia| máxima"),
+      caption = "Diferencias por tipo de pareja.")
 
-p_prod <- ggplot(pares1, aes(Reproducida, Observada, color = Tipo)) +
+p_prod <- ggplot(pares, aes(Producto, Observada, color = Tipo)) +
   geom_abline(slope = 1, intercept = 0, color = paleta$gris, linetype = "dashed") +
-  geom_point(alpha = 0.7, size = 1.8) +
-  scale_color_manual(values = c(`Los dos de cobertura` = paleta$azul, `Uno de cobertura` = paleta$gris, `Ninguno de cobertura` = paleta$naranja), name = NULL) +
-  coord_equal(xlim = c(-1, 1), ylim = c(-1, 1)) + tema + theme(panel.grid.major.x = element_line(color = paleta$rejilla)) +
-  labs(title = "Un factor solo reproduce las correlaciones de la cobertura",
-       subtitle = "Cada punto es una pareja de indicadores; sobre la diagonal,\nel factor reproduce bien su correlación",
+  geom_point(size = 3, alpha = 0.85) +
+  scale_color_manual(values = c(`Las dos de acceso` = paleta$azul, `Una de cada grupo` = paleta$gris, `Las dos de permanencia` = paleta$naranja), name = NULL) +
+  coord_equal(xlim = c(-0.8, 1), ylim = c(-0.8, 1)) + tema + theme(panel.grid.major.x = element_line(color = paleta$rejilla)) +
+  labs(title = "Un factor reproduce la cobertura, no la permanencia",
+       subtitle = "Cada punto es una pareja de variables; sobre la diagonal, el factor reproduce su correlación",
        x = "Producto de las cargas (un factor)", y = "Correlación observada")
 print(p_prod)
-guardar_fig(p_prod, "un_factor_correlaciones_vs_producto.png", 7, 6.5)
+guardar_fig(p_prod, "un_factor_correlaciones_vs_producto.png", 7.5, 6.5)
 ```
 
-> ⭐ **Qué ve:** En cobertura la cuenta cuadra: cobertura neta y bruta se correlacionan `r coma(ejemplos$Correlacion_observada[1], 3)` y el producto de sus cargas da `r coma(ejemplos$Producto_de_cargas[1], 3)`. En rendimiento no: aprobación y reprobación se correlacionan `r coma(ejemplos$Correlacion_observada[2], 3)` y el factor solo reproduce `r coma(ejemplos$Producto_de_cargas[2], 3)`. Entre las `r p * (p - 1) / 2` parejas, el error máximo es **`r coma(res1$Error_maximo, 3)`** (`r res1$Pareja_con_mas_error`), el error medio `r coma(res1$Error_medio, 3)` y `r coma(res1$Pares_con_error_mayor_010_pct, 1)` % de las parejas fallan por más de 0,10. En la gráfica, las parejas de cobertura (azul) quedan sobre la diagonal; las parejas sin ningún indicador de cobertura (naranja) forman una columna en 0: el factor les asigna correlación casi nula, aunque en los datos van de `r coma(min(sin_cob$Observada), 2)` a `r coma(max(sin_cob$Observada), 2)`.
+> ⭐ **Qué ve:** Entre las variables de acceso la cuenta casi cuadra (diferencia media `r coma(res_grupo$Diferencia_media[res_grupo$Tipo == "Las dos de acceso"], 3)`). Entre las de permanencia no: la pareja peor reproducida es **`r pares$Var1[1]` y `r pares$Var2[1]`**, que se correlacionan `r coma(pares$Observada[1], 2)` mientras el factor reproduce `r coma(pares$Producto[1], 2)`. En la gráfica, los puntos naranja forman una columna en cero: el factor les asigna correlación casi nula aunque en los datos van de `r coma(min(pares$Observada[pares$Tipo == "Las dos de permanencia"]), 2)` a `r coma(max(pares$Observada[pares$Tipo == "Las dos de permanencia"]), 2)`.
 >
-> ⭐ **Qué significa para el cliente:** **Un factor no alcanza.** A diferencia del ejemplo de las notas de clase, aquí queda mucha correlación sin explicar: la que une a los indicadores de aprobación, reprobación, deserción y repitencia entre sí, dentro de cada familia y entre familias (aprobación y reprobación, por ejemplo).
+> ⭐ **Qué significa para el cliente:** **Un factor no alcanza.** A diferencia del ejemplo de clase, donde una habilidad reproducía casi todo, aquí queda sin explicar todo lo que une a la aprobación, la deserción y la repitencia entre sí.
 >
 > ⭐ **Qué decide él:** Probar con dos factores.
 
-## 6. ¿Y si le pedimos dos?
+## Actividad 5. ¿Y si le pedimos dos?
 
-*¿el segundo factor tiene sentido, o es una sola variable?*
+*Probar con dos. ¿La segunda es una habilidad con sentido, o es una sola variable?*
 
 ```{r dos-factores}
-f2_ml <- suppressWarnings(fa(X, nfactors = 2, fm = "ml", rotate = "oblimin"))
-o2 <- orientar(f2_ml)
-E2 <- residuos(o2$L, o2$Phi)
-comp12 <- rbind(cbind(Modelo = "1 factor", Varianza_comun_pct = 100 * mean(f1_ml$communality), resumen_residuos(E1)),
-                cbind(Modelo = "2 factores", Varianza_comun_pct = 100 * mean(f2_ml$communality), resumen_residuos(E2)))
-guardar_tabla(comp12, "uno_vs_dos_factores_ml.csv")
-kable(comp12, digits = 3, col.names = c("Modelo", "Varianza común (%)", "Error máximo", "Pareja con más error", "Error medio", "% de parejas con error > 0,10"),
-      caption = "Uno frente a dos factores (ML, oblimin).")
+# Orienta una solución de dos factores: primero el de acceso, luego el de rendimiento, los dos con «mayor = mejor»
+orientar <- function(f) {
+  L <- unclass(f$loadings)
+  acc <- which.max(abs(L["COBERTURA_NETA_SECUNDARIA", ])); orden <- c(acc, 3 - acc)
+  L <- L[, orden]
+  s <- c(sign(L["COBERTURA_NETA_SECUNDARIA", 1]), sign(L["APROBACIÓN_SECUNDARIA", 2]))
+  L <- sweep(L, 2, s, `*`)
+  Phi <- if (is.null(f$Phi)) diag(2) else f$Phi[orden, orden] * outer(s, s)
+  colnames(L) <- c("Acceso", "Rendimiento"); dimnames(Phi) <- list(colnames(L), colnames(L))
+  list(L = L, Phi = Phi, h2 = f$communality)
+}
+error_modelo <- function(L, Phi = diag(ncol(L))) { E <- R - L %*% Phi %*% t(L); abs(E[upper.tri(E)]) }
+pareja_peor <- function(L, Phi = diag(ncol(L))) {
+  E <- abs(R - L %*% Phi %*% t(L)); E[!upper.tri(E)] <- 0
+  w <- which(E == max(E), arr.ind = TRUE)[1, ]; paste(vars[w[1]], "y", vars[w[2]])
+}
 
-def2 <- data.frame(Factor = colnames(o2$L),
-                   Indicadores_con_carga_04 = colSums(abs(o2$L) >= 0.4),
-                   Familias = sapply(1:2, function(j) paste(unique(familia(rownames(o2$L)[abs(o2$L[, j]) >= 0.4])), collapse = ", ")),
-                   Cargas_mas_altas = sapply(1:2, function(j) top_cargas(o2$L, j, 4)))
-kable(def2, row.names = FALSE, col.names = c("Factor", "Indicadores con |carga| ≥ 0,4", "Familias", "Cargas más altas"),
-      caption = "Qué define cada uno de los dos factores.")
-guardar_tabla(data.frame(Variable = indicadores, round(o2$L, 3), Comunalidad = round(f2_ml$communality, 3)), "cargas_2_factores_ml_oblimin.csv")
-h2_aprob <- f2_ml$communality["APROBACIÓN"]
+f2 <- suppressWarnings(fa(X, nfactors = 2, fm = "ml", rotate = "oblimin"))
+o2 <- orientar(f2)
+e1 <- error_modelo(matrix(L1)); e2 <- error_modelo(o2$L, o2$Phi)
+uno_dos <- data.frame(Modelo = c("1 factor", "2 factores"), Parte_comun = c(pct_comun1, 100 * mean(o2$h2)),
+                      Error_medio = c(mean(e1), mean(e2)), Error_maximo = c(max(e1), max(e2)), Pct_parejas_error_010 = 100 * c(mean(e1 > 0.1), mean(e2 > 0.1)))
+guardar_tabla(uno_dos, "uno_vs_dos_factores.csv")
+kable(uno_dos, digits = 3, col.names = c("Modelo", "Parte común media (de 100)", "Error medio", "Error máximo", "% de parejas con error > 0,10"),
+      caption = "Uno frente a dos factores (ML, oblimin): cuánto de las correlaciones queda sin explicar.")
+tab2 <- data.frame(Variable = vars, round(o2$L, 3), Parte_comun = round(100 * o2$h2, 1))
+guardar_tabla(tab2, "cargas_2_factores_ml_oblimin.csv")
+kable(tab2, row.names = FALSE, col.names = c("Variable", "Factor 1 (Acceso)", "Factor 2 (Rendimiento)", "Parte común (de 100)"),
+      caption = "Dos factores (ML, oblimin).")
+n_f2 <- sum(abs(o2$L[, 2]) >= 0.3)
+peor2 <- pareja_peor(o2$L, o2$Phi)
 ```
 
-> ⭐ **Qué ve:** Con dos factores la parte común sube de `r coma(comp12$Varianza_comun_pct[1], 1)` a **`r coma(comp12$Varianza_comun_pct[2], 1)` de cada 100** y el error medio baja de `r coma(comp12$Error_medio[1], 3)` a `r coma(comp12$Error_medio[2], 3)`. El segundo factor lo definen **`r def2$Indicadores_con_carga_04[2]` indicadores** de `r tolower(def2$Familias[2])`: `r def2$Cargas_mas_altas[2]`. Aprobación queda con una parte común de `r coma(h2_aprob, 3)`, casi 1. El error máximo sigue alto (`r coma(comp12$Error_maximo[2], 3)`, `r comp12$Pareja_con_mas_error[2]`).
+> ⭐ **Qué ve:** Con dos factores la parte común media sube de `r coma(uno_dos$Parte_comun[1], 1)` a **`r coma(uno_dos$Parte_comun[2], 1)` de cada 100**, y el error medio baja de `r coma(uno_dos$Error_medio[1], 3)` a `r coma(uno_dos$Error_medio[2], 3)` (el error máximo baja de `r coma(uno_dos$Error_maximo[1], 3)` a `r coma(uno_dos$Error_maximo[2], 3)`, en la pareja `r peor2`, y solo `r coma(uno_dos$Pct_parejas_error_010[2], 1)` % de las parejas fallan por más de 0,10). El segundo factor lo definen **`r n_f2` variables** con carga de 0,3 o más en valor absoluto: aprobación en secundaria (`r coma(o2$L["APROBACIÓN_SECUNDARIA", 2], 2)`), en media (`r coma(o2$L["APROBACIÓN_MEDIA", 2], 2)`) y en primaria (`r coma(o2$L["APROBACIÓN_PRIMARIA", 2], 2)`), y en sentido contrario la deserción (`r coma(o2$L["DESERCIÓN", 2], 2)`) y la repitencia (`r coma(o2$L["REPITENCIA", 2], 2)`).
 >
-> ⭐ **Qué significa para el cliente:** A diferencia de las notas de clase, donde el segundo factor era un solo módulo, aquí el segundo factor **es una familia entera**: aprobación, reprobación y deserción se mueven juntas. Tiene sentido llamarlo **rendimiento y permanencia**. Lo que todavía no se explica es la repitencia, que forma su propio grupo (lo retoma el punto 12).
+> ⭐ **Qué significa para el cliente:** A diferencia de las notas de clase, donde la segunda habilidad caía casi entera sobre lectura, aquí **el segundo factor no es una sola variable**: es la aprobación de los tres niveles, con la deserción y la repitencia del lado opuesto. Tiene sentido llamarlo **rendimiento y permanencia**. Aun así, la deserción y la repitencia conservan `r coma(100 - 100 * o2$h2["DESERCIÓN"], 0)` y `r coma(100 - 100 * o2$h2["REPITENCIA"], 0)` de cada 100 partes propias.
 >
-> ⭐ **Qué decide él:** Dos factores con nombre, Acceso y Rendimiento, son una base razonable para dos fondos. La Parte C comprueba si se sostienen al girarlos y al cambiar el método.
+> ⭐ **Qué decide él:** Dos factores, Acceso y Rendimiento, son una base razonable para dos fondos. La Parte B comprueba si sobreviven al giro y al cambio de método.
 
+# Parte B. Análisis factorial II
 
-# Parte C. Girar y comprobar
+## Actividad 1. Dos factores sin girar
 
-## 7. Dos factores sin girar
-
-*Sacar dos factores sin girar y ver si se pueden nombrar.*
+*Sacar dos habilidades sin girar y mirar si se pueden nombrar.*
 
 ```{r sin-girar}
-f2_none <- suppressWarnings(fa(X, nfactors = 2, fm = "ml", rotate = "none"))
-o2n <- orientar(f2_none)
+f2_sin <- suppressWarnings(fa(X, nfactors = 2, fm = "ml", rotate = "none"))
+o_sin <- orientar(f2_sin)
+tab_sin <- data.frame(Variable = vars, round(o_sin$L, 3))
+guardar_tabla(tab_sin, "cargas_2_factores_sin_girar.csv")
+kable(tab_sin, row.names = FALSE, col.names = c("Variable", "Primer factor", "Segundo factor"),
+      caption = "Dos factores sin girar (ML, rotate = \"none\").")
 cruzadas <- function(L) sum(rowSums(abs(L) >= 0.3) >= 2)
-sin_girar <- data.frame(Factor = c("Primero", "Segundo"),
-                        Indicadores_con_carga_04 = colSums(abs(o2n$L) >= 0.4),
-                        Cargas_mas_altas = sapply(1:2, function(j) top_cargas(o2n$L, j, 5)))
-kable(sin_girar, row.names = FALSE, col.names = c("Factor sin girar", "Indicadores con |carga| ≥ 0,4", "Cargas más altas"),
-      caption = "Los dos factores sin girar (ML, rotate = \"none\").")
-guardar_tabla(data.frame(Variable = indicadores, round(o2n$L, 3), Comunalidad = round(f2_none$communality, 3)), "cargas_2_factores_ml_sin_girar.csv")
 ```
 
-> ⭐ **Qué ve:** Sin girar, el primer factor ya reúne la cobertura (`r top_cargas(o2n$L, 1, 3)`) y el segundo la aprobación y la reprobación (`r top_cargas(o2n$L, 2, 3)`). `r if (cruzadas(o2n$L) == 0) "**Ningún indicador** carga" else paste0("Solo **", cruzadas(o2n$L), " indicadores** cargan")` 0,3 o más en los dos factores, y POBLACIÓN_5_16 no carga en ninguno.
+> ⭐ **Qué ve:** Sin girar, el primer factor ya reúne la cobertura (secundaria `r coma(o_sin$L["COBERTURA_NETA_SECUNDARIA", 1], 2)`, media `r coma(o_sin$L["COBERTURA_NETA_MEDIA", 1], 2)`) y el segundo la aprobación (secundaria `r coma(o_sin$L["APROBACIÓN_SECUNDARIA", 2], 2)`). `r if (cruzadas(o_sin$L) == 0) "Ninguna variable carga 0,3 o más en los dos factores." else paste0(cruzadas(o_sin$L), " variable(s) cargan 0,3 o más en los dos factores.")`
 >
-> ⭐ **Qué significa para el cliente:** Aquí los factores **se pueden nombrar sin girar**, al revés de lo que pasaba en las notas de clase. La razón es que las dos familias casi no se correlacionan entre sí: el primer factor no tiene que «tragarse» una parte de la otra familia, y el giro tiene poco que ordenar.
+> ⭐ **Qué significa para el cliente:** Aquí los factores **se pueden nombrar sin girar**, al revés que en clase. La razón está en la actividad 1: los dos bloques casi no se correlacionan, así que el primer factor no tiene que llevarse un pedazo del otro bloque.
 >
-> ⭐ **Qué decide él:** Girar de todas formas para confirmar que los nombres no dependen del giro.
+> ⭐ **Qué decide él:** Girar de todas formas, para confirmar que los nombres no dependen del giro.
 
-## 8. Varimax y oblimin: la parte común no cambia
+## Actividad 2. Varimax y oblimin: la parte común no cambia
 
-*Girar de las dos maneras y comprobar que la parte común de cada variable no cambia.*
+*Girarlas de las dos maneras (`rotate = "varimax"` y `rotate = "oblimin"`). Comprobar que la parte común de cada variable no cambia.*
 
-```{r giros, fig.height = 8}
+```{r giros, fig.height = 6}
 f2_vari <- suppressWarnings(fa(X, nfactors = 2, fm = "ml", rotate = "varimax"))
-o2v <- orientar(f2_vari)
-h2_tab <- data.frame(Variable = indicadores, Sin_girar = f2_none$communality, Varimax = f2_vari$communality, Oblimin = f2_ml$communality)
-guardar_tabla(h2_tab, "comunalidades_por_giro.csv")
-guardar_tabla(data.frame(Variable = indicadores, round(o2v$L, 3), Comunalidad = round(f2_vari$communality, 3)), "cargas_2_factores_ml_varimax.csv")
-tuck <- function(a, b) abs(sum(a * b)) / sqrt(sum(a^2) * sum(b^2))
-giros <- data.frame(
-  Giro = c("Sin girar", "Varimax (ortogonal)", "Oblimin (oblicuo)"),
-  Varianza_comun_pct = 100 * c(mean(f2_none$communality), mean(f2_vari$communality), mean(f2_ml$communality)),
-  Diferencia_maxima_en_comunalidad = c(0, max(abs(h2_tab$Varimax - h2_tab$Sin_girar)), max(abs(h2_tab$Oblimin - h2_tab$Sin_girar))),
-  Indicadores_que_cargan_en_los_dos = c(cruzadas(o2n$L), cruzadas(o2v$L), cruzadas(o2$L)),
-  Congruencia_Acceso = c(1, tuck(o2v$L[, 1], o2n$L[, 1]), tuck(o2$L[, 1], o2n$L[, 1])),
-  Congruencia_Rendimiento = c(1, tuck(o2v$L[, 2], o2n$L[, 2]), tuck(o2$L[, 2], o2n$L[, 2])))
-guardar_tabla(giros, "comparacion_giros.csv")
-kable(giros, digits = 4, col.names = c("Giro", "Varianza común (%)", "Diferencia máxima en comunalidad", "Indicadores con |carga| ≥ 0,3 en los dos", "Congruencia Acceso con sin girar", "Congruencia Rendimiento con sin girar"),
-      caption = "Lo que cambia y lo que no al girar (2 factores, ML).")
+o_vari <- orientar(f2_vari)
+h2_giros <- data.frame(Variable = vars, Sin_girar = f2_sin$communality, Varimax = f2_vari$communality, Oblimin = f2$communality)
+guardar_tabla(h2_giros, "comunalidades_por_giro.csv")
+guardar_tabla(data.frame(Variable = vars, round(o_vari$L, 3)), "cargas_2_factores_ml_varimax.csv")
+dif_h2 <- max(abs(h2_giros$Varimax - h2_giros$Sin_girar), abs(h2_giros$Oblimin - h2_giros$Sin_girar))
+kable(h2_giros, digits = 4, row.names = FALSE, col.names = c("Variable", "Sin girar", "Varimax", "Oblimin"),
+      caption = "Parte común (comunalidad) de cada variable con cada giro.")
 
-ll_giros <- bind_rows(lapply(list(`Sin girar` = o2n, Varimax = o2v, Oblimin = o2), function(o) {
-  d <- as.data.frame(o$L); d$Variable <- rownames(o$L); d }), .id = "Giro") %>%
-  pivot_longer(c(Acceso, Rendimiento), names_to = "Factor", values_to = "Carga") %>%
-  mutate(Giro = factor(Giro, levels = c("Sin girar", "Varimax", "Oblimin")), Variable = factor(Variable, levels = rev(indicadores)))
-p_giros <- ggplot(ll_giros, aes(Factor, Variable, fill = Carga)) + geom_tile(color = "white") +
-  geom_text(aes(label = ifelse(abs(Carga) >= 0.3, coma(Carga, 2), "")), size = 2.3) +
-  scale_fill_gradient2(low = paleta$naranja, mid = "#f0efec", high = paleta$azul, limits = c(-1, 1), oob = scales::squish, name = "Carga") +
-  facet_grid(. ~ Giro) + tema + theme(axis.text.y = element_text(size = 7), panel.grid = element_blank()) +
-  labs(title = "Cargas de los dos factores con cada giro (ML)", subtitle = "Signos orientados: mayor = más cobertura y más aprobación", x = NULL, y = NULL)
-print(p_giros)
-guardar_fig(p_giros, "cargas_por_giro.png", 10, 8)
+# El plano de cargas: dónde queda cada variable con cada giro
+plano <- bind_rows(lapply(list(`Sin girar` = o_sin, Varimax = o_vari, Oblimin = o2), function(o)
+  data.frame(Variable = corta[vars], Grupo = grupo, Acceso = o$L[, 1], Rendimiento = o$L[, 2])), .id = "Giro")
+plano$Giro <- factor(plano$Giro, levels = c("Sin girar", "Varimax", "Oblimin"))
+guardar_tabla(plano, "plano_de_cargas.csv")
+p_plano <- ggplot(plano, aes(Acceso, Rendimiento, color = Grupo)) +
+  geom_hline(yintercept = 0, color = paleta$gris) + geom_vline(xintercept = 0, color = paleta$gris) +
+  geom_segment(aes(x = 0, y = 0, xend = Acceso, yend = Rendimiento), alpha = 0.5) + geom_point(size = 2.5) +
+  ggrepel::geom_text_repel(aes(label = Variable), size = 2.6, show.legend = FALSE, min.segment.length = 1, seed = 1) +
+  scale_color_manual(values = c(Acceso = paleta$azul, `Permanencia y rendimiento` = paleta$naranja), name = NULL) +
+  facet_wrap(~Giro) + coord_equal(xlim = c(-0.6, 1.2), ylim = c(-0.6, 1.1)) + tema +
+  theme(panel.grid.major.x = element_line(color = paleta$rejilla)) +
+  labs(title = "Las cargas en el plano de los dos factores, con cada giro", subtitle = "Girar mueve los ejes; la parte común de cada variable no cambia",
+       x = "Factor 1 (Acceso)", y = "Factor 2 (Rendimiento)")
+print(p_plano)
+guardar_fig(p_plano, "plano_de_cargas.png", 11, 5)
 ```
 
-> ⭐ **Qué ve:** La parte común es **la misma con los tres giros**: `r coma(giros$Varianza_comun_pct[1], 2)` de cada 100 en promedio, y la comunalidad de cada indicador es idéntica (la diferencia máxima es `r if (max(giros$Diferencia_maxima_en_comunalidad) < 1e-6) "menor que 0,000001" else coma(max(giros$Diferencia_maxima_en_comunalidad), 6)`). Las cargas casi no cambian (congruencia mínima con la solución sin girar: `r coma(min(giros[, 5:6]), 4)`).
+> ⭐ **Qué ve:** La parte común de cada variable es **la misma con los tres giros**: la diferencia máxima es `r if (dif_h2 < 1e-4) "menor que 0,0001" else coma(dif_h2, 4)`. En la gráfica, sin girar y con varimax cada variable queda a la misma distancia del origen (la raíz de su parte común) y solo cambian los ejes; con oblimin los ejes dejan de ser perpendiculares, pero la parte común tampoco cambia. Como los dos bloques ya estaban casi sobre los ejes, los tres paneles se ven casi iguales.
 >
-> ⭐ **Qué significa para el cliente:** Girar cambia los ejes, no los indicadores: **no agrega ni quita información**, solo cambia cómo se lee. En estos datos, además, cualquier giro conduce a los mismos dos nombres.
+> ⭐ **Qué significa para el cliente:** Girar **no agrega ni quita información**: solo cambia desde dónde se mira. Y en estos datos, cualquier giro lleva a los mismos dos nombres.
 >
 > ⭐ **Qué decide él:** Los nombres Acceso y Rendimiento no son producto de escoger un giro.
 
-## 9. ¿Cuánto van juntos los dos factores?
+## Actividad 3. ¿Cuánto van juntos los dos factores?
 
-*Correlación entre los factores con el giro que lo permite (oblimin).*
+*¿Cuánto van juntas las dos habilidades con el giro que lo permite?*
 
 ```{r phi}
-phi_ml <- o2$Phi["Acceso", "Rendimiento"]
-kable(round(o2$Phi, 3), caption = "Correlación entre los dos factores con oblimin (matriz Φ, ML).")
+phi <- o2$Phi[1, 2]
+kable(round(o2$Phi, 3), caption = "Correlación entre los dos factores con oblimin (ML).")
+
+# Si cada fondo toma el 20 % con peor puntaje en su factor, ¿cuántos municipios-año caen en los dos?
+f2s <- suppressWarnings(fa(X, nfactors = 2, fm = "ml", rotate = "oblimin", scores = "regression"))
+L2s <- unclass(f2s$loadings); S <- f2s$scores
+acc <- which.max(abs(L2s["COBERTURA_NETA_SECUNDARIA", ])); ren <- 3 - acc
+s_acc <- S[, acc] * sign(L2s["COBERTURA_NETA_SECUNDARIA", acc]); s_ren <- S[, ren] * sign(L2s["APROBACIÓN_SECUNDARIA", ren])
+b_acc <- s_acc <= quantile(s_acc, 0.2); b_ren <- s_ren <= quantile(s_ren, 0.2)
+solape <- data.frame(Grupo = c("Solo fondo de acceso", "En los dos fondos", "Solo fondo de rendimiento"),
+                     Registros = c(sum(b_acc & !b_ren), sum(b_acc & b_ren), sum(b_ren & !b_acc)))
+solape$Pct_del_cupo <- 100 * solape$Registros / sum(b_acc)
+guardar_tabla(solape, "solapamiento_fondos.csv")
+kable(solape, digits = 1, row.names = FALSE, col.names = c("Grupo", "Registros", "% del cupo de un fondo"),
+      caption = "Cada fondo toma el 20 % con peor puntaje en su factor. Si los factores fueran independientes, se esperaría 20 % en los dos.")
 ```
 
-> ⭐ **Qué ve:** Con oblimin, que deja que los factores se correlacionen si los datos lo piden, Acceso y Rendimiento van juntos **`r coma(phi_ml, 3)`**: prácticamente nada. Con varimax la correlación es 0 por construcción.
+> ⭐ **Qué ve:** Con oblimin, que deja que los factores vayan juntos si los datos lo piden, Acceso y Rendimiento se correlacionan **`r coma(phi, 2)`**. Si cada fondo toma el 20 % con peor puntaje, coinciden `r fint(solape$Registros[2])` registros: **`r coma(solape$Pct_del_cupo[2], 1)` %** del cupo de cada fondo, cerca del 20 % que se esperaría si los factores fueran independientes.
 >
-> ⭐ **Qué significa para el cliente:** En las notas de clase las dos habilidades iban juntas 0,79 y los dos perfiles escogían casi a la misma gente. Aquí pasa lo contrario: **un municipio puede tener buen acceso y bajo rendimiento, o al revés**. Dos fondos no serían el mismo fondo con dos nombres.
+> ⭐ **Qué significa para el cliente:** En las notas de clase las dos habilidades iban juntas 0,79 y tres de cada cuatro candidatos salían escogidos en los dos perfiles. Aquí pasa lo contrario: **un municipio puede tener buen acceso y bajo rendimiento, o al revés**, y los dos fondos llegan a municipios distintos.
 >
-> ⭐ **Qué decide él:** Mantener dos fondos como hipótesis; el punto 17 mide cuánto se solapan en la práctica.
+> ⭐ **Qué decide él:** Dos fondos no serían el mismo fondo con dos nombres.
 
-## 10. ¿Se mantiene con otro método? MinRes y ejes principales
+## Actividad 4. ¿Se mantiene con otro método?
 
-*Cambiar el método (`fm = "minres"`) y ver si la separación se mantiene.*
+*Cambiar el método (`fm = "minres"`). ¿La separación se mantiene?*
 
-```{r estimacion}
-# Congruencia de Tucker entre dos matrices de cargas, emparejando factores (asignación voraz)
-congruencia <- function(L1, L2) {
-  k <- ncol(L1); C <- outer(1:k, 1:k, Vectorize(function(i, j) tuck(L1[, i], L2[, j])))
-  usado <- integer(0); res <- numeric(k)
-  for (i in order(-apply(C, 1, max))) { j <- setdiff(order(-C[i, ]), usado)[1]; usado <- c(usado, j); res[i] <- C[i, j] }
-  res
-}
-ajusta <- function(k, fm, rot = "oblimin", datos_x = NULL, r = NULL) {
-  suppressWarnings(tryCatch(
-    if (!is.null(r)) fa(r, nfactors = k, n.obs = n, fm = fm, rotate = rot) else fa(datos_x, nfactors = k, fm = fm, rotate = rot),
-    error = function(e) NULL))
-}
-modelos <- list()
-for (fm in c("ml", "minres", "pa")) modelos[[paste(2, fm)]] <- ajusta(2, fm, r = R)
-est2 <- do.call(rbind, lapply(c("ml", "minres", "pa"), function(fm) {
-  f <- modelos[[paste(2, fm)]]; o <- orientar(f)
-  data.frame(Metodo = c(ml = "Máxima verosimilitud", minres = "MinRes", pa = "Ejes principales")[fm],
-             Varianza_comun_pct = 100 * mean(f$communality), Comunalidades_mayores_099 = sum(f$communality > 0.99),
-             Unicidad_minima = min(f$uniquenesses), Congruencia_con_ML = mean(congruencia(o$L, o2$L)),
-             Phi = o$Phi[1, 2], Mas_alta_en_Acceso = rownames(o$L)[which.max(abs(o$L[, 1]))],
-             Mas_alta_en_Rendimiento = rownames(o$L)[which.max(abs(o$L[, 2]))], RMSR = f$rms)
+```{r minres}
+tuck <- function(a, b) abs(sum(a * b)) / sqrt(sum(a^2) * sum(b^2))
+f2_mr <- suppressWarnings(fa(X, nfactors = 2, fm = "minres", rotate = "oblimin"))
+f2_pa <- suppressWarnings(fa(X, nfactors = 2, fm = "pa", rotate = "oblimin"))
+metodos <- list(`Máxima verosimilitud (ml)` = o2, `Residuos mínimos (minres)` = orientar(f2_mr), `Ejes principales (pa)` = orientar(f2_pa))
+comp_met <- do.call(rbind, lapply(names(metodos), function(m) {
+  o <- metodos[[m]]
+  data.frame(Metodo = m, Parte_comun = 100 * mean(o$h2), Phi = o$Phi[1, 2],
+             Congruencia_Acceso = tuck(o$L[, 1], o2$L[, 1]), Congruencia_Rendimiento = tuck(o$L[, 2], o2$L[, 2]),
+             Max_parte_comun = 100 * max(o$h2), Variable_max = vars[which.max(o$h2)])
 }))
-rownames(est2) <- NULL
-guardar_tabla(est2, "comparacion_estimadores_2_factores.csv")
-kable(est2, digits = 3, caption = "Dos factores (oblimin) con tres métodos de estimación.")
-f2 <- modelos[["2 minres"]]   # solución de referencia para la Parte D
+guardar_tabla(comp_met, "comparacion_metodos.csv")
+kable(comp_met, digits = 3, row.names = FALSE,
+      col.names = c("Método", "Parte común media", "Φ", "Congruencia Acceso con ML", "Congruencia Rendimiento con ML", "Parte común máxima", "Variable"),
+      caption = "Dos factores (oblimin) con tres métodos de estimación. Congruencia de Tucker: 1 = mismas cargas.")
+guardar_tabla(data.frame(Variable = vars, round(metodos[[2]]$L, 3), Parte_comun = round(100 * metodos[[2]]$h2, 1)), "cargas_2_factores_minres_oblimin.csv")
 ```
 
-> ⭐ **Qué ve:** Con MinRes y con ejes principales las cargas son casi idénticas a las de máxima verosimilitud (congruencia de `r coma(min(est2$Congruencia_con_ML), 3)` o más), la correlación entre factores sigue cerca de 0 (`r paste(coma(est2$Phi, 3), collapse = ", ")`) y la variable que más carga en cada factor es la misma (`r est2$Mas_alta_en_Acceso[1]` y `r est2$Mas_alta_en_Rendimiento[1]`). La única diferencia: con máxima verosimilitud aprobación queda con unicidad de `r coma(est2$Unicidad_minima[1], 3)`, en el borde de lo permitido; con MinRes, `r coma(est2$Unicidad_minima[2], 3)`.
+> ⭐ **Qué ve:** Con MinRes y con ejes principales las cargas son casi las mismas que con máxima verosimilitud (congruencia de `r coma(min(comp_met[, 4:5]), 3)` o más), la correlación entre factores sigue baja (`r paste(coma(comp_met$Phi, 2), collapse = "; ")`) y la parte común media apenas cambia. La diferencia está en la cobertura de secundaria: con máxima verosimilitud llega al tope (`r coma(comp_met$Max_parte_comun[1], 1)` de 100) y con MinRes queda en `r coma(100 * metodos[[2]]$h2["COBERTURA_NETA_SECUNDARIA"], 1)`.
 >
-> ⭐ **Qué significa para el cliente:** **La separación se mantiene** al cambiar el método. En las notas de clase la segunda habilidad cambiaba de forma con el método y por eso no se podía nombrar; aquí no cambia, y eso le da peso a los nombres.
+> ⭐ **Qué significa para el cliente:** **La separación se mantiene.** En las notas de clase la segunda habilidad cambiaba de forma con el método y por eso no se podía nombrar; aquí no cambia, y eso le da peso a los nombres. Lo único frágil es que la secundaria quede «toda» en el factor de acceso: es la variable que mejor resume a las demás coberturas (está entre primaria y media), no una prueba de que el acceso sea solo secundaria.
 >
-> ⭐ **Qué decide él:** Desde aquí se usa **MinRes** como estimador de referencia: da la misma solución, no exige normalidad (que estos indicadores acotados no cumplen) y no deja a aprobación en el borde.
+> ⭐ **Qué decide él:** Los dos fondos pueden apoyarse en Acceso y Rendimiento con cualquiera de los tres métodos.
 
-## 11. ¿Cuántos factores caben y cuántos pedir?
+## Actividad 5. ¿Cuántos factores caben como máximo?
 
-*Con su número de variables, ¿cuántos factores caben como máximo?*
+*Con el número de variables, ¿cuántas habilidades caben como máximo?*
 
-Con $p$ variables hay $p(p-1)/2$ correlaciones. Con $k$ factores, lo que el modelo deja libre para ponerlo a prueba es
+Con $p$ variables hay $p(p-1)/2$ correlaciones. Con $k$ factores, lo que el modelo deja libre para ponerse a prueba son
 $$\text{grados de libertad} = \frac{(p-k)^2 - (p+k)}{2}.$$
 Si da negativo, el modelo tiene más incógnitas que datos y no se puede estimar.
 
-```{r grados-libertad, fig.height = 4.5}
-gl <- data.frame(Factores = 1:26, Correlaciones = p * (p - 1) / 2)
+```{r grados-libertad, fig.height = 4.2}
+gl <- data.frame(Factores = 1:(p - 1), Correlaciones = p * (p - 1) / 2)
 gl$Grados_de_libertad <- ((p - gl$Factores)^2 - (p + gl$Factores)) / 2
 k_max <- max(gl$Factores[gl$Grados_de_libertad >= 0])
 guardar_tabla(gl, "grados_de_libertad.csv")
-kable(gl[gl$Factores %in% c(1, 2, 5, 7, 10, 20, k_max - 1, k_max, k_max + 1), ], row.names = FALSE,
-      caption = paste0("Grados de libertad con ", p, " indicadores."))
-p_gl <- ggplot(gl, aes(Factores, Grados_de_libertad, fill = Grados_de_libertad >= 0)) + geom_col(width = 0.75) +
+kable(gl, row.names = FALSE, col.names = c("Factores", "Correlaciones", "Grados de libertad"),
+      caption = paste0("Grados de libertad con ", p, " variables."))
+p_gl <- ggplot(gl, aes(Factores, Grados_de_libertad, fill = Grados_de_libertad >= 0)) + geom_col(width = 0.7) +
   geom_hline(yintercept = 0, color = paleta$gris) +
+  geom_text(aes(label = Grados_de_libertad, vjust = ifelse(Grados_de_libertad >= 0, -0.4, 1.3)), size = 3.3) +
   scale_fill_manual(values = c(`TRUE` = paleta$azul, `FALSE` = paleta$naranja), guide = "none") +
-  scale_x_continuous(breaks = c(1, 5, 10, 15, 20, k_max, 26)) + tema +
-  labs(title = paste0("Con ", p, " indicadores caben como máximo ", k_max, " factores"),
-       subtitle = "Grados de libertad que deja cada número de factores\n(naranja: negativos, el modelo no se puede estimar)", x = "Factores", y = "Grados de libertad")
+  scale_x_continuous(breaks = gl$Factores) + tema +
+  labs(title = paste0("Con ", p, " variables caben como máximo ", k_max, " factores"),
+       subtitle = "Naranja: grados de libertad negativos, el modelo no se puede estimar", x = "Factores", y = "Grados de libertad")
 print(p_gl)
-guardar_fig(p_gl, "grados_de_libertad.png", 9, 4.5)
-```
+guardar_fig(p_gl, "grados_de_libertad.png", 8, 4.2)
 
-El límite aritmético dice cuántos factores **se pueden** sacar; los criterios que siguen dicen cuántos **vale la pena** sacar.
-
-```{r numero-factores}
-k_kaiser <- sum(autov > 1)
-invisible(capture.output(pa <- fa.parallel(X, fa = "fa", fm = "minres", n.iter = 50, plot = FALSE)))
-k_pa <- pa$nfact
-vss <- VSS(R, n = 10, rotate = "oblimin", fm = "minres", n.obs = n, plot = FALSE)
-k_map <- which.min(vss$map)
-k_bic <- which.min(vss$vss.stats$BIC)
-acum <- cumsum(autov) / sum(autov) * 100
-
-criterios <- data.frame(
-  Criterio = c("Límite por grados de libertad", "Kaiser (autovalor de R > 1)", "Análisis paralelo (MinRes, 50 simulaciones)", "MAP de Velicer (mínimo)",
-               "BIC (mínimo entre 1 y 10 factores)", "Hipótesis de política: acceso y permanencia"),
-  Factores = c(k_max, k_kaiser, k_pa, k_map, k_bic, 2),
-  Tipo = c("Máximo posible", "Sugerencia", "Sugerencia", "Sugerencia", "Sugerencia", "Hipótesis"))
-guardar_tabla(criterios, "criterios_numero_factores.csv")
-kable(criterios, caption = "Número de factores: el máximo posible y lo que sugiere cada criterio.")
-
-scree <- data.frame(k = 1:p, autovalor = autov, simulado = pa$fa.sim[1:p], real_fa = pa$fa.values[1:p], acumulado = acum)
-guardar_tabla(scree, "scree_y_paralelo.csv")
-p_scree <- ggplot(scree[1:12, ], aes(k)) +
-  geom_line(aes(y = real_fa, color = "Real"), linewidth = 1) + geom_point(aes(y = real_fa, color = "Real"), size = 2.5) +
-  geom_line(aes(y = simulado, color = "Simulado (azar)"), linewidth = 1) + geom_point(aes(y = simulado, color = "Simulado (azar)"), size = 2.5) +
-  geom_hline(yintercept = 0, color = paleta$gris) +
-  scale_color_manual(values = c(Real = paleta$azul, `Simulado (azar)` = paleta$naranja), name = NULL) + scale_x_continuous(breaks = 1:12) +
-  tema + theme(panel.grid.major.x = element_line(color = paleta$rejilla)) +
-  labs(title = paste0("Análisis paralelo: ", k_pa, " factores por encima del azar"), subtitle = "Autovalores de los factores comunes reales frente a datos simulados", x = "Factor", y = "Autovalor")
-print(p_scree)
-guardar_fig(p_scree, "paralelo.png", 9, 5)
-
-# Casos límite (comunalidad ~ 1) según el número de factores
-heywood <- do.call(rbind, lapply(1:9, function(k) {
-  f <- suppressWarnings(fa(R, nfactors = k, n.obs = n, fm = "minres", rotate = if (k == 1) "none" else "oblimin"))
-  data.frame(Factores = k, Grados_de_libertad = gl$Grados_de_libertad[k], Varianza_comun_pct = 100 * sum(f$communality) / p,
-             Comunalidades_mayores_099 = sum(f$communality > 0.99), Unicidad_minima = min(f$uniquenesses), RMSR = f$rms)
+# Cuántos vale la pena sacar: análisis paralelo y ajuste de cada solución posible
+invisible(capture.output(pa <- fa.parallel(X, fa = "fa", fm = "ml", n.iter = 30, plot = FALSE)))
+ajuste_k <- do.call(rbind, lapply(1:k_max, function(k) {
+  f <- suppressWarnings(fa(X, nfactors = k, fm = "minres", rotate = if (k == 1) "none" else "oblimin"))
+  data.frame(Factores = k, Grados_de_libertad = gl$Grados_de_libertad[k], Parte_comun = 100 * mean(f$communality),
+             Error_maximo = max(abs(f$residual[upper.tri(f$residual)])), Partes_comunes_mayores_99 = sum(f$communality > 0.99))
 }))
-guardar_tabla(heywood, "casos_limite_por_numero_de_factores.csv")
-kable(heywood, digits = 3, caption = "Varianza común y casos límite (comunalidad ≈ 1 o unicidad ≤ 0) para cada número de factores (MinRes, Oblimin).")
-k_heywood <- min(heywood$Factores[heywood$Comunalidades_mayores_099 > 0])
+guardar_tabla(ajuste_k, "ajuste_por_numero_de_factores.csv")
+kable(ajuste_k, digits = 3, row.names = FALSE,
+      col.names = c("Factores", "Grados de libertad", "Parte común media", "Error máximo", "Variables con parte común > 99"),
+      caption = paste0("Cada solución posible (MinRes). El análisis paralelo sugiere ", pa$nfact, " factores."))
 ```
 
-> ⭐ **Qué ve:** Con `r p` indicadores caben como máximo **`r k_max` factores** (con `r k_max + 1` los grados de libertad dan `r gl$Grados_de_libertad[k_max + 1]`). Los criterios piden muchos menos y no coinciden: Kaiser sugiere **`r k_kaiser`**, el análisis paralelo **`r k_pa`**, el MAP **`r k_map`**, y el BIC sigue bajando hasta el máximo probado (`r k_bic`). Los `r k_pa` primeros autovalores de R acumulan `r coma(acum[k_pa], 1)` % de la varianza. Con `r k_heywood - 1` factores o menos no aparece ninguna comunalidad ≈ 1; desde `r k_heywood` factores sí, y la unicidad mínima se vuelve negativa.
+> ⭐ **Qué ve:** Con `r p` variables hay `r p * (p - 1) / 2` correlaciones y caben como máximo **`r k_max` factores** (con `r k_max + 1` los grados de libertad dan `r gl$Grados_de_libertad[k_max + 1]`). El análisis paralelo sugiere `r pa$nfact`. Con dos factores (MinRes) el error máximo baja de `r coma(ajuste_k$Error_maximo[1], 3)` a `r coma(ajuste_k$Error_maximo[2], 3)`; un tercero lo lleva a `r coma(ajuste_k$Error_maximo[3], 3)`, pero ya deja `r ajuste_k$Partes_comunes_mayores_99[3]` variable(s) con parte común por encima de 99 de 100 (un caso límite), y desde ahí cada factor agrega casos límite.
 >
-> ⭐ **Qué significa para el cliente:** En las notas de clase, con cinco módulos, el límite aritmético era el que mandaba (dos habilidades como máximo). Aquí no: el límite es `r k_max`, pero **los datos empiezan a fallar mucho antes**, en `r k_heywood` factores, porque los indicadores son familias repetidas por nivel educativo y algunas suman casi exactamente 1. No existe «el» número de factores; los datos sostienen entre `r k_map` y `r k_pa`, y la hipótesis de dos fondos es la más simple.
+> ⭐ **Qué significa para el cliente:** Con 9 variables el límite aritmético (`r k_max`) no es el que manda, a diferencia del caso de clase con cinco módulos. Lo que manda es que **dos factores ya explican casi todo lo que las variables comparten** y se pueden nombrar; un tercero, como sugiere el análisis paralelo, solo partiría uno de los dos bloques y empieza a forzar el modelo, sin cambiar la decisión de dos fondos.
 >
-> ⭐ **Qué decide él:** Trabajar con **2 factores** (hipótesis de política, Partes B y C) y con **`r k_map` factores** (el menor número que sugiere un criterio de los datos) como exploración. Con `r k_map` factores hay `r heywood$Comunalidades_mayores_099[heywood$Factores == k_map]` comunalidades cercanas a 1.
+> ⭐ **Qué decide él:** Trabajar con dos factores.
 
+# Conclusión: lo que le entregamos al cliente
 
-# Parte D. Profundización
-
-## 12. La solución de `r k_map` factores: estimación y lectura
-
-```{r solucion-k, fig.height = 8}
-k_trab <- k_map
-for (fm in c("minres", "ml", "pa")) modelos[[paste(k_trab, fm)]] <- ajusta(k_trab, fm, r = R)
-estk <- do.call(rbind, lapply(c("minres", "ml", "pa"), function(fm) {
-  f <- modelos[[paste(k_trab, fm)]]; ref <- unclass(modelos[[paste(k_trab, "minres")]]$loadings)
-  data.frame(Factores = k_trab, Metodo = fm, Varianza_comun_pct = 100 * sum(f$communality) / p,
-             Comunalidades_mayores_099 = sum(f$communality > 0.99), Unicidad_minima = min(f$uniquenesses),
-             Congruencia_con_MinRes = mean(congruencia(unclass(f$loadings), ref)), RMSR = f$rms)
-}))
-guardar_tabla(estk, "comparacion_estimadores.csv")
-kable(estk, digits = 3, caption = paste0("Los tres métodos de estimación con ", k_trab, " factores (oblimin)."))
-
-fk <- modelos[[paste(k_trab, "minres")]]
-fkv <- ajusta(k_trab, "minres", rot = "varimax", r = R)
-f2v <- ajusta(2, "minres", rot = "varimax", r = R)
-etiqueta_factor <- function(f, top = 4) {
-  L <- unclass(f$loadings)
-  sapply(seq_len(ncol(L)), function(j) {
-    o <- order(-abs(L[, j]))[1:top]
-    fam <- table(familia(rownames(L)[o][abs(L[o, j]) > 0.4]))
-    f1 <- if (length(fam)) names(which.max(fam)) else "mixto"
-    paste0(f1, ": ", paste0(rownames(L)[o], " (", coma(L[o, j], 2), ")", collapse = "; "))
-  })
-}
-tab_cargas <- function(f) { L <- unclass(f$loadings); data.frame(Variable = rownames(L), round(L, 3), Comunalidad = round(f$communality, 3), check.names = FALSE) }
-guardar_tabla(tab_cargas(f2), "cargas_2_factores_oblimin.csv")
-guardar_tabla(tab_cargas(f2v), "cargas_2_factores_varimax.csv")
-guardar_tabla(tab_cargas(fk), "cargas_k_factores_oblimin.csv")
-guardar_tabla(tab_cargas(fkv), "cargas_k_factores_varimax.csv")
-phi2 <- f2$Phi; phik <- fk$Phi
-guardar_tabla(data.frame(round(phik, 3)), "correlacion_entre_factores_k.csv")
-cong_vk <- congruencia(unclass(fkv$loadings), unclass(fk$loadings))
-
-etk <- etiqueta_factor(fk)
-kable(data.frame(Factor = colnames(unclass(fk$loadings)), `Lectura (cargas más altas)` = etk, check.names = FALSE), caption = paste0("Los ", k_trab, " factores: qué indicadores los definen (MinRes, oblimin)."))
-
-carga_larga <- function(f, nombre) {
-  L <- as.data.frame(unclass(f$loadings)); L$Variable <- factor(rownames(L), levels = rev(indicadores))
-  tidyr::pivot_longer(L, -Variable, names_to = "Factor", values_to = "Carga") %>% mutate(Modelo = nombre)
-}
-ll <- rbind(carga_larga(f2, "2 factores"), carga_larga(fk, paste0(k_trab, " factores")))
-ll$Modelo <- factor(ll$Modelo, levels = c("2 factores", paste0(k_trab, " factores")))
-p_cargas <- ggplot(ll, aes(Factor, Variable, fill = Carga)) + geom_tile(color = "white") +
-  geom_text(aes(label = ifelse(abs(Carga) >= 0.3, coma(Carga, 2), "")), size = 2.4) +
-  scale_fill_gradient2(low = paleta$naranja, mid = "#f0efec", high = paleta$azul, limits = c(-1, 1), oob = scales::squish, name = "Carga") +
-  facet_grid(. ~ Modelo, scales = "free_x", space = "free_x") + tema +
-  theme(axis.text.y = element_text(size = 7), panel.grid = element_blank()) + labs(title = "Cargas factoriales (MinRes, Oblimin)", x = NULL, y = NULL)
-print(p_cargas)
-guardar_fig(p_cargas, "cargas_factoriales.png", 11, 8)
-
-com <- data.frame(Variable = indicadores, h2_2factores = f2$communality, h2_k = fk$communality)
-guardar_tabla(com, "comunalidades.csv")
-```
-
-> ⭐ **Qué ve:** Con `r k_trab` factores los tres métodos dan cargas casi idénticas (congruencia con MinRes de `r coma(min(estk$Congruencia_con_MinRes), 3)` o más) y la varianza común sube a `r coma(estk$Varianza_comun_pct[1], 1)` %. Los indicadores se agrupan por familia y por nivel: cobertura de primaria, cobertura de secundaria y media, aprobación y reprobación, deserción y repitencia. La correlación entre factores va de `r coma(min(phik[upper.tri(phik)]), 2)` a `r coma(max(phik[upper.tri(phik)]), 2)`, y con varimax las cargas casi no cambian (congruencia media `r coma(mean(cong_vk), 3)`).
->
-> ⭐ **Qué significa para el cliente:** Más factores no contradicen a los dos de la Parte C: los **subdividen**. Acceso se parte por nivel educativo y Rendimiento separa deserción y repitencia de aprobación. Pero con `r k_trab` factores hay `r estk$Comunalidades_mayores_099[1]` comunalidades cercanas a 1.
->
-> ⭐ **Qué decide él:** Los dos fondos se apoyan en la solución de 2 factores; la de `r k_trab` sirve para ver qué hay dentro de cada fondo (por ejemplo, que la deserción pide atención propia).
-
-## 13. Ajuste del modelo
-
-```{r ajuste}
-f1 <- ajusta(1, "minres", rot = "none", r = R)
-mods <- list(f1, f2, fk)
-ajuste <- data.frame(
-  Modelo = c("1 factor", "2 factores", paste0(k_trab, " factores")),
-  RMSR = sapply(mods, function(f) f$rms), RMSEA = sapply(mods, function(f) f$RMSEA[1]),
-  TLI = sapply(mods, function(f) f$TLI), Varianza_comun_pct = sapply(mods, function(f) 100 * sum(f$communality) / p))
-guardar_tabla(ajuste, "ajuste_del_modelo.csv")
-kable(ajuste, digits = 3, caption = "Índices de ajuste de los modelos factoriales (MinRes).")
-```
-
-> ⭐ **Qué ve:** El RMSR baja de `r coma(ajuste$RMSR[1], 3)` (1 factor) a `r coma(ajuste$RMSR[2], 3)` (2) y `r coma(ajuste$RMSR[3], 3)` (`r k_trab`), pero el RMSEA se queda en torno a `r coma(ajuste$RMSEA[2], 2)` y el TLI en `r coma(ajuste$TLI[2], 2)`.
->
-> ⭐ **Qué significa para el cliente:** Los valores de ajuste habituales (RMSEA ≤ 0,08; TLI ≥ 0,90) **no se alcanzan**, pero estos índices no son fiables aquí: la matriz es casi singular y los indicadores son acotados y asimétricos. Mejorar el RMSR confirma que más factores recogen más correlación (lo mismo que mostraron los residuos de los puntos 5 y 6); no valida los nombres.
-
-## 14. ¿Es estable? Período, unidad de análisis y repetición de municipios
-
-```{r estabilidad}
-L_ref2 <- unclass(f2$loadings); L_refk <- unclass(fk$loadings)
-
-# (a) Períodos: 2011-2015 frente a 2016-2024
-anio_num <- as.integer(as.character(datos$AÑO))
-per <- list(`2011-2015` = anio_num <= 2015, `2016-2024` = anio_num >= 2016)
-est_per <- do.call(rbind, lapply(names(per), function(nm) {
-  Rs <- cor(X[per[[nm]], ])
-  g2 <- suppressWarnings(fa(Rs, nfactors = 2, n.obs = sum(per[[nm]]), fm = "minres", rotate = "oblimin"))
-  gk <- suppressWarnings(fa(Rs, nfactors = k_trab, n.obs = sum(per[[nm]]), fm = "minres", rotate = "oblimin"))
-  data.frame(Subconjunto = nm, Registros = sum(per[[nm]]),
-             Congruencia_2_factores = mean(congruencia(unclass(g2$loadings), L_ref2)),
-             Congruencia_k_factores = mean(congruencia(unclass(gk$loadings), L_refk)),
-             Phi_2_factores = g2$Phi[1, 2])
-}))
-
-# (b) Unidad de análisis: promedio por municipio (un perfil por municipio)
-medias <- aggregate(X, by = list(id = datos$ID_MUNICIPIO), FUN = mean)[, -1]
-Rm <- cor(medias)
-gm2 <- suppressWarnings(fa(Rm, nfactors = 2, n.obs = nrow(medias), fm = "minres", rotate = "oblimin"))
-gmk <- suppressWarnings(fa(Rm, nfactors = k_trab, n.obs = nrow(medias), fm = "minres", rotate = "oblimin"))
-est_mun <- data.frame(Subconjunto = "Promedio por municipio", Registros = nrow(medias),
-                      Congruencia_2_factores = mean(congruencia(unclass(gm2$loadings), L_ref2)),
-                      Congruencia_k_factores = mean(congruencia(unclass(gmk$loadings), L_refk)), Phi_2_factores = gm2$Phi[1, 2])
-
-# (c) Bootstrap por municipio: se remuestrean municipios completos
-ids <- split(seq_len(n), datos$ID_MUNICIPIO)
-B <- 100
-boot <- do.call(rbind, lapply(seq_len(B), function(b) {
-  muestra <- unlist(ids[sample(length(ids), length(ids), replace = TRUE)], use.names = FALSE)
-  g <- suppressWarnings(fa(cor(X[muestra, ]), nfactors = 2, n.obs = length(muestra), fm = "minres", rotate = "oblimin"))
-  Lb <- unclass(g$loadings); cg <- congruencia(Lb, L_ref2)
-  data.frame(rep = b, congruencia = mean(cg), phi = g$Phi[1, 2],
-             apro = max(abs(Lb["APROBACIÓN", ])), cob = max(abs(Lb["COBERTURA_NETA", ])), des = max(abs(Lb["DESERCIÓN", ])))
-}))
-
-estab <- rbind(est_per, est_mun)
-guardar_tabla(estab, "estabilidad_periodos_y_municipios.csv")
-guardar_tabla(boot, "bootstrap_por_municipio_2_factores.csv")
-kable(estab, digits = 3, caption = "Congruencia de Tucker de las cargas con la solución de todos los registros (1 = idénticas).")
-resumen_boot <- data.frame(
-  Medida = c("Congruencia con la solución completa", "Correlación entre factores", "|Carga| de aprobación", "|Carga| de cobertura neta", "|Carga| de deserción"),
-  Mediana = c(median(boot$congruencia), median(boot$phi), median(boot$apro), median(boot$cob), median(boot$des)),
-  IC95_inf = c(quantile(boot$congruencia, .025), quantile(boot$phi, .025), quantile(boot$apro, .025), quantile(boot$cob, .025), quantile(boot$des, .025)),
-  IC95_sup = c(quantile(boot$congruencia, .975), quantile(boot$phi, .975), quantile(boot$apro, .975), quantile(boot$cob, .975), quantile(boot$des, .975)))
-guardar_tabla(resumen_boot, "bootstrap_resumen.csv")
-kable(resumen_boot, digits = 3, caption = paste0("Bootstrap por municipio (", B, " réplicas, 2 factores): estabilidad de la solución."))
-
-p_boot <- ggplot(boot, aes(congruencia)) + geom_histogram(bins = 25, fill = paleta$azul, color = "white") +
-  tema + labs(title = "Estabilidad de los 2 factores al repetir el muestreo por municipio", subtitle = "Congruencia de Tucker de cada réplica con la solución completa", x = "Congruencia", y = "Réplicas")
-print(p_boot)
-guardar_fig(p_boot, "bootstrap_congruencia.png", 8.5, 4.8)
-```
-
-> ⭐ **Qué ve:** Con 2 factores, la solución se parece mucho a la de todos los registros en cada período (congruencia `r coma(est_per$Congruencia_2_factores[1], 3)` y `r coma(est_per$Congruencia_2_factores[2], 3)`) y con promedios por municipio (`r coma(est_mun$Congruencia_2_factores, 3)`). El bootstrap por municipio da una congruencia mediana de `r coma(resumen_boot$Mediana[1], 3)` (IC95 `r coma(resumen_boot$IC95_inf[1], 3)` a `r coma(resumen_boot$IC95_sup[1], 3)`) y una correlación entre factores entre `r coma(resumen_boot$IC95_inf[2], 3)` y `r coma(resumen_boot$IC95_sup[2], 3)`. Con `r k_trab` factores la congruencia por período también es alta (`r coma(est_per$Congruencia_k_factores[1], 3)` y `r coma(est_per$Congruencia_k_factores[2], 3)`), pero con promedios por municipio baja a `r coma(est_mun$Congruencia_k_factores, 3)`.
->
-> ⭐ **Qué significa para el cliente:** La solución de **2 factores es estable** ante el período, la unidad de análisis y la repetición de municipios, y la correlación casi nula entre factores no es suerte de la muestra. La de `r k_trab` factores se sostiene en el tiempo, pero cambia más cuando se mira un perfil por municipio. Es un resultado distinto al de 6 variables, donde el segundo factor cambiaba de sentido al promediar por municipio.
->
-> ⭐ **Qué decide él:** Los dos fondos tienen una base estable en los 30 indicadores; los subfactores por nivel educativo son una exploración, no una estructura confirmada.
-
-## 15. Los puntajes factoriales y las categóricas: año, departamento y municipio
-
-```{r puntajes}
-f2s <- suppressWarnings(fa(X, nfactors = 2, fm = "minres", rotate = "oblimin", scores = "regression"))
-S <- as.data.frame(f2s$scores)
-L2 <- unclass(f2s$loadings)
-# Orientación: mayor puntaje = mejores condiciones (cobertura y aprobación suben; deserción y repitencia bajan)
-for (j in 1:2) { sg <- sign(L2["COBERTURA_NETA", j] + L2["APROBACIÓN", j] - L2["DESERCIÓN", j] - L2["REPITENCIA", j]); if (sg < 0) S[[j]] <- -S[[j]] }
-# Se nombra cada factor por lo que carga (no por su etiqueta MR1/MR2): el de mayor carga en cobertura neta es «Acceso»
-acc_col <- which.max(abs(L2["COBERTURA_NETA", ]))
-S <- S[, c(acc_col, setdiff(1:2, acc_col))]
-names(S) <- c("Acceso", "Permanencia y rendimiento")
-S$AÑO <- datos$AÑO; S$DEPARTAMENTO <- datos$DEPARTAMENTO; S$ID_MUNICIPIO <- datos$ID_MUNICIPIO
-
-eta_s <- do.call(rbind, lapply(names(S)[1:2], function(f)
-  data.frame(Puntaje = f, AÑO = 100 * max(0, eta2_ajustado(S[[f]], S$AÑO)), DEPARTAMENTO = 100 * max(0, eta2_ajustado(S[[f]], S$DEPARTAMENTO)),
-             MUNICIPIO = 100 * max(0, eta2_ajustado(S[[f]], S$ID_MUNICIPIO)))))
-guardar_tabla(eta_s, "r2_puntajes_por_categorica.csv")
-kable(eta_s, digits = 1, caption = "Parte de la varianza de cada puntaje factorial que explica cada categórica (R² ajustado, %).")
-
-por_anio_l <- do.call(rbind, lapply(names(S)[1:2], function(f)
-  S %>% group_by(AÑO) %>% summarise(Factor = f, mediana = median(.data[[f]]), q25 = quantile(.data[[f]], .25), q75 = quantile(.data[[f]], .75), .groups = "drop")))
-por_anio_l$AÑO <- as.integer(as.character(por_anio_l$AÑO))
-por_anio_l$Factor <- factor(por_anio_l$Factor, levels = c("Acceso", "Permanencia y rendimiento"))
-guardar_tabla(por_anio_l, "puntajes_por_anio.csv")
-p_anio <- ggplot(por_anio_l, aes(AÑO, mediana)) + geom_ribbon(aes(ymin = q25, ymax = q75), fill = "#cde2fb") +
-  geom_line(color = paleta$azul, linewidth = 1) + geom_point(color = paleta$azul, size = 2) + facet_wrap(~Factor, scales = "free_y") +
-  scale_x_continuous(breaks = seq(2011, 2024, 3)) + tema + theme(panel.grid.major.x = element_line(color = paleta$rejilla)) +
-  labs(title = "Puntaje factorial por año", subtitle = "Mediana y rango intercuartílico (las medias son sensibles a registros extremos)", x = NULL, y = "Puntaje (mayor = mejor)")
-print(p_anio)
-guardar_fig(p_anio, "puntajes_por_anio.png", 10, 4.8)
-
-por_dep <- S %>% group_by(DEPARTAMENTO) %>% summarise(registros = n(), across(all_of(names(S)[1:2]), mean), .groups = "drop") %>% arrange(.data[[names(S)[1]]])
-guardar_tabla(por_dep, "puntajes_por_departamento.csv")
-```
-
-> ⭐ **Qué ve:** Para el puntaje de **Acceso**, el municipio explica `r coma(eta_s$MUNICIPIO[eta_s$Puntaje == "Acceso"], 1)` %, el departamento `r coma(eta_s$DEPARTAMENTO[eta_s$Puntaje == "Acceso"], 1)` % y el año `r coma(eta_s$AÑO[eta_s$Puntaje == "Acceso"], 1)` %. Para **Permanencia y rendimiento**: municipio `r coma(eta_s$MUNICIPIO[eta_s$Puntaje != "Acceso"], 1)` %, departamento `r coma(eta_s$DEPARTAMENTO[eta_s$Puntaje != "Acceso"], 1)` % y año `r coma(eta_s$AÑO[eta_s$Puntaje != "Acceso"], 1)` %.
->
-> ⭐ **Qué significa para el cliente:** `r if (eta_s$MUNICIPIO[eta_s$Puntaje == "Acceso"] > 3 * max(eta_s$MUNICIPIO[eta_s$Puntaje != "Acceso"], 1)) "El acceso es sobre todo una **característica estable del municipio** (el mismo municipio conserva su posición durante los años), mientras que la permanencia y el rendimiento casi no tienen componente municipal ni anual: varían dentro de cada municipio de un año a otro." else "Los dos puntajes dependen de forma parecida del territorio y del año."` Por eso un ordenamiento de municipios construido con un solo año o con promedios de todos los años puede contar historias distintas para cada fondo.
->
-> ⭐ **Qué decide él:** Si los fondos se asignan con estos puntajes, definir el período de referencia: para acceso conviene un promedio histórico por municipio; para permanencia, el año más reciente o un promedio móvil. El año y los territorios explican poco del segundo factor: tratarlo como señal anual requiere validarlo con la fuente.
-
-## 16. Las 33 columnas con one-hot: ¿aparecen factores nuevos?
-
-Las categóricas se agregan como columnas one-hot (una por categoría menos una de referencia) al modelo de 2 factores por ejes principales. Los resultados vienen de `scripts/analisis_33_variables.R` (tarda unos 4 minutos y se lee aquí de `outputs/taller-pca/analisis-33-variables/`), porque con 1.200 columnas la estimación es pesada.
-
-```{r one-hot}
-f_var <- file.path(project_root, "outputs", "taller-pca", "analisis-33-variables", "tables", "fa_comparacion_variantes.csv")
-if (!file.exists(f_var)) stop("Ejecute primero: Rscript scripts/analisis_33_variables.R")
-var_oh <- read.csv(f_var, check.names = FALSE)
-guardar_tabla(var_oh, "variantes_one_hot.csv")
-invisible(file.copy(file.path(project_root, "outputs", "taller-pca", "analisis-33-variables", "figures", "fa33_variantes.png"), file.path(figures_dir, "variantes_one_hot.png"), overwrite = TRUE))
-tab_oh <- data.frame(
-  `Codificación` = var_oh$codificacion, `Columnas` = fint(var_oh$columnas),
-  `KMO global` = ifelse(is.na(var_oh$kmo_global), "no existe (singular)", coma(var_oh$kmo_global, 3)),
-  `% de la varianza común` = coma(var_oh$pct_comun, 1),
-  `% de la varianza común que viene de los 30 indicadores` = coma(var_oh$pct_comun_en_numericas, 1),
-  `Comunalidad media de las columnas one-hot` = ifelse(is.na(var_oh$h2_dummies_media), "—", coma(var_oh$h2_dummies_media, 3)),
-  `Congruencia con «solo numéricas»` = coma(var_oh$congruencia_con_solo_numericas, 3), check.names = FALSE)
-kable(tab_oh, align = "lrrrrrr", caption = "Análisis factorial de 2 factores (ejes principales) con cada codificación de las categóricas.")
-```
-
-```{r figura-one-hot, results='asis', echo=FALSE}
-cat("\n\n![Análisis factorial con cada codificación de las categóricas](../../outputs/taller-factorial/figures/variantes_one_hot.png)\n\n")
-```
-
-> ⭐ **Qué ve:** Al agregar `AÑO`, departamentos y municipios en one-hot, el KMO baja de `r coma(var_oh$kmo_global[1], 2)` a `r coma(var_oh$kmo_global[2], 2)` (+ año), `r coma(var_oh$kmo_global[3], 2)` (+ departamentos) y `r coma(var_oh$kmo_global[4], 3)` (+ municipios); con ambos no existe. La varianza común cae de `r coma(var_oh$pct_comun[1], 1)` % a `r coma(var_oh$pct_comun[4], 1)` %, y las columnas one-hot tienen comunalidad media de `r coma(var_oh$h2_dummies_media[4], 3)`. Las cargas de los 30 indicadores no cambian (congruencia `r coma(min(var_oh$congruencia_con_solo_numericas), 3)` o más).
->
-> ⭐ **Qué significa para el cliente:** Las categóricas **no forman ni se suman a ningún factor**: no hay una dimensión latente «territorial» en el sentido factorial. «Ambos» es redundante (cada municipio pertenece a un solo departamento) y la matriz queda singular. La geografía importa (punto 15), pero como contexto para leer puntajes, no como variable del modelo.
->
-> ⭐ **Qué decide él:** La mejor codificación para el análisis factorial es **sin one-hot geográfico**; si se quiere geografía, solo departamentos y solo como diagnóstico. Las dummies son binarias y el modelo supone variables continuas.
-
-
-# Parte E. Decisión y cierre
-
-## 17. La decisión: ¿un factor, dos fondos, o los indicadores directos?
-
-```{r decision}
-vul <- datos$DESERCIÓN > 0.065 | datos$COBERTURA_NETA <= 0.60
-f1s <- suppressWarnings(fa(X, nfactors = 1, fm = "minres", scores = "regression"))
-s1 <- as.numeric(f1s$scores); if (cor(s1, datos$APROBACIÓN) < 0) s1 <- -s1
-peor1 <- s1 <= quantile(s1, 0.2)
-crit <- list(`Deserción > 6,5 %` = datos$DESERCIÓN > 0.065, `Cobertura neta ≤ 60 %` = datos$COBERTURA_NETA <= 0.60, `Cumple al menos uno` = vul)
-costo <- data.frame(Criterio = names(crit), Registros = sapply(crit, sum), Omitidos = sapply(crit, function(g) sum(g & !peor1)))
-costo$Pct_omitido <- 100 * costo$Omitidos / costo$Registros
-rownames(costo) <- NULL
-guardar_tabla(costo, "costo_factor_unico.csv")
-kable(costo, digits = 1, caption = "Registros prioritarios que quedan fuera del 20 % inferior del puntaje de un factor único (30 indicadores).")
-
-b1 <- S[[1]] <= quantile(S[[1]], 0.2); b2 <- S[[2]] <= quantile(S[[2]], 0.2)
-solape <- data.frame(Grupo = c("Solo fondo de acceso", "En ambos fondos", "Solo fondo de permanencia"),
-                     Registros = c(sum(b1 & !b2), sum(b1 & b2), sum(b2 & !b1)))
-solape$Porcentaje_del_cupo <- 100 * solape$Registros / sum(b1)
-guardar_tabla(solape, "solapamiento_fondos.csv")
-kable(solape, digits = 1, caption = "Quién entra a cada fondo (20 % inferior de cada puntaje, 30 indicadores). Con factores independientes se esperaría 20 % en ambos.")
-
-# Capturas de los criterios directos frente al puntaje
-cap <- data.frame(
-  Regla = c("Fondo de acceso: 20 % inferior del factor Acceso", "Fondo de permanencia: 20 % inferior del factor Permanencia", "Unión de ambos fondos"),
-  Registros_seleccionados = c(sum(b1), sum(b2), sum(b1 | b2)),
-  Grupo_prioritario_capturado_pct = 100 * c(sum(b1 & vul), sum(b2 & vul), sum((b1 | b2) & vul)) / sum(vul))
-guardar_tabla(cap, "captura_grupo_prioritario.csv")
-kable(cap, digits = 1, caption = "Parte del grupo prioritario que capturan los fondos basados en los factores.")
-```
-
-> ⭐ **Qué ve:** Con un solo factor, queda fuera el **`r coma(costo$Pct_omitido[3], 1)` %** del grupo prioritario (`r coma(costo$Pct_omitido[1], 1)` % de los de deserción alta y `r coma(costo$Pct_omitido[2], 1)` % de los de cobertura baja). Es la parte propia del punto 4 convertida en municipios: el factor único es acceso, y la deserción se le escapa. Con dos fondos, cada uno selecciona `r fint(sum(b1))` registros y coinciden `r fint(solape$Registros[2])` (`r coma(solape$Porcentaje_del_cupo[2], 1)` %, frente al 20 % esperado si fueran independientes). Entre los dos fondos capturan `r coma(cap$Grupo_prioritario_capturado_pct[3], 1)` % del grupo prioritario.
->
-> ⭐ **Qué significa para el cliente:** Un solo índice no basta. Dos fondos recogen más del grupo prioritario y casi no se pisan, como anticipaba la correlación casi nula del punto 9; pero la cifra de solapamiento depende de las variables (con 6 variables era 26,5 %; con 30, `r coma(solape$Porcentaje_del_cupo[2], 1)` %), así que no sostiene hablar de un solapamiento «mínimo».
->
-> ⭐ **Qué decide él:** Para asignar, usar los indicadores directos de cada fondo y los puntajes solo para ordenar. El grupo prioritario se define con dos variables que están dentro del modelo: estas cifras comparan reglas, no validan el corte.
-
-## 18. Comparación con las 6 variables de los talleres anteriores
-
-```{r comparacion-6}
-vars6 <- c("POBLACIÓN_5_16", "COBERTURA_NETA", "COBERTURA_NETA_MEDIA", "DESERCIÓN", "APROBACIÓN", "REPITENCIA")
-f6 <- suppressWarnings(fa(datos[vars6], nfactors = 2, fm = "ml", rotate = "oblimin"))
-cmp6 <- data.frame(Variable = vars6, Comunalidad_6_variables = as.numeric(f6$communality[vars6]), Comunalidad_30_indicadores = as.numeric(f2_ml$communality[vars6]))
-guardar_tabla(cmp6, "comparacion_6_vs_30.csv")
-invisible(capture.output(pa6 <- fa.parallel(datos[vars6], fa = "fa", fm = "ml", n.iter = 30, plot = FALSE)))
-medidas6 <- data.frame(
-  Medida = c("KMO global", "Variables con KMO < 0,5", "Factores sugeridos por el análisis paralelo", "Varianza común con 2 factores (%)", "Correlación entre factores"),
-  `6 variables` = c(coma(KMO(cor(datos[vars6]))$MSA, 3), sum(KMO(cor(datos[vars6]))$MSAi < 0.5),
-                    pa6$nfact, coma(100 * sum(f6$communality) / 6, 1), coma(f6$Phi[1, 2], 2)),
-  `30 indicadores` = c(coma(kmo$MSA, 3), sum(kmo$MSAi < 0.5), k_pa, coma(100 * sum(f2_ml$communality) / p, 1), coma(phi_ml, 2)), check.names = FALSE)
-guardar_tabla(medidas6, "comparacion_medidas_6_vs_30.csv")
-kable(medidas6, caption = "Análisis factorial con 6 variables y con los 30 indicadores (2 factores, ML, oblimin).")
-kable(cmp6, digits = 3, row.names = FALSE, caption = "Comunalidad de las 6 variables con cada modelo (2 factores, ML).")
-```
-
-> ⭐ **Qué ve:** Con los 30 indicadores el KMO sube de `r medidas6[[2]][1]` a `r medidas6[[3]][1]`. En el modelo de 6 variables, cobertura media tenía comunalidad `r coma(cmp6$Comunalidad_6_variables[3], 3)` y definía casi sola un factor; con 30 baja a `r coma(cmp6$Comunalidad_30_indicadores[3], 3)`, porque el factor de acceso lo define toda la familia de cobertura. Aprobación sigue cerca de 1 (`r coma(cmp6$Comunalidad_30_indicadores[5], 3)`), pero ahora comparte su factor con reprobación y deserción.
->
-> ⭐ **Qué significa para el cliente:** Con 6 variables cada factor era, en la práctica, una sola variable (lo que las notas de clase advierten que no es un factor con nombre). Con 30, cada factor es una familia de indicadores. Es una razón para preferir el modelo de 30 indicadores como base del análisis factorial.
-
-## 19. Conclusiones y límites
-
-```{r resumen-final}
-resumen_final <- data.frame(
-  Tema = c("Datos", "Adecuación", "Un factor", "Dos factores", "Giros", "Otro método", "Número de factores", "Estabilidad (2 factores)", "Categóricas", "Decisión"),
+```{r resumen}
+resumen <- data.frame(
+  Actividad = c("AF I · 1", "AF I · 2", "AF I · 3", "AF I · 4", "AF I · 5", "AF II · 1", "AF II · 2", "AF II · 3", "AF II · 4", "AF II · 5"),
   Resultado = c(
-    paste0(fint(n), " registros, 30 indicadores + 3 categóricas (33 variables)"),
-    paste0("KMO ", coma(kmo$MSA, 3), "; ", sum(kmo$MSAi < 0.5), " variables < 0,5; matriz casi singular"),
-    paste0("Es acceso; ", coma(pct_comun1, 1), " % común en promedio; ", n_propia80, " indicadores con más de 80 % propio; error máximo ", coma(res1$Error_maximo, 2)),
-    paste0("Acceso y Rendimiento, cada uno una familia; ", coma(comp12$Varianza_comun_pct[2], 1), " % común"),
-    paste0("Sin girar, varimax y oblimin: misma parte común; Φ = ", coma(phi_ml, 3)),
-    paste0("MinRes y ejes principales: congruencia ≥ ", coma(min(est2$Congruencia_con_ML), 3), " con ML"),
-    paste0("Máximo ", k_max, " por grados de libertad; Kaiser ", k_kaiser, ", paralelo ", k_pa, ", MAP ", k_map, "; casos límite desde ", k_heywood),
-    paste0("Congruencia bootstrap por municipio ", coma(resumen_boot$Mediana[1], 3)),
-    paste0("One-hot no agrega factores; el municipio explica ", coma(eta_s$MUNICIPIO[eta_s$Puntaje == "Acceso"], 0), " % del puntaje de acceso y ", coma(eta_s$MUNICIPIO[eta_s$Puntaje != "Acceso"], 0), " % del de permanencia"),
-    paste0("Un factor omite ", coma(costo$Pct_omitido[3], 1), " % del grupo prioritario; solapamiento ", coma(solape$Porcentaje_del_cupo[2], 1), " %")))
-guardar_tabla(resumen_final, "resumen_final.csv")
-kable(resumen_final, caption = "Resumen del análisis factorial completo.")
+    paste0(p, " variables; KMO ", coma(kmo$MSA, 3), ", ninguna por debajo de 0,5"),
+    paste0("Un factor = acceso; ", coma(pct_comun1, 1), " de cada 100 partes comunes en promedio"),
+    paste0(propias$Variable[1], " es ", coma(propias$Propia[1], 1), " % propia; el factor único deja fuera ", coma(costo$Pct_fuera[1], 0), " % del grupo con más deserción"),
+    paste0("Un factor no alcanza: error máximo ", coma(max(e1), 2), " (", pares$Var1[1], " y ", pares$Var2[1], ")"),
+    paste0("Dos factores: Acceso y Rendimiento; error máximo ", coma(max(e2), 3)),
+    "Sin girar ya se pueden nombrar",
+    paste0("Varimax y oblimin: misma parte común (diferencia máxima ", if (dif_h2 < 1e-4) "< 0,0001" else coma(dif_h2, 4), ")"),
+    paste0("Φ = ", coma(phi, 2), "; los dos fondos coinciden en ", coma(solape$Pct_del_cupo[2], 1), " % del cupo"),
+    paste0("MinRes y ejes principales: congruencia ≥ ", coma(min(comp_met[, 4:5]), 3)),
+    paste0("Caben hasta ", k_max, " factores; dos bastan")))
+guardar_tabla(resumen, "resumen_final.csv")
+kable(resumen, caption = "Resumen de las diez actividades.")
 ```
 
-1. **Hay estructura factorial, pero es exploratoria.** KMO `r coma(kmo$MSA, 3)` y una matriz casi singular: los índices de ajuste no son fiables y los factores no son dimensiones validadas.
-2. **Un factor no alcanza.** El factor único es acceso; deserción, repitencia y aprobación quedan casi todas como parte propia, y las correlaciones dentro de esas familias no se reproducen.
-3. **Dos factores se pueden nombrar: Acceso y Rendimiento y permanencia.** Cada uno lo define una familia de indicadores, casi no se correlacionan (Φ = `r coma(phi_ml, 3)`), los giros no cambian la parte común ni los nombres y el resultado se mantiene con MinRes y ejes principales, por período, por municipio y en el bootstrap.
-4. **Caben hasta `r k_max` factores, pero los datos sostienen entre `r k_map` y `r k_pa`**, y desde `r k_heywood` aparecen casos límite. Más factores subdividen los dos fondos por nivel educativo y separan deserción y repitencia.
-5. **Las categóricas no son factores.** Año, departamento y municipio agregados en one-hot no pertenecen a ningún factor y hunden el KMO; sí explican parte del puntaje de acceso (sobre todo el municipio, por persistencia) y casi nada del de permanencia y rendimiento.
-6. **Un solo índice deja fuera al grupo prioritario, y dos fondos no se separan «mínimamente»**: el solapamiento depende de las variables y no está validado.
-7. **Límites:** las filas de un municipio no son independientes; los umbrales de 6,5 % y 60 % son reglas de trabajo; la etiqueta del grupo prioritario usa variables del propio modelo; todas las asociaciones son descriptivas, no causales.
+Al Ministerio le respondemos:
 
-**Próximos pasos:** validar los factores con otra muestra o con datos por municipio y período; usar modelos que reconozcan el panel; calibrar umbrales con criterios externos.
+- **Los indicadores no miden una sola «calidad educativa».** Un factor solo recoge el acceso; la aprobación, la deserción y la repitencia quedan casi enteras por fuera.
+- **Sí hay dos dimensiones con nombre: Acceso y Rendimiento.** Cada una la define un grupo de variables, no una sola. Se sostienen sin girar, con varimax, con oblimin y con tres métodos de estimación.
+- **Y casi no van juntas** (`r coma(phi, 2)`): un municipio puede tener buena cobertura y bajo rendimiento. Los dos fondos llegarían a municipios distintos.
+- **La deserción y la repitencia tienen mucho propio** incluso con dos factores: hay que mirarlas directamente, no solo a través del puntaje de rendimiento.
+- **La decisión:** dos fondos, uno de acceso y otro de rendimiento y permanencia, y la deserción como alerta aparte.
 
-# Preguntas Conceptuales
+**Límites:** las filas de un mismo municipio en distintos años no son independientes; las 9 variables son una selección nuestra (el análisis con todas está en el informe del Corte 2); las variables son proporciones acotadas y asimétricas, y la máxima verosimilitud supone normalidad; los nombres de los factores son interpretación nuestra.
+
+# Preguntas conceptuales
 
 **Análisis factorial I**
 
-1. **Parte común y parte propia.** La parte común (carga²) es la porción de la varianza de un indicador que comparte con los demás a través del factor; la parte propia es lo que mide solo ese indicador, más su error. Con un factor, cobertura neta es `r coma(reparto$Comun[reparto$Variable == "COBERTURA_NETA"], 0)` % común y deserción `r coma(reparto$Comun[reparto$Variable == "DESERCIÓN"], 0)` %.
-2. **¿Una variable con poca parte común está mal hecha?** No. Mide algo que los demás no miden. POBLACIÓN_5_16 es casi 100 % propia porque mide el tamaño del municipio, y eso no la vuelve un mal dato.
-3. **Si la correlación es casi igual al producto de las cargas,** un factor alcanza para explicar por qué se mueven juntos. En estos datos no pasa (error máximo `r coma(res1$Error_maximo, 2)`), y por eso hace falta más de un factor.
-4. **Por qué no se nombra un factor que es una sola variable:** porque es esa variable, no algo que compartan varias. En las notas de clase el segundo factor era lectura sola; aquí el segundo factor lo definen `r def2$Indicadores_con_carga_04[2]` indicadores y sí se puede nombrar.
-5. **Por qué el resumen (componentes principales) guarda más que el factor común:** porque la componente se lleva también la parte propia. Con los 30 indicadores, la primera componente guarda `r coma(100 * autov[1] / p, 1)` % y el factor único `r coma(pct_comun1, 1)` %.
-6. **Afirmación correcta: (b).** La carga al cuadrado es la parte de las diferencias en una variable que viene del factor común. El factor no se mide directamente (a), la parte propia no es siempre error (c) y dos factores pueden estar correlacionados (d).
+1. **Parte común y parte propia.** La parte común (carga²) es la porción de las diferencias en una variable que comparte con las demás a través del factor; la parte propia es lo que mide solo esa variable, más su error. Con un factor, la cobertura de media es `r coma(reparto$Comun[reparto$Variable == "COBERTURA_NETA_MEDIA"], 0)` % común y la deserción `r coma(reparto$Comun[reparto$Variable == "DESERCIÓN"], 0)` %.
+2. **Escritura tiene 15 de cada 100 partes comunes, ¿está mal hecho el módulo?** No. Mide algo que los otros módulos no miden. Aquí la deserción es casi toda propia y no por eso está mal medida: mide algo que la cobertura no dice.
+3. **Si la correlación es casi igual al producto de las cargas,** una sola habilidad alcanza para explicar por qué los módulos se mueven juntos. En nuestras variables no pasa con un factor (error máximo `r coma(max(e1), 2)`); con dos el error medio baja a `r coma(mean(e2), 3)` y solo queda mal reproducida alguna pareja suelta (`r peor2`).
+4. **¿Por qué no se llama «habilidad verbal» a la que cae casi entera sobre lectura?** Porque es lectura misma, no algo que compartan varios módulos; un factor con nombre debe reunir varias variables. Aquí el segundo factor reúne `r n_f2` variables y sí se puede nombrar.
+5. **¿Por qué el resumen de la sesión 3 guardaba más que la habilidad común?** Porque la componente principal se lleva también la parte propia de cada variable; el factor solo la común. Con nuestras 9 variables, la primera componente guarda `r coma(100 * eigen(R)$values[1] / p, 1)` % y el factor único `r coma(pct_comun1, 1)` %.
+6. **Afirmación correcta: (b).** La carga al cuadrado es la parte de las diferencias en una variable que viene del factor común. El factor no se mide directamente (a), la parte propia no es siempre error (c) y dos factores pueden ir juntos (d).
 
 **Análisis factorial II**
 
-1. **Para qué se gira, si no cambia la parte común:** para leer y nombrar los factores; el giro cambia los ejes, no lo que explica el modelo (punto 8).
-2. **Por qué en personas conviene el giro oblicuo:** porque las habilidades suelen ir juntas y oblimin deja que los datos digan cuánto. Si no van juntas, como aquí (Φ = `r coma(phi_ml, 3)`), oblimin da lo mismo que varimax.
-3. **Dos factores que van juntos 0,79** escogen casi a la misma gente: usarlos como dos perfiles es pagar dos procesos para el mismo resultado. Aquí van juntos `r coma(phi_ml, 3)` y los dos fondos coinciden en `r coma(solape$Porcentaje_del_cupo[2], 1)` % del cupo.
-4. **Un factor que cambia con el método no se puede nombrar** porque es un acomodo de los números, no una estructura de los datos. Aquí los dos factores no cambian con el método (punto 10).
-5. **4 variables y 3 factores:** los grados de libertad dan ((4 − 3)² − (4 + 3)) / 2 = −3: no se puede. Con 4 variables cabe como máximo 1 factor (2 factores ya dan −1).
-6. **Afirmación correcta: (b).** Girar cambia los ejes, no las variables, y la parte común queda igual. Girar no agrega información (a), con cinco variables no caben cinco factores (c) y un giro no prueba que existan dos dimensiones (d).
+1. **Si girar no cambia la parte común, ¿para qué se gira?** Para poder leer y nombrar los factores: el giro cambia los ejes, no lo que el modelo explica (actividad 2).
+2. **¿Por qué en personas conviene el giro oblicuo?** Porque las habilidades suelen ir juntas y oblimin deja que los datos digan cuánto. Si no van juntas, como aquí (Φ = `r coma(phi, 2)`), da casi lo mismo que varimax.
+3. **Dos habilidades que van juntas 0,79** escogen casi a la misma gente: dos perfiles serían pagar dos procesos para el mismo resultado. Aquí van juntas `r coma(phi, 2)` y los fondos coinciden en `r coma(solape$Pct_del_cupo[2], 1)` % del cupo.
+4. **Una habilidad que cambia con el método no se puede nombrar** porque es un acomodo de los números, no una estructura de los datos. Las nuestras no cambian (actividad 4).
+5. **4 variables y 3 habilidades:** los grados de libertad dan ((4 − 3)² − (4 + 3)) / 2 = −3, así que no se puede; con 4 variables cabe como máximo 1 factor (2 ya dan −1).
+6. **Afirmación correcta: (b).** Girar cambia los ejes, no los módulos, y la parte común queda igual. Girar no agrega información (a), con cinco módulos caben como máximo dos habilidades (c) y que el giro produzca dos no prueba que existan dos (d).

@@ -21,22 +21,23 @@ Gabriela Martínez Silva.
 
 El informe que integra todo el proyecto es **`reports/entrega-corte-2/Analisis_Indicadores_Educativos.Rmd`**.
 Parte del informe del Corte 1, que es la base del proyecto, y le agrega el Análisis de Componentes
-Principales sobre todas las variables.
+Principales y el Análisis Factorial sobre todas las variables.
 
 | Entrega | Archivo | Contenido |
 |---|---|---|
 | **Corte 1** | `reports/entrega-corte-1/Analisis_Indicadores_Educativos.Rmd` | Limpieza de los datos, análisis univariado, bivariado y multivariado (matriz de covarianzas, estandarización y distancias de Mahalanobis). |
-| **Corte 2** | `reports/entrega-corte-2/Analisis_Indicadores_Educativos.Rmd` | Todo el Corte 1 más el **PCA con las 30 variables numéricas**: ¿un número o varios? y el mapa de los municipios (biplot, grupos, cortes de decisión). |
+| **Corte 2** | `reports/entrega-corte-2/Analisis_Indicadores_Educativos.Rmd` | Todo el Corte 1 más el **PCA con las 30 variables numéricas** (¿un número o varios? y el mapa de los municipios) y el **análisis factorial de las 33 variables** (un factor, rotación, número de factores, estabilidad, puntajes por año y territorio, one-hot de las categóricas y decisión de dos fondos). |
 
-Los talleres son ejercicios que deja el docente para entender cada técnica y sirven de antecedente para
-las entregas de corte. Los de `taller-pca/` trabajan con 6 variables; el taller factorial aplica el
-análisis factorial a los 30 indicadores y las 3 categóricas.
+Los talleres son ejercicios que deja el docente para entender cada técnica, con pocas variables, y sirven
+de antecedente para las entregas de corte. Los de `taller-pca/` trabajan con 6 variables; el taller
+factorial resuelve las actividades de Análisis factorial I y II con 9 indicadores (entre 4 y 10, como
+piden las notas), los mismos en las dos.
 
 | Taller | Archivo |
 |---|---|
 | Taller 1 | `reports/taller-01/taller-01.Rmd` |
 | Taller 2 | `reports/taller-02/checklist-taller-02.Rmd` |
-| **Taller factorial** (análisis factorial completo de las 33 variables) | `reports/taller-factorial/taller-factorial.Rmd` |
+| **Taller factorial** (Análisis factorial I y II con 9 indicadores) | `reports/taller-factorial/taller-factorial.Rmd` |
 | **Informe y evaluación final** del repositorio | `reports/informe-final/informe-final.Rmd` |
 | Componentes principales I | `reports/taller-pca/componentes-principales-i/componentes-principales-i.Rmd` |
 | Componentes principales II | `reports/taller-pca/componentes-principales-ii/componentes-principales-ii.Rmd` |
@@ -61,15 +62,15 @@ La unidad de análisis es el registro **municipio-año**: un mismo municipio apa
 data/raw/                         Datos originales y dataset depurado
 reports/
   entrega-corte-1/                Informe del Corte 1 (.Rmd y .html)
-  entrega-corte-2/                Informe del Corte 2: Corte 1 + PCA (.Rmd y .html)
+  entrega-corte-2/                Informe del Corte 2: Corte 1 + PCA + análisis factorial (.Rmd y .html)
   taller-01/                      Taller 1 (archive/: archivos históricos)
   taller-02/                      Taller 2
   taller-pca/                     Talleres de componentes principales I y II
-  taller-factorial/               Análisis factorial completo de las 33 variables (.Rmd, .html y README)
+  taller-factorial/               Análisis factorial I y II con 9 indicadores (.Rmd, .html y README)
   informe-final/                  Informe y evaluación final del repositorio
 outputs/
   entrega-corte-1/                Histogramas, boxplots y gráficos de Mahalanobis del Corte 1
-  entrega-corte-2/                Lo mismo para el Corte 2, más pca/ con las tablas y figuras del PCA
+  entrega-corte-2/                Lo mismo para el Corte 2, más pca/ (PCA) y factorial/ (análisis factorial)
   taller-01/, taller-02/          tables/ y figures/ de cada taller
   taller-pca/                     tables/ y figures/ de cada taller de PCA y analisis-33-variables/
   taller-factorial/, informe-final/   tables/ y figures/
@@ -85,8 +86,9 @@ presentacion/                     Presentaciones para el cliente (.pptx); ignora
   `readr`, `forcats`, `corrplot` y `DT`. Al tejer, el informe instala los que falten de esta lista
   (salvo `rmarkdown`, que se necesita para tejer).
   `ggrepel` es opcional: si está instalado, se usa para que las etiquetas del biplot no se monten.
-- Paquetes de los talleres de análisis factorial: `psych` y `GPArotation`. El script de los talleres
-  de PCA usa además `commonmark` cuando no hay Pandoc.
+- Paquetes del análisis factorial (informe del Corte 2 y taller factorial): `psych` y `GPArotation`;
+  el taller factorial usa además `ggrepel`. El script de los talleres de PCA usa `commonmark` cuando no
+  hay Pandoc.
 
 Para instalar todos los paquetes desde la raíz del proyecto:
 
@@ -102,8 +104,9 @@ source("scripts/install_dependencies.R")
 rmarkdown::render("reports/entrega-corte-2/Analisis_Indicadores_Educativos.Rmd")
 ```
 
-El informe del Corte 2 tarda unos minutos y genera un HTML de cerca de 30 MB, porque incluye todas las
-figuras en alta resolución.
+El informe del Corte 2 tarda unos minutos y genera un HTML de más de 30 MB, porque incluye todas las
+figuras en alta resolución. Su punto 16 (análisis factorial con one-hot) lee
+`outputs/taller-pca/analisis-33-variables/`, que genera `Rscript scripts/analisis_33_variables.R`.
 
 **Con los scripts**, desde la raíz del proyecto:
 
@@ -113,8 +116,9 @@ source("scripts/render_talleres_pca.R")  # Talleres de PCA y Taller factorial
 ```
 
 `render_reports.R` teje primero el Corte 2, que regenera `educacion_limpio.csv`. Si un informe falla,
-sigue con los demás y al final lista los que no se generaron. Los talleres 1, 2 y factorial analizan las
-33 variables de `educacion_limpio.csv`; las versiones históricas (dataset reducido) están en `reports/*/archive/`.
+sigue con los demás y al final lista los que no se generaron. Los talleres 1 y 2 analizan las 33 variables
+de `educacion_limpio.csv` y el taller factorial 9 de sus indicadores; las versiones históricas (dataset
+reducido) están en `reports/*/archive/`.
 
 **Validación del proyecto:**
 
@@ -127,7 +131,7 @@ Confirma que existen los datos y los `.Rmd` de todas las entregas, que `educacio
 
 ## Análisis con las 33 columnas y presentaciones
 
-El PCA y el análisis factorial de `reports/taller-pca/` usan 6 variables. Para repetirlos con las 33 columnas de
+Los talleres de PCA usan 6 variables y el taller factorial 9. Para repetir el PCA y el análisis factorial con las 33 columnas de
 `educacion_limpio.csv` (30 indicadores, año, municipio y departamento) y comparar el one-hot de
 **solo departamentos, solo municipios y ambos**:
 
@@ -136,8 +140,8 @@ Rscript scripts/analisis_33_variables.R          # tarda unos 4 minutos; escribe
 ```
 
 Las secciones correspondientes están en los informes de componentes principales I y II y se leen con
-`scripts/helpers_33.R`. El punto 16 del taller factorial también lee esta salida, así que este script
-debe correr antes de tejer ese informe. Las presentaciones para el cliente (una por taller y una integrada) se generan con:
+`scripts/helpers_33.R`. El punto 16 del análisis factorial del Corte 2 también lee esta salida, así que
+este script debe correr antes de tejer ese informe. Las presentaciones para el cliente (una por taller y una integrada) se generan con:
 
 ```bash
 Rscript scripts/presentacion_resultados.R        # recalcula cifras y figuras

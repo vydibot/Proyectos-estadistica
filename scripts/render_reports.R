@@ -12,7 +12,7 @@ if (!file.exists(file.path(project_root, "data", "raw", "educacion.csv"))) {
 }
 
 required_packages <- c("rmarkdown", "knitr", "ggplot2", "dplyr", "tidyr", "reshape2",
-                       "readr", "forcats", "corrplot", "DT")
+                       "readr", "forcats", "corrplot", "DT", "psych", "GPArotation", "ggrepel")
 missing_packages <- required_packages[
   !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
 ]

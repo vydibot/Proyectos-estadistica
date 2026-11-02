@@ -1,4 +1,4 @@
-"Criterio","Registros","Omitidos","Pct_omitido"
-"Deserción > 6,5 %",1141,762,66.783523225241
-"Cobertura neta ≤ 60 %",752,79,10.5053191489362
-"Cumple al menos uno",1783,833,46.7190128996074
+"Grupo","Registros","Fuera","Pct_fuera"
+"20 % con más deserción",2765,1983,71.7179023508137
+"20 % con más repitencia",2764,2110,76.3386396526773
+"20 % con menos aprobación en secundaria",2761,2213,80.1521187975371
