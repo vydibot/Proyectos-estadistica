@@ -1,0 +1,8 @@
+"Medida","ML","MinRes"
+"Congruencia de la dimensión 1 (1 = cargas idénticas)","1","0,993"
+"Congruencia de la dimensión 2","1","0,998"
+"Correlación entre las dimensiones","0,085","0,078"
+"Variable con más carga en la dimensión 1","COBERTURA_NETA_SECUNDARIA","COBERTURA_NETA_SECUNDARIA"
+"Variable con más carga en la dimensión 2","APROBACIÓN_SECUNDARIA","APROBACIÓN_SECUNDARIA"
+"Mayor cambio en una carga","—","0,13"
+"Parte común de la cobertura en secundaria (de 100)","99,5","92,6"

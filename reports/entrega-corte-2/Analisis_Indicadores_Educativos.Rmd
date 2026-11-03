@@ -1,11 +1,6 @@
 ---
 title: "Análisis Exploratorio de Datos: Indicadores Educativos Municipales de Colombia 2011-2024"
-subtitle: "Entrega Corte 2: Análisis de Componentes Principales y Análisis Factorial"
-author: 
-  - "David Santiago Lugo Piñeros - Cód:20222020180"
-  - "Luisa Fernández Velasco López - Cód:20212020106"
-  - "Jairo Arturo Barrera Mosquera - Cód:20222020142"
-  - "Gabriela Martínez Silva - Cód:20231020205"
+author: "Equipo: Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva"
 date: "`r Sys.Date()`"
 output: 
   html_document:
@@ -3420,7 +3415,7 @@ kable(
 
 > **Qué se ve:** las `r length(acceso)` flechas de acceso van juntas hacia la derecha: entre ellas hay a lo sumo `r round(ang_acceso)` grados. La aprobación apunta hacia arriba y la reprobación en contra (`r round(parejas$Angulo_mapa[3])` grados entre ellas). El haz de acceso y la aprobación forman unos `r round(parejas$Angulo_mapa[2])` grados: **van cada una por su lado**. La deserción y la repitencia parecen juntas en el mapa (`r round(parejas$Angulo_mapa[5])` grados), pero su correlación real es solo `r fnum(parejas$r[5], 2)` (`r round(parejas$Angulo_real[5])` grados): el mapa recoge apenas `r fnum(recoge["REPITENCIA"], 0)` de cada 100 partes de la repitencia, y ahí el ángulo engaña. `POBLACIÓN_5_16` es casi un punto en el centro: el mapa recoge `r fnum(recoge["POBLACIÓN_5_16"])` de cada 100 partes de ella.
 >
-> **Qué significa para el cliente:** un municipio que se mueve hacia la derecha mejora en todas las coberturas a la vez, y uno que sube mejora en aprobación y baja en reprobación. Pero moverse a la derecha no lo hace subir: **mejorar la cobertura no mejora por sí solo la aprobación ni reduce la deserción**. El tamaño del municipio no se lee en este mapa.
+> **Qué significa para el cliente:** los municipios más a la derecha tienen todas las coberturas más altas a la vez, y los que están más arriba tienen más aprobación y menos reprobación. Las dos direcciones son casi independientes: **los municipios con más cobertura no tienen, por eso, más aprobación ni menos deserción**. Con estos datos no se puede saber qué pasaría con la aprobación si se amplía la cobertura. El tamaño del municipio no se lee en este mapa.
 >
 > **Qué decide:** no fija metas que supongan que ampliar la cobertura resuelve la permanencia; los dos fondos atienden problemas distintos. Para la repitencia y el tamaño del municipio, usa los indicadores directos y no el mapa.
 
@@ -3697,6 +3692,44 @@ kable(
 >
 > **Qué decide:** antes de priorizar, revisa la calidad de estos registros con la entidad que los reporta. Un atípico de Mahalanobis no es necesariamente un municipio en crisis.
 
+## Las 3 categóricas en el PCA: las 33 columnas
+
+El PCA anterior usa los `r ncol(X)` indicadores numéricos. Las otras tres columnas del dataset (`AÑO`, `DEPARTAMENTO` y `MUNICIPIO`) son categorías, no magnitudes: no tiene sentido promediarlas ni correlacionarlas como números. Para comprobar si cambian el resumen, se agregaron al PCA como columnas one-hot (una por categoría) de dos maneras: **estandarizadas (z)**, que le dan a cada categoría el mismo peso que a un indicador, y **centradas (natural)**, que las dejan con su varianza de 0 y 1. Los resultados vienen de `scripts/analisis_33_variables.R` (`outputs/taller-pca/analisis-33-variables/`), igual que el punto 16 del análisis factorial.
+
+```{r pca-categoricas, results = "asis"}
+f_pca33 <- file.path(project_root, "outputs", "taller-pca", "analisis-33-variables", "tables", "pca_comparacion_variantes.csv")
+if (file.exists(f_pca33)) {
+  v33 <- read.csv(f_pca33, check.names = FALSE, stringsAsFactors = FALSE)
+  v33 <- v33[v33$base == "30 indicadores", ]
+  v33$Variante <- ifelse(v33$peso == "—", v33$codificacion, paste0(v33$codificacion, " (", v33$peso, ")"))
+  print(kable(v33[, c("Variante", "columnas", "pct_pc1", "pct_pc12", "n80", "pct_numericas_en_varianza", "r2_pc1_base", "capturados_pc1")],
+        digits = 1, row.names = FALSE, format.args = list(decimal.mark = ",", big.mark = "."),
+        col.names = c("Columnas que entran", "Columnas", "De cada 100, guarda PC1", "Guardan PC1 y PC2", "Componentes para 80 de cada 100",
+                      "% de la varianza total que es de los indicadores", "PC1 igual al de los 30 indicadores (R², %)", "Grupo prioritario capturado con PC1 ≤ 0 (%)"),
+        caption = "El PCA de los 30 indicadores con y sin las categóricas en one-hot"))
+  pca33_ok <- TRUE
+  vz_mun <- v33[v33$codificacion == "+ AÑO + municipios" & v33$peso == "z", ]
+  vz_anio <- v33[v33$codificacion == "+ AÑO" & v33$peso == "z", ]
+  v_base <- v33[v33$codificacion == "Solo numéricas", ]
+  vn <- v33[v33$peso == "natural", ]
+} else {
+  pca33_ok <- FALSE
+  cat("No se encontró", f_pca33, ". Ejecute `Rscript scripts/analisis_33_variables.R` y vuelva a tejer.")
+}
+```
+
+```{r pca-categoricas-figura, eval = pca33_ok, echo = FALSE, results = "asis"}
+invisible(file.copy(file.path(project_root, "outputs", "taller-pca", "analisis-33-variables", "figures", "pca33_captura.png"),
+                    file.path(dir_pca, "categoricas_captura.png"), overwrite = TRUE))
+cat("\n\n![Grupo prioritario capturado con PC1 ≤ 0 en cada variante](../../outputs/entrega-corte-2/pca/categoricas_captura.png)\n\n")
+```
+
+`r if (pca33_ok) paste0("> **Qué se ve:** con solo los 30 indicadores, PC1 guarda ", fnum(v_base$pct_pc1), " de cada 100 partes. Al agregar el año estandarizado baja a ", fnum(vz_anio$pct_pc1), ", y con los municipios estandarizados (", fint(vz_mun$columnas), " columnas) a ", fnum(vz_mun$pct_pc1), ": hacen falta ", fint(vz_mun$n80), " componentes para llegar a 80 de cada 100. Pero la primera componente casi no cambia de dirección: en todas las variantes, el PC1 de los 30 indicadores explica entre ", fnum(min(v33$r2_pc1_base)), " % y ", fnum(max(v33$r2_pc1_base)), " % del nuevo PC1, y el grupo prioritario capturado con PC1 ≤ 0 se mueve entre ", fnum(min(v33$capturados_pc1)), " % y ", fnum(max(v33$capturados_pc1)), " %. Con las categóricas centradas, que pesan poco, PC1 sigue guardando entre ", fnum(min(vn$pct_pc1)), " y ", fnum(max(vn$pct_pc1)), " de cada 100.") else "> No se pudo leer el análisis con las 33 columnas."`
+>
+> **Qué significa para el cliente:** el año, el departamento y el municipio **no agregan una dimensión nueva al resumen**: estandarizadas, cada categoría «compra» la misma información que un indicador y diluye el resumen en cientos de columnas casi vacías; centradas, casi no pesan. El acceso y la eficiencia siguen siendo lo que ordena a los municipios.
+>
+> **Qué decide:** el PCA se hace con los 30 indicadores, y las categóricas se usan para **leer** el mapa: la región en el punto 4 de la Parte B, y el año y el municipio en las tablas de casos concretos.
+
 ## Comparación con los talleres
 
 ```{r pca-comparacion-talleres}
@@ -3740,7 +3773,7 @@ Los dos análisis son coherentes: el PC1 del taller se correlaciona `r fnum(cor_
 ## Conclusión para el cliente
 
 * **Sus `r ncol(X)` indicadores se pueden resumir en `r k_80` números** que guardan `r fnum(varianza_pca$Pct_acumulado[k_80])` de cada 100 partes de la información, porque buena parte de ellos se repite. Un solo número guarda apenas `r fnum(varianza_pca$Pct_varianza[1])`.
-* **Los dos primeros números tienen nombre y corresponden a sus dos fondos:** el acceso (infraestructura) y la eficiencia interna (tutorías). Van cada uno por su lado: ampliar la cobertura no mejora por sí solo la aprobación.
+* **Los dos primeros números tienen nombre y corresponden a sus dos fondos:** el acceso (infraestructura) y la eficiencia interna (tutorías). Van cada uno por su lado: los municipios con más cobertura no son, por eso, los que más aprueban.
 * **El costo de un solo número es concreto:** con PC1 se le escapan `r fint(n_escapan)` registros del grupo de interés, sobre todo municipios con buena cobertura y alta deserción. La deserción y la repitencia no quedan bien recogidas por ningún número y deben revisarse aparte.
 * **No hay tipos de municipio hechos, y la región desplaza pero no separa.** Las zonas de atención las define el Ministerio: con dos cortes a una variación típica resultan `r fint(nz["Infraestructura"])` registros para infraestructura, `r fint(nz["Tutorías"])` para tutorías y `r fint(nz["Los dos fondos"])` para los dos, y el corte se mueve según el presupuesto.
 
@@ -4366,8 +4399,10 @@ guardar_fig(p_boot, "bootstrap_congruencia.png", 8.5, 4.8)
 
 ### 15. Los puntajes factoriales y las categóricas: año, departamento y municipio
 
+Los puntajes se calculan con el método de **Bartlett** y no con el de regresión. El de regresión necesita invertir la matriz de correlaciones, y aquí esa matriz es casi singular (punto 2): con regresión, el puntaje de rendimiento casi no se relaciona con la aprobación, que es justo la variable que define ese factor. Con Bartlett cada puntaje sigue a las variables que lo definen (primera tabla).
+
 ```{r af-puntajes}
-f2s <- suppressWarnings(fa(X_af, nfactors = 2, fm = "minres", rotate = "oblimin", scores = "regression"))
+f2s <- suppressWarnings(fa(X_af, nfactors = 2, fm = "minres", rotate = "oblimin", scores = "Bartlett"))
 S_af <- as.data.frame(f2s$scores)
 L2 <- unclass(f2s$loadings)
 # Orientación: mayor puntaje = mejores condiciones (cobertura y aprobación suben; deserción y repitencia bajan)
@@ -4377,6 +4412,16 @@ acc_col <- which.max(abs(L2["COBERTURA_NETA", ]))
 S_af <- S_af[, c(acc_col, setdiff(1:2, acc_col))]
 names(S_af) <- c("Acceso", "Permanencia y rendimiento")
 S_af$AÑO <- datos_af$AÑO; S_af$DEPARTAMENTO <- datos_af$DEPARTAMENTO; S_af$ID_MUNICIPIO <- datos_af$ID_MUNICIPIO
+
+# Comprobación: cada puntaje debe seguir a las variables que definen su factor
+f2s_reg <- suppressWarnings(fa(X_af, nfactors = 2, fm = "minres", rotate = "oblimin", scores = "regression"))
+chequeo <- data.frame(
+  Metodo = c("Bartlett (el que se usa)", "Regresión"),
+  Acceso_con_cobertura_neta = c(abs(cor(S_af$Acceso, datos_af$COBERTURA_NETA)), max(abs(cor(f2s_reg$scores, datos_af$COBERTURA_NETA)))),
+  Rendimiento_con_aprobacion = c(abs(cor(S_af[["Permanencia y rendimiento"]], datos_af$APROBACIÓN)), max(abs(cor(f2s_reg$scores, datos_af$APROBACIÓN)))))
+kable(chequeo, digits = 2, format.args = list(decimal.mark = ","),
+      col.names = c("Método de puntajes", "|r| del puntaje de acceso con COBERTURA_NETA", "|r| del mejor puntaje con APROBACIÓN"),
+      caption = "Por qué se usan puntajes de Bartlett: con regresión, ningún puntaje sigue a la aprobación")
 
 eta_s <- do.call(rbind, lapply(names(S_af)[1:2], function(f)
   data.frame(Puntaje = f, AÑO = 100 * max(0, eta2_ajustado(S_af[[f]], S_af$AÑO)), DEPARTAMENTO = 100 * max(0, eta2_ajustado(S_af[[f]], S_af$DEPARTAMENTO)),
@@ -4402,9 +4447,9 @@ guardar_tabla(por_dep, "puntajes_por_departamento.csv")
 
 > ⭐ **Qué ve:** Para el puntaje de **Acceso**, el municipio explica `r coma(eta_s$MUNICIPIO[eta_s$Puntaje == "Acceso"], 1)` %, el departamento `r coma(eta_s$DEPARTAMENTO[eta_s$Puntaje == "Acceso"], 1)` % y el año `r coma(eta_s$AÑO[eta_s$Puntaje == "Acceso"], 1)` %. Para **Permanencia y rendimiento**: municipio `r coma(eta_s$MUNICIPIO[eta_s$Puntaje != "Acceso"], 1)` %, departamento `r coma(eta_s$DEPARTAMENTO[eta_s$Puntaje != "Acceso"], 1)` % y año `r coma(eta_s$AÑO[eta_s$Puntaje != "Acceso"], 1)` %.
 >
-> ⭐ **Qué significa para el cliente:** `r if (eta_s$MUNICIPIO[eta_s$Puntaje == "Acceso"] > 3 * max(eta_s$MUNICIPIO[eta_s$Puntaje != "Acceso"], 1)) "El acceso es sobre todo una **característica estable del municipio** (el mismo municipio conserva su posición durante los años), mientras que la permanencia y el rendimiento casi no tienen componente municipal ni anual: varían dentro de cada municipio de un año a otro." else "Los dos puntajes dependen de forma parecida del territorio y del año."` Por eso un ordenamiento de municipios construido con un solo año o con promedios de todos los años puede contar historias distintas para cada fondo.
+> ⭐ **Qué significa para el cliente:** El acceso es sobre todo una **característica estable del municipio**: el municipio explica `r coma(eta_s$MUNICIPIO[eta_s$Puntaje == "Acceso"], 0)` % de su puntaje y el año casi nada. La permanencia y el rendimiento también varían con el municipio, pero menos (`r coma(eta_s$MUNICIPIO[eta_s$Puntaje != "Acceso"], 0)` %), y tienen más del departamento (`r coma(eta_s$DEPARTAMENTO[eta_s$Puntaje != "Acceso"], 0)` %) y del año (`r coma(eta_s$AÑO[eta_s$Puntaje != "Acceso"], 0)` %): cambian más de un año a otro. Por eso un ordenamiento de municipios construido con un solo año o con promedios de todos los años puede contar historias distintas para cada fondo.
 >
-> ⭐ **Qué decide él:** Si los fondos se asignan con estos puntajes, definir el período de referencia: para acceso conviene un promedio histórico por municipio; para permanencia, el año más reciente o un promedio móvil. El año y los territorios explican poco del segundo factor: tratarlo como señal anual requiere validarlo con la fuente.
+> ⭐ **Qué decide él:** Si los fondos se asignan con estos puntajes, definir el período de referencia: para acceso conviene un promedio histórico por municipio; para permanencia, el año más reciente o un promedio móvil, porque es la dimensión que más se mueve con el año.
 
 ### 16. Las 33 columnas con one-hot: ¿aparecen factores nuevos?
 
@@ -4443,7 +4488,7 @@ cat("\n\n![Análisis factorial con cada codificación de las categóricas](../..
 
 ```{r af-decision}
 vul <- datos_af$DESERCIÓN > 0.065 | datos_af$COBERTURA_NETA <= 0.60
-f1s <- suppressWarnings(fa(X_af, nfactors = 1, fm = "minres", scores = "regression"))
+f1s <- suppressWarnings(fa(X_af, nfactors = 1, fm = "minres", scores = "Bartlett"))   # Bartlett: ver punto 15
 s1 <- as.numeric(f1s$scores); if (cor(s1, datos_af$APROBACIÓN) < 0) s1 <- -s1
 peor1 <- s1 <= quantile(s1, 0.2)
 crit <- list(`Deserción > 6,5 %` = datos_af$DESERCIÓN > 0.065, `Cobertura neta ≤ 60 %` = datos_af$COBERTURA_NETA <= 0.60, `Cumple al menos uno` = vul)
@@ -4477,7 +4522,7 @@ kable(cap, digits = 1, caption = "Parte del grupo prioritario que capturan los f
 
 ### 18. Comparación con las 9 variables del taller factorial
 
-En el taller factorial se trabajaron las actividades de las notas de clase con 9 de los 30 indicadores (cobertura neta por nivel, aprobación por nivel, deserción y repitencia). Aquí se compara esa solución con la de los 30 indicadores.
+Son las mismas 9 variables del taller del 31 de octubre (`reports/avance-corte-2/TALLER_31oct_Barrera.Rmd`), que además hace con ellas el PCA y el biplot. En el taller factorial se trabajaron las actividades de las notas de clase con 9 de los 30 indicadores (cobertura neta por nivel, aprobación por nivel, deserción y repitencia). Aquí se compara esa solución con la de los 30 indicadores.
 
 ```{r af-comparacion-9}
 vars9 <- c("COBERTURA_NETA_TRANSICIÓN", "COBERTURA_NETA_PRIMARIA", "COBERTURA_NETA_SECUNDARIA", "COBERTURA_NETA_MEDIA",

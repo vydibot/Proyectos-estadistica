@@ -16,6 +16,7 @@ required_paths <- c(
   file.path(project_root, "data", "raw", "educacion_limpio_talleres.csv"),
   file.path(project_root, "reports", "entrega-corte-1", "Analisis_Indicadores_Educativos.Rmd"),
   file.path(project_root, "reports", "entrega-corte-2", "Analisis_Indicadores_Educativos.Rmd"),
+  file.path(project_root, "reports", "avance-corte-2", "TALLER_31oct_Barrera.Rmd"),
   file.path(project_root, "reports", "taller-01", "taller-01.Rmd"),
   file.path(project_root, "reports", "taller-02", "checklist-taller-02.Rmd"),
   file.path(project_root, "reports", "taller-factorial", "taller-factorial.Rmd"),

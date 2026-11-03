@@ -37,6 +37,7 @@ piden las notas), los mismos en las dos.
 |---|---|
 | Taller 1 | `reports/taller-01/taller-01.Rmd` |
 | Taller 2 | `reports/taller-02/checklist-taller-02.Rmd` |
+| **Taller 31 de octubre** (resumen y dimensiones para el cliente, 9 variables; adelanta el Avance 2) | `reports/avance-corte-2/TALLER_31oct_Barrera.Rmd` |
 | **Taller factorial** (Análisis factorial I y II con 9 indicadores) | `reports/taller-factorial/taller-factorial.Rmd` |
 | **Informe y evaluación final** del repositorio | `reports/informe-final/informe-final.Rmd` |
 | Componentes principales I | `reports/taller-pca/componentes-principales-i/componentes-principales-i.Rmd` |
@@ -63,6 +64,7 @@ data/raw/                         Datos originales y dataset depurado
 reports/
   entrega-corte-1/                Informe del Corte 1 (.Rmd y .html)
   entrega-corte-2/                Informe del Corte 2: Corte 1 + PCA + análisis factorial (.Rmd y .html)
+  avance-corte-2/                 Taller del 31 de octubre: TALLER_31oct_Barrera (.Rmd y .html)
   taller-01/                      Taller 1 (archive/: archivos históricos)
   taller-02/                      Taller 2
   taller-pca/                     Talleres de componentes principales I y II

@@ -1,0 +1,693 @@
+---
+title: "Taller 31 de octubre: resumen y dimensiones para el cliente"
+subtitle: "¿Se pueden resumir los indicadores de acceso y permanencia de los municipios? ¿Hay dos dimensiones detrás?"
+author: "Equipo: Luisa Fernández Velasco, David Santiago Lugo, Jairo Arturo Barrera, Gabriela Martínez Silva"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: flatly
+    code_folding: hide
+    self_contained: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.align = "center",
+                      fig.width = 8.5, fig.height = 5.5, dpi = 110, out.width = "90%")
+tryCatch(Sys.setlocale("LC_ALL", "C.UTF-8"), error = function(e) NULL)
+
+# La raíz del proyecto se busca por sus carpetas, no por el nombre del .Rproj,
+# para que funcione igual con «Proyectos-estadistica.Rproj» y «Proyectos estadistica.Rproj».
+find_project_root <- function(start = getwd()) {
+  path <- normalizePath(start, mustWork = TRUE)
+  repeat {
+    if (file.exists(file.path(path, "data", "raw", "educacion.csv")) && dir.exists(file.path(path, "reports"))) return(path)
+    parent <- dirname(path)
+    if (parent == path) stop("No se encontró la raíz del proyecto (carpeta con data/raw/educacion.csv y reports/).")
+    path <- parent
+  }
+}
+project_root <- find_project_root()
+knitr::opts_knit$set(root.dir = project_root)
+
+paquetes <- c("dplyr", "tidyr", "ggplot2", "ggrepel", "knitr", "psych", "GPArotation")
+faltan <- paquetes[!vapply(paquetes, requireNamespace, logical(1), quietly = TRUE)]
+if (length(faltan) > 0) stop("Faltan paquetes: ", paste(faltan, collapse = ", "), ". Ejecute scripts/install_dependencies.R")
+suppressPackageStartupMessages({ library(dplyr); library(tidyr); library(ggplot2); library(knitr); library(psych) })
+
+# Formato en español
+coma <- function(x, d = 1) formatC(x, format = "f", digits = d, decimal.mark = ",", big.mark = ".")
+fint <- function(x) formatC(x, format = "d", big.mark = ".")
+kable <- function(...) knitr::kable(..., format.args = list(decimal.mark = ",", big.mark = "."))
+
+azul <- "#2a78d6"; naranja <- "#eb6834"; gris <- "#898781"; verde <- "#1baf7a"
+tema <- theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank(), plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(color = "#52514e"), legend.position = "top", plot.title.position = "plot")
+
+# Tablas y figuras del taller (se regeneran en cada tejido)
+out_dir <- file.path(project_root, "outputs", "avance-corte-2")
+unlink(out_dir, recursive = TRUE)
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+guardar_tabla <- function(df, nombre) write.csv(df, file.path(out_dir, nombre), row.names = FALSE)
+guardar_fig <- function(g, nombre, w = 8.5, h = 5.5) ggsave(file.path(out_dir, nombre), g, width = w, height = h, dpi = 150, bg = "white")
+set.seed(20261031)
+```
+
+## Ficha técnica del caso
+
+**Cliente:** Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.
+
+**Datos:** `data/raw/educacion_limpio.csv`, registros municipio-año 2011–2024. Siguiendo la actividad práctica de las notas de clase, se escogen **9 de los 30 indicadores**.
+
+# 1. El encargo
+
+**Para la Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional.**
+Este año la Dirección debe repartir entre los municipios dos fondos extraordinarios: uno de **infraestructura y cupos**, para los municipios donde los niños y jóvenes no logran entrar al sistema, y uno de **tutorías y acompañamiento**, para los municipios donde entran pero no avanzan o se van. Hoy esa decisión se toma mirando, municipio por municipio y año por año, **nueve indicadores**: la cobertura neta en transición, primaria, secundaria y media; la aprobación en primaria, secundaria y media; la deserción y la repitencia. Son demasiados números para comparar más de mil municipios. La Dirección quiere saber dos cosas: **si puede resumir esos nueve indicadores en uno o dos números** sin dejar por fuera a los municipios que más necesitan ayuda, y **si detrás de ellos hay dos dimensiones distintas, acceso y permanencia**, que justifiquen tener dos fondos separados en vez de uno.
+
+```{r variables}
+vars <- c("COBERTURA_NETA_TRANSICIÓN", "COBERTURA_NETA_PRIMARIA", "COBERTURA_NETA_SECUNDARIA", "COBERTURA_NETA_MEDIA",
+          "APROBACIÓN_PRIMARIA", "APROBACIÓN_SECUNDARIA", "APROBACIÓN_MEDIA", "DESERCIÓN", "REPITENCIA")
+corta <- c(COBERTURA_NETA_TRANSICIÓN = "Cob. transición", COBERTURA_NETA_PRIMARIA = "Cob. primaria",
+           COBERTURA_NETA_SECUNDARIA = "Cob. secundaria", COBERTURA_NETA_MEDIA = "Cob. media",
+           APROBACIÓN_PRIMARIA = "Aprob. primaria", APROBACIÓN_SECUNDARIA = "Aprob. secundaria",
+           APROBACIÓN_MEDIA = "Aprob. media", DESERCIÓN = "Deserción", REPITENCIA = "Repitencia")
+bloque <- setNames(c(rep("Acceso", 4), rep("Permanencia y rendimiento", 5)), vars)
+stopifnot(length(vars) >= 4, length(vars) <= 10)
+
+kable(data.frame(
+  Variable = vars,
+  Bloque = bloque,
+  `Qué le dice al cliente` = c(
+    "Qué parte de los niños de 5 años está en preescolar a la edad que corresponde",
+    "Qué parte de los niños de 6 a 10 años está en primaria",
+    "Qué parte de los jóvenes de 11 a 14 años está en secundaria",
+    "Qué parte de los jóvenes de 15 y 16 años está en media",
+    "De cada 100 estudiantes de primaria, cuántos pasan el año",
+    "De cada 100 estudiantes de secundaria, cuántos pasan el año",
+    "De cada 100 estudiantes de media, cuántos pasan el año",
+    "De cada 100 matriculados, cuántos abandonan durante el año",
+    "De cada 100 matriculados, cuántos están repitiendo el grado"),
+  check.names = FALSE), row.names = FALSE, caption = "Las nueve variables del taller")
+```
+
+Tres decisiones explican la selección:
+
+* **Cobertura neta por nivel y no la cobertura general.** La general es casi un promedio de los niveles; meter las dos repetiría la misma información. Tampoco usamos la cobertura bruta: cuenta a los estudiantes en extraedad y pasa del 100 %, y para el fondo de cupos interesa quién está a la edad que le corresponde.
+* **Sin la reprobación.** En cada municipio aprobación + reprobación + deserción suma casi exactamente 1: si entran las tres, una se deduce de las otras dos.
+* **Sin la población.** `POBLACIÓN_5_16` dice el tamaño del municipio, no sus condiciones educativas; le sirve al cliente para repartir montos, no para decidir quién necesita el fondo.
+
+# 2. Los datos que entran
+
+## 2.1 La limpieza del primer corte
+
+Este es el mismo código de limpieza del Corte 1 (`reports/entrega-corte-1`). La única diferencia está en el último paso: en el Corte 1 se quitaban las filas con algún dato faltante en **cualquiera** de las 33 columnas; aquí solo se quitan las que tienen algún faltante en **las nueve variables del taller**, porque son las únicas que se analizan.
+
+```{r limpieza, echo = TRUE}
+datos <- read.csv(file.path(project_root, "data", "raw", "educacion.csv"), check.names = FALSE, stringsAsFactors = FALSE)
+n_inicial <- nrow(datos)
+
+# Cadenas vacías como faltantes explícitos
+datos[datos == "" | datos == " "] <- NA
+
+# Variables descartadas en el Corte 1 (identificadores, ETC, infraestructura con 50 % de faltantes, transición inconsistente)
+variables_a_excluir <- c("CÓDIGO_MUNICIPIO", "CÓDIGO_DEPARTAMENTO", "ETC", "CÓDIGO_ETC",
+                         "TAMAÑO_PROMEDIO_DE_GRUPO", "SEDES_CONECTADAS_A_INTERNET",
+                         "APROBACIÓN_TRANSICIÓN", "REPROBACIÓN_TRANSICIÓN")
+
+# Porcentajes en texto («56,11%») a proporciones (0,5611)
+limpiar_porcentajes <- function(x) {
+  if (is.character(x)) x <- as.numeric(gsub(",", ".", gsub("%", "", x))) / 100
+  x
+}
+# Población: corrige el formato del año 2021
+limpiar_poblacion <- function(x, anio) {
+  valor <- suppressWarnings(as.numeric(gsub(",", "", x)))
+  case_when(
+    grepl("\\.", x)                               ~ round(valor * 1000),
+    anio == "2021" & !grepl(",", x) & valor < 100 ~ valor * 1000,
+    TRUE                                          ~ valor
+  )
+}
+
+base <- datos %>%
+  select(-any_of(variables_a_excluir)) %>%
+  mutate(
+    DEPARTAMENTO = case_when(
+      grepl("^Bogot", DEPARTAMENTO)   ~ "Bogotá D.C.",
+      grepl("^Archipi", DEPARTAMENTO) ~ "Archipiélago de San Andrés, Providencia y Santa Catalina",
+      TRUE ~ DEPARTAMENTO),
+    MUNICIPIO = if_else(MUNICIPIO == "Bogotá, D.C.", "Bogotá D.C.", MUNICIPIO)
+  ) %>%
+  mutate(AÑO = as.character(AÑO)) %>%
+  mutate(POBLACIÓN_5_16 = limpiar_poblacion(POBLACIÓN_5_16, AÑO)) %>%
+  mutate(across(starts_with("TASA") | starts_with("COBERTURA") | starts_with("DESERCIÓN") |
+                  starts_with("APROBACIÓN") | starts_with("REPROBACIÓN") | starts_with("REPITENCIA"),
+                limpiar_porcentajes))
+
+# Paso 1: se quitan los totales nacionales (no son municipios)
+n_nacional <- sum(base$DEPARTAMENTO == "NACIONAL")
+base <- filter(base, DEPARTAMENTO != "NACIONAL")
+n_municipal <- nrow(base)
+
+# Paso 2: casos completos en las nueve variables del taller
+completo <- complete.cases(base[, vars])
+n_completos <- sum(completo)
+n_fuera <- n_municipal - n_completos
+
+# Para comparar: cuántos quedarían con el criterio del Corte 1 (todas las columnas completas)
+n_corte1 <- sum(complete.cases(base))
+```
+
+## 2.2 Cuántos casos entran y cuántos quedan por fuera
+
+```{r casos}
+conteo <- data.frame(
+  Paso = c("Registros municipio-año en el archivo original",
+           "Totales nacionales (no son municipios)",
+           "Registros municipales",
+           "Con las nueve variables completas: entran al análisis",
+           "Con algún faltante en las nueve variables: quedan por fuera",
+           "(Referencia) Completos en las 33 columnas, criterio del Corte 1"),
+  Registros = c(n_inicial, n_nacional, n_municipal, n_completos, n_fuera, n_corte1))
+conteo$Porcentaje <- coma(100 * conteo$Registros / n_municipal, 1)
+conteo$Porcentaje[1:2] <- "—"
+guardar_tabla(conteo, "casos_que_entran.csv")
+kable(conteo, digits = 1, col.names = c("", "Registros", "% de los registros municipales"),
+      caption = "De dónde salen los registros del análisis")
+
+fuera <- base[!completo, ]
+falta_por_var <- data.frame(Variable = vars, Faltantes = colSums(is.na(fuera[, vars])))
+falta_por_var <- falta_por_var[order(-falta_por_var$Faltantes), ]
+kable(falta_por_var, row.names = FALSE, col.names = c("Variable", "Registros con este dato faltante"),
+      caption = "Qué variable falta en los registros que quedan por fuera (un registro puede faltar en varias)")
+
+por_anio <- data.frame(table(AÑO = factor(fuera$AÑO, levels = sort(unique(base$AÑO)))))
+por_anio <- merge(por_anio, data.frame(table(AÑO = base$AÑO)), by = "AÑO", suffixes = c("_fuera", "_total"))
+por_anio$Pct <- 100 * por_anio$Freq_fuera / por_anio$Freq_total
+kable(por_anio, digits = 1, col.names = c("Año", "Quedan por fuera", "Registros del año", "% del año"),
+      caption = "Años en los que se concentran los registros que quedan por fuera")
+
+sin_media <- sum(is.na(fuera$APROBACIÓN_MEDIA))
+n_2011_2015 <- sum(fuera$AÑO %in% as.character(2011:2015))
+n_un_dato <- sum(rowSums(is.na(fuera[, vars])) == 1)
+pob_fuera <- median(fuera$POBLACIÓN_5_16, na.rm = TRUE); pob_dentro <- median(base$POBLACIÓN_5_16[completo], na.rm = TRUE)
+deptos_fuera <- sort(table(fuera$DEPARTAMENTO), decreasing = TRUE)
+guardar_tabla(as.data.frame(deptos_fuera), "excluidos_por_departamento.csv")
+```
+
+> ⭐ **Qué se ve:** el archivo original tiene `r fint(n_inicial)` registros. Se quitan `r n_nacional` filas de totales nacionales, que no son municipios, y quedan `r fint(n_municipal)` registros municipio-año. De esos, **`r fint(n_completos)` tienen las nueve variables completas y entran al análisis**, y **`r fint(n_fuera)` (`r coma(100 * n_fuera / n_municipal, 1)` %) quedan por fuera** porque les falta al menos uno de los nueve datos. La variable que más falta es `r falta_por_var$Variable[1]` (`r falta_por_var$Faltantes[1]` registros). A `r fint(n_un_dato)` de ellos les falta un solo dato. **`r fint(n_2011_2015)` de los `r fint(n_fuera)` son de 2011 a 2015**, y desde 2021 no se pierde ninguno. Los departamentos con más excluidos son `r paste(names(deptos_fuera)[1:4], collapse = ", ")`.
+>
+> ⭐ **Qué significa para el cliente:** los registros que quedan por fuera no son un azar. Son municipios más pequeños que el resto (mediana de `r fint(round(pob_fuera))` niños y jóvenes de 5 a 16 años, frente a `r fint(round(pob_dentro))` en los que entran) y pesan mucho los departamentos de la Amazonía: Guainía, Amazonas y Vaupés suman `r sum(deptos_fuera[c("Guainía", "Amazonas", "Vaupés")])` de los `r fint(n_fuera)`. En muchos no hay estudiantes en algún nivel, por ejemplo en media, y por eso la aprobación de ese nivel no existe (`r sin_media` de los excluidos no tienen aprobación en media). Son justamente lugares que pueden necesitar el fondo de infraestructura. Con el criterio del Corte 1 (todas las columnas completas) se habrían perdido `r fint(n_municipal - n_corte1)` registros; aquí se pierden `r fint(n_fuera)`.
+>
+> ⭐ **Qué decide:** el análisis vale para los `r fint(n_completos)` registros completos. Los `r fint(n_fuera)` excluidos (listados en `outputs/avance-corte-2/excluidos_por_departamento.csv`) deben revisarse a mano antes de cerrar la lista de municipios del fondo de infraestructura: que no tengan dato de media puede ser, justamente, la señal de que no hay oferta.
+
+```{r datos-finales}
+d <- base[completo, ]
+d$ID <- paste0(d$MUNICIPIO, " (", d$DEPARTAMENTO, ", ", d$AÑO, ")")
+X <- d[, vars]
+n <- nrow(X); p <- ncol(X)
+n_municipios <- length(unique(paste(d$MUNICIPIO, d$DEPARTAMENTO)))
+stopifnot(!anyNA(X))
+```
+
+Cada fila es **un municipio en un año** (`r fint(n)` registros de `r fint(n_municipios)` municipios entre `r min(d$AÑO)` y `r max(d$AÑO)`). Las filas de un mismo municipio en distintos años no son independientes; lo tenemos en cuenta al leer los resultados.
+
+## 2.3 ¿Debemos estandarizar?
+
+```{r desviaciones}
+desv <- data.frame(Variable = vars, Media = colMeans(X), Desviacion = apply(X, 2, sd),
+                   Minimo = apply(X, 2, min), Maximo = apply(X, 2, max))
+guardar_tabla(desv, "desviaciones.csv")
+kable(desv, digits = 3, row.names = FALSE, col.names = c("Variable", "Media", "Desviación estándar", "Mínimo", "Máximo"),
+      caption = "Las nueve variables en su escala original (proporciones: 0,5 = 50 %)")
+
+pca_sin <- prcomp(X, center = TRUE, scale. = FALSE)
+pct_sin <- 100 * pca_sin$sdev^2 / sum(pca_sin$sdev^2)
+peso_cob_sin <- sum(pca_sin$rotation[1:4, 1]^2) * 100
+razon_sd <- max(desv$Desviacion) / min(desv$Desviacion)
+```
+
+> ⭐ **Qué se ve:** las nueve variables están en la misma unidad (proporciones), pero no varían lo mismo. La que más varía es `r desv$Variable[which.max(desv$Desviacion)]` (desviación de `r coma(max(desv$Desviacion), 3)`, es decir, unos `r coma(100 * max(desv$Desviacion), 0)` puntos porcentuales) y la que menos es `r desv$Variable[which.min(desv$Desviacion)]` (`r coma(min(desv$Desviacion), 3)`): una varía `r coma(razon_sd, 0)` veces más que la otra. Las coberturas se mueven decenas de puntos entre municipios; la deserción y la repitencia, unos pocos.
+>
+> ⭐ **Qué significa para el cliente:** sin estandarizar, el resumen premia a la variable que más se mueve, no a la que más importa. Lo comprobamos: sin estandarizar, la primera componente guarda `r coma(pct_sin[1], 1)` de cada 100 partes de la información y `r coma(peso_cob_sin, 0)` de cada 100 partes de su peso están en las cuatro coberturas; la deserción y la repitencia casi no cuentan. Para el cliente, unos pocos puntos de deserción pueden ser tan graves como muchos puntos de cobertura: no debe ser la escala la que decida cuál importa más.
+>
+> ⭐ **Qué decide:** **estandarizamos** (`scale. = TRUE`). Cada variable entra con el mismo peso inicial, y el análisis trabaja con la matriz de correlaciones.
+
+# 3. ¿Se repiten?
+
+```{r correlaciones, fig.width = 7.5, fig.height = 6.3}
+R <- cor(X)
+cor_larga <- as.data.frame(as.table(R)) %>%
+  mutate(Var1 = factor(corta[as.character(Var1)], levels = corta),
+         Var2 = factor(corta[as.character(Var2)], levels = rev(corta)))
+g_cor <- ggplot(cor_larga, aes(Var1, Var2, fill = Freq)) + geom_tile(color = "white") +
+  geom_text(aes(label = coma(Freq, 2)), size = 3.1) +
+  geom_rect(aes(xmin = 0.5, xmax = 4.5, ymin = 5.5, ymax = 9.5), fill = NA, color = azul, linewidth = 0.9, inherit.aes = FALSE) +
+  geom_rect(aes(xmin = 4.5, xmax = 9.5, ymin = 0.5, ymax = 5.5), fill = NA, color = naranja, linewidth = 0.9, inherit.aes = FALSE) +
+  scale_fill_gradient2(low = naranja, mid = "#f7f6f2", high = azul, limits = c(-1, 1), name = "Correlación") +
+  tema + theme(axis.text.x = element_text(angle = 35, hjust = 1), panel.grid = element_blank()) +
+  labs(title = "Matriz de correlaciones de las nueve variables",
+       subtitle = "Azul: se mueven juntas · naranja: en sentido contrario.\nRecuadros: bloque de acceso y bloque de permanencia",
+       x = NULL, y = NULL)
+print(g_cor)
+guardar_fig(g_cor, "correlaciones.png", 7.5, 6.3)
+guardar_tabla(data.frame(Variable = vars, round(R, 3), check.names = FALSE), "correlaciones.csv")
+
+acc <- vars[1:4]; per <- vars[5:9]
+r_acc <- R[acc, acc][upper.tri(R[acc, acc])]
+r_apr <- R[vars[5:7], vars[5:7]][upper.tri(R[vars[5:7], vars[5:7]])]
+r_entre <- R[acc, per]
+r_max_otro <- apply(abs(R) - diag(p), 1, max)
+sola <- names(which.min(r_max_otro))
+```
+
+> ⭐ **Qué se ve:** hay **dos bloques**. Las cuatro coberturas se mueven juntas (correlaciones entre `r coma(min(r_acc), 2)` y `r coma(max(r_acc), 2)`; la más alta, secundaria con media, `r coma(R["COBERTURA_NETA_SECUNDARIA", "COBERTURA_NETA_MEDIA"], 2)`). Las tres aprobaciones también (entre `r coma(min(r_apr), 2)` y `r coma(max(r_apr), 2)`), y la deserción va en contra de ellas (con la aprobación en primaria, `r coma(R["DESERCIÓN", "APROBACIÓN_PRIMARIA"], 2)`). **Entre los dos bloques casi no hay relación**: ninguna correlación entre una cobertura y una variable de permanencia pasa de `r coma(max(abs(r_entre)), 2)` en valor absoluto. La que va más por su cuenta es **`r sola`**: su correlación más alta con otra variable es apenas `r coma(r_max_otro[sola], 2)`. Y la deserción y la repitencia, aunque las dos son «malas noticias», casi no van juntas (`r coma(R["DESERCIÓN", "REPITENCIA"], 2)`).
+>
+> ⭐ **Qué significa para el cliente:** dentro de cada bloque los indicadores cuentan una historia parecida: un municipio con buena cobertura en secundaria suele tenerla también en media, y uno que aprueba bien en primaria suele aprobar bien en secundaria. Pero **saber cómo está un municipio en cobertura no dice casi nada de cómo está en aprobación o en deserción**: son dos problemas distintos. Además, la repitencia no se parece a nada: abandonar y repetir el grado son dos formas distintas de no avanzar.
+>
+> ⭐ **Qué decide:** sí tiene sentido resumir, pero **dentro de cada bloque**, no todo en un solo número. Y la repitencia debe vigilarse aparte, porque ningún resumen de los otros ocho la va a recoger.
+
+# 4. El resumen
+
+```{r pca}
+pca <- prcomp(X, center = TRUE, scale. = TRUE)
+# El signo de cada componente es arbitrario: se fija para que «más» sea «mejor»
+s <- c(sign(pca$rotation["COBERTURA_NETA_SECUNDARIA", 1]), sign(pca$rotation["APROBACIÓN_SECUNDARIA", 2]),
+       sign(pca$rotation["REPITENCIA", 3]), rep(1, p - 3))
+rot <- sweep(pca$rotation, 2, s, `*`); sc <- sweep(pca$x, 2, s, `*`)
+colnames(sc) <- colnames(rot) <- paste0("PC", 1:p)
+autov <- pca$sdev^2
+var_pca <- data.frame(Componente = paste0("PC", 1:p), Autovalor = autov,
+                      Pct = 100 * autov / p, Acumulado = cumsum(100 * autov / p))
+guardar_tabla(var_pca, "pca_varianza.csv")
+k_kaiser <- sum(autov > 1)
+```
+
+## 4.1 ¿Cuánta información conserva cada componente?
+
+```{r scree, fig.height = 5}
+g_scree <- ggplot(var_pca, aes(x = factor(Componente, levels = Componente))) +
+  geom_col(aes(y = Pct, fill = Autovalor > 1), width = 0.65) +
+  geom_text(aes(y = Pct, label = coma(Pct, 1)), vjust = -0.4, size = 3.3) +
+  geom_line(aes(y = Acumulado, group = 1), color = naranja, linewidth = 1) +
+  geom_point(aes(y = Acumulado), color = naranja, size = 2.2) +
+  geom_text(aes(y = Acumulado, label = coma(Acumulado, 0)), vjust = -0.9, color = naranja, size = 3) +
+  scale_fill_manual(values = c(`TRUE` = azul, `FALSE` = "#a9c6e9"), labels = c(`TRUE` = "Guarda más que una variable sola", `FALSE` = "Guarda menos que una variable sola"), name = NULL) +
+  scale_y_continuous(limits = c(0, 108), breaks = seq(0, 100, 20)) + tema +
+  labs(title = "De cada 100 partes de la información, cuántas guarda cada componente",
+       subtitle = "Barras: cada componente · línea naranja: lo que se conserva acumulado", x = NULL, y = "De cada 100")
+print(g_scree)
+guardar_fig(g_scree, "pca_varianza.png", 8.5, 5)
+kable(var_pca, digits = c(0, 3, 1, 1), row.names = FALSE, col.names = c("Componente", "Autovalor", "De cada 100", "Acumulado"),
+      caption = "Información que guarda cada componente (autovalor = cuántas variables «vale» la componente)")
+```
+
+> ⭐ **Qué se ve:** la primera componente guarda **`r coma(var_pca$Pct[1], 1)` de cada 100** partes de la información de las nueve variables y la segunda casi lo mismo (**`r coma(var_pca$Pct[2], 1)`**); juntas llegan a **`r coma(var_pca$Acumulado[2], 1)`**. Después hay un salto: la tercera guarda `r coma(var_pca$Pct[3], 1)` y las siguientes menos. Solo las dos primeras valen más que una variable sola (autovalores de `r coma(autov[1], 2)` y `r coma(autov[2], 2)`; la tercera, `r coma(autov[3], 2)`, queda justo por debajo).
+>
+> ⭐ **Qué significa para el cliente:** dos números reemplazan a nueve y conservan seis de cada diez partes de lo que dicen. Un tercero agrega poco y un solo número se queda con apenas un tercio.
+>
+> ⭐ **Qué decide:** **conservamos dos componentes.** No por una regla de porcentaje, sino porque el cliente tiene **dos fondos** y necesita un número para cada pregunta; la tercera se revisa solo como apoyo para decidir el tipo de tutoría (punto 4.2).
+
+## 4.2 ¿Qué representan las primeras componentes?
+
+```{r pesos, fig.height = 5.2}
+pesos <- as.data.frame(rot[, 1:3]) %>% mutate(Variable = factor(corta[vars], levels = rev(corta)), Bloque = bloque) %>%
+  pivot_longer(PC1:PC3, names_to = "Componente", values_to = "Peso")
+g_pesos <- ggplot(pesos, aes(Peso, Variable, fill = Bloque)) + geom_col(width = 0.7) +
+  geom_vline(xintercept = 0, color = gris) + facet_wrap(~Componente) +
+  geom_text(aes(label = coma(Peso, 2), hjust = ifelse(Peso >= 0, -0.15, 1.15)), size = 2.8) +
+  scale_x_continuous(limits = c(-0.75, 0.95)) +
+  scale_fill_manual(values = c(Acceso = azul, `Permanencia y rendimiento` = naranja), name = NULL) + tema +
+  labs(title = "Qué variables pesan en cada una de las tres primeras componentes",
+       subtitle = "Peso positivo: la componente sube cuando la variable sube.\nEn PC1 y PC2 el signo se fijó para que «más» sea «mejor»; en PC3, «más» es más repitencia", x = "Peso", y = NULL)
+print(g_pesos)
+guardar_fig(g_pesos, "pca_pesos.png", 9.5, 5.2)
+tab_pesos <- data.frame(Variable = vars, round(rot[, 1:3], 3))
+guardar_tabla(tab_pesos, "pca_pesos.csv")
+kable(tab_pesos, row.names = FALSE, caption = "Pesos de las tres primeras componentes")
+```
+
+> ⭐ **Qué se ve:**
+>
+> * En **PC1** todas las coberturas y todas las aprobaciones pesan en la misma dirección (entre `r coma(min(rot[1:7, 1]), 2)` y `r coma(max(rot[1:7, 1]), 2)`), y la deserción en contra (`r coma(rot["DESERCIÓN", 1], 2)`).
+> * En **PC2** las aprobaciones pesan a favor (`r coma(min(rot[5:7, 2]), 2)` a `r coma(max(rot[5:7, 2]), 2)`) y las coberturas **en contra** (`r coma(min(rot[1:4, 2]), 2)` a `r coma(max(rot[1:4, 2]), 2)`), con la deserción también en contra.
+> * En **PC3** manda la repitencia (`r coma(rot["REPITENCIA", 3], 2)`) y la deserción va en sentido contrario (`r coma(rot["DESERCIÓN", 3], 2)`).
+>
+> ⭐ **Qué significa para el cliente:**
+>
+> * **PC1 · Desempeño general del municipio.** Sube cuando el municipio tiene a la vez más cobertura, más aprobación y menos deserción. Es el «número único» que el cliente pedía.
+> * **PC2 · Rendimiento frente a acceso.** No mide «bueno o malo»: separa a los municipios donde **la aprobación va mejor que la cobertura** (arriba) de aquellos donde **la cobertura va mejor que la aprobación** (abajo). Dice cuál de los dos fondos le hace más falta a un municipio.
+> * **PC3 · Repetir frente a abandonar.** Distingue los municipios donde quien no avanza se queda y repite de aquellos donde se va. Solo guarda `r coma(var_pca$Pct[3], 0)` de cada 100 partes, pero le dice al fondo de tutorías qué tipo de tutoría ofrecer.
+>
+> Los nombres los pusimos nosotros a partir de los pesos: describen qué variables suben y bajan juntas, no una causa. Un detalle importante: PC1 y PC2 guardan casi lo mismo (`r coma(var_pca$Pct[1], 1)` frente a `r coma(var_pca$Pct[2], 1)`), así que lo sólido es **el plano** que forman entre las dos; los ejes dentro de ese plano podrían girarse (lo retoma el análisis factorial en los puntos 6 y 7).
+>
+> ⭐ **Qué decide:** si quiere un número para ordenar a los municipios, PC1; para saber **a qué fondo** mandar a cada uno, PC2.
+
+## 4.3 ¿Cuál es el costo de resumir en un solo número?
+
+```{r costo}
+# Qué parte de cada variable conserva PC1 (correlación al cuadrado entre la variable y PC1)
+cargas_pca <- sweep(rot[, 1:3], 2, pca$sdev[1:3], `*`)
+conserva <- data.frame(Variable = vars, Bloque = bloque,
+                       Con_PC1 = 100 * cargas_pca[, 1]^2, Con_PC1_y_PC2 = 100 * rowSums(cargas_pca[, 1:2]^2))
+guardar_tabla(conserva, "pca_lo_que_conserva_cada_variable.csv")
+kable(conserva[order(conserva$Con_PC1), ], digits = 1, row.names = FALSE,
+      col.names = c("Variable", "Bloque", "Conserva con PC1 (de 100)", "Conserva con PC1 y PC2 (de 100)"),
+      caption = "Cuánto de cada variable conserva un solo número y cuánto conservan dos")
+
+d$PC1 <- sc[, 1]; d$PC2 <- sc[, 2]; d$PC3 <- sc[, 3]
+
+# Casos reales 1: municipios con casi el mismo PC1 y perfiles opuestos
+cerca_cero <- d[abs(d$PC1) < 0.05, ]
+gemelos <- rbind(cerca_cero[which.max(cerca_cero$PC2), ], cerca_cero[which.min(cerca_cero$PC2), ])
+gem_tab <- gemelos %>% transmute(Registro = ID, PC1, PC2,
+                                 `Cob. secundaria (%)` = 100 * COBERTURA_NETA_SECUNDARIA, `Cob. media (%)` = 100 * COBERTURA_NETA_MEDIA,
+                                 `Aprob. secundaria (%)` = 100 * APROBACIÓN_SECUNDARIA, `Deserción (%)` = 100 * DESERCIÓN)
+kable(gem_tab, digits = 2, row.names = FALSE, caption = "Dos registros con el mismo PC1 y problemas opuestos")
+
+# Casos reales 2: deserción muy alta que un solo número deja como «sin problema»
+p90_des <- quantile(d$DESERCIÓN, 0.90)
+escapan <- d %>% filter(DESERCIÓN >= p90_des, PC1 > 0) %>% arrange(desc(PC1))
+n_alta_des <- sum(d$DESERCIÓN >= p90_des)
+esc_tab <- head(escapan, 6) %>% transmute(Registro = ID, PC1,
+                                          `Deserción (%)` = 100 * DESERCIÓN, `Repitencia (%)` = 100 * REPITENCIA,
+                                          `Cob. secundaria (%)` = 100 * COBERTURA_NETA_SECUNDARIA, `Aprob. secundaria (%)` = 100 * APROBACIÓN_SECUNDARIA)
+guardar_tabla(escapan, "pca_alta_desercion_con_pc1_positivo.csv")
+kable(esc_tab, digits = 2, row.names = FALSE,
+      caption = "Registros entre el 10 % con más deserción que tienen PC1 por encima del promedio")
+
+
+# A igual cupo: si el fondo atiende al 20 % con PC1 más bajo, ¿a cuántos del 20 % peor de cada variable alcanza?
+cupo <- d$PC1 <= quantile(d$PC1, 0.20)
+peor20 <- function(v, alto_malo) if (alto_malo) v >= quantile(v, 0.80) else v <= quantile(v, 0.20)
+alcance <- data.frame(Criterio = c("Cobertura en secundaria", "Cobertura en media", "Aprobación en secundaria", "Deserción", "Repitencia"),
+                      Variable = c("COBERTURA_NETA_SECUNDARIA", "COBERTURA_NETA_MEDIA", "APROBACIÓN_SECUNDARIA", "DESERCIÓN", "REPITENCIA"),
+                      alto_malo = c(FALSE, FALSE, FALSE, TRUE, TRUE))
+alcance$Fuera <- sapply(seq_len(nrow(alcance)), function(i) { g <- peor20(d[[alcance$Variable[i]]], alcance$alto_malo[i]); 100 * sum(g & !cupo) / sum(g) })
+guardar_tabla(alcance[, c("Criterio", "Fuera")], "pca_costo_un_numero.csv")
+kable(alcance[, c("Criterio", "Fuera")], digits = 1, row.names = FALSE,
+      col.names = c("El 20 % peor en…", "De cada 100, cuántos quedan fuera del 20 % más bajo de PC1"),
+      caption = "Si el cliente atiende al 20 % con PC1 más bajo: a quién deja por fuera (al azar quedarían 80)")
+```
+
+> ⭐ **Qué se ve:** un solo número (PC1) conserva bien la cobertura en secundaria (`r coma(conserva$Con_PC1[3], 0)` de cada 100 partes) y la aprobación en primaria (`r coma(conserva$Con_PC1[5], 0)`), pero de la **repitencia conserva apenas `r coma(conserva$Con_PC1[9], 0)`** y de la deserción `r coma(conserva$Con_PC1[8], 0)`. En los casos reales:
+>
+> * **Mismo número, problemas opuestos.** `r gemelos$ID[1]` y `r gemelos$ID[2]` tienen prácticamente el mismo PC1 (`r coma(gemelos$PC1[1], 2)` y `r coma(gemelos$PC1[2], 2)`). El primero tiene una cobertura en secundaria de `r coma(100 * gemelos$COBERTURA_NETA_SECUNDARIA[1], 0)` % y aprueba `r coma(100 * gemelos$APROBACIÓN_SECUNDARIA[1], 0)` %; el segundo, cobertura de `r coma(100 * gemelos$COBERTURA_NETA_SECUNDARIA[2], 0)` % y aprobación de `r coma(100 * gemelos$APROBACIÓN_SECUNDARIA[2], 0)` %. Con un solo número son iguales; en realidad uno necesita cupos y el otro tutorías.
+> * **Deserción alta que el número no ve.** De los `r fint(n_alta_des)` registros con más deserción (el 10 % más alto, desde `r coma(100 * p90_des, 1)` %), `r fint(nrow(escapan))` quedan incluso **por encima del promedio en PC1**: el número los pone del lado «bueno». Por ejemplo, `r esc_tab$Registro[1]`, con deserción de `r coma(esc_tab[["Deserción (%)"]][1], 1)` %, y `r esc_tab$Registro[2]`, con `r coma(esc_tab[["Deserción (%)"]][2], 1)` % (tabla de arriba).
+>
+> Si el fondo atiende al 20 % con PC1 más bajo, del 20 % peor en cobertura de secundaria quedan por fuera `r coma(alcance$Fuera[1], 0)` de cada 100, pero del 20 % con más deserción quedan por fuera `r coma(alcance$Fuera[4], 0)`, y del 20 % con más repitencia, `r coma(alcance$Fuera[5], 0)` (al azar serían 80).
+>
+> ⭐ **Qué significa para el cliente:** un solo número **conserva la idea de «cómo está el municipio en general»** y **pierde para qué necesita ayuda**. Deja mal representados a dos tipos de municipios: los que tienen un bloque bien y el otro mal (quedan en el medio, como si estuvieran «normales») y los que tienen deserción o repitencia altas con buena cobertura.
+>
+> ⭐ **Qué decide:** no repartir los fondos con un solo número. Con dos (PC1 y PC2) el costo baja: la deserción conserva `r coma(conserva$Con_PC1_y_PC2[8], 0)` de cada 100 partes, aunque la repitencia sigue en `r coma(conserva$Con_PC1_y_PC2[9], 0)` y debe revisarse directamente.
+
+# 5. Los perfiles en el plano
+
+```{r biplot, fig.width = 9, fig.height = 7.5}
+escala <- 6   # las flechas se agrandan para verse sobre la nube de puntos
+flechas <- data.frame(Variable = corta[vars], Bloque = bloque, x = cargas_pca[, 1] * escala, y = cargas_pca[, 2] * escala)
+
+d$Grupo <- ifelse(d$DESERCIÓN > 0.065, "Deserción mayor que 6,5 %", "Resto")
+# Distancia al centro en el plano (en desviaciones típicas de cada componente)
+d$Dist_plano <- sqrt(d$PC1^2 / var(d$PC1) + d$PC2^2 / var(d$PC2))
+lejanos <- d %>% arrange(desc(Dist_plano)) %>% distinct(MUNICIPIO, DEPARTAMENTO, .keep_all = TRUE) %>% head(6)
+lej_izq <- filter(lejanos, PC1 < 0); lej_der <- filter(lejanos, PC1 > 0)
+n_cob_100 <- sum(d$COBERTURA_NETA_SECUNDARIA > 1 | d$COBERTURA_NETA_MEDIA > 1)
+
+g_biplot <- ggplot() +
+  geom_point(data = d, aes(PC1, PC2), color = "gray55", alpha = 0.12, size = 0.6) +
+  geom_point(data = filter(d, Grupo != "Resto"), aes(PC1, PC2), color = naranja, alpha = 0.45, size = 0.9) +
+  geom_hline(yintercept = 0, color = gris, linetype = "dashed") + geom_vline(xintercept = 0, color = gris, linetype = "dashed") +
+  geom_segment(data = flechas, aes(0, 0, xend = x, yend = y, color = Bloque), arrow = arrow(length = unit(0.18, "cm")), linewidth = 0.9) +
+  ggrepel::geom_label_repel(data = flechas, aes(x, y, label = Variable, color = Bloque), size = 3, label.size = 0,
+                            fill = "#FFFFFFD9", seed = 2, show.legend = FALSE, min.segment.length = 0) +
+  ggrepel::geom_text_repel(data = lejanos, aes(PC1, PC2, label = paste(MUNICIPIO, AÑO)), size = 2.8, color = "black",
+                           seed = 3, min.segment.length = 0) +
+  scale_color_manual(values = c(Acceso = azul, `Permanencia y rendimiento` = "#a3420f"), name = NULL) +
+  coord_equal() + tema +
+  labs(title = "Biplot: los registros como puntos, las variables como flechas",
+       subtitle = paste0("En naranja, los registros con deserción mayor que 6,5 %.\nEl plano guarda ", coma(var_pca$Acumulado[2], 0), " de cada 100 partes de la información"),
+       x = "PC1 · Desempeño general (derecha = mejor)", y = "PC2 · Rendimiento frente a acceso (arriba = aprueba mejor de lo que cubre)")
+print(g_biplot)
+guardar_fig(g_biplot, "biplot.png", 9, 7.5)
+
+angulo <- function(a, b) { va <- cargas_pca[a, 1:2]; vb <- cargas_pca[b, 1:2]; acos(sum(va * vb) / sqrt(sum(va^2) * sum(vb^2))) * 180 / pi }
+ang_acc <- max(outer(acc, acc, Vectorize(angulo)))
+ang_apr <- max(outer(vars[5:7], vars[5:7], Vectorize(angulo)))
+ang_bloques <- angulo("COBERTURA_NETA_SECUNDARIA", "APROBACIÓN_SECUNDARIA")
+ang_des_apr <- angulo("DESERCIÓN", "APROBACIÓN_PRIMARIA")
+
+kable(lejanos %>% transmute(Registro = ID, PC1, PC2, `Cob. secundaria (%)` = 100 * COBERTURA_NETA_SECUNDARIA,
+                            `Cob. media (%)` = 100 * COBERTURA_NETA_MEDIA, `Aprob. secundaria (%)` = 100 * APROBACIÓN_SECUNDARIA,
+                            `Deserción (%)` = 100 * DESERCIÓN),
+      digits = 2, row.names = FALSE, caption = "Los registros más alejados del comportamiento general (uno por municipio)")
+```
+
+## 5.1 Lo que muestra el plano
+
+> ⭐ **Qué se ve:** las cuatro flechas de cobertura apuntan juntas hacia la derecha y abajo (entre ellas hay a lo sumo `r round(ang_acc)` grados) y las tres de aprobación juntas hacia la derecha y arriba (a lo sumo `r round(ang_apr)` grados). Entre los dos haces hay unos **`r round(ang_bloques)` grados**: casi perpendiculares, como lo anticipaba la matriz de correlaciones. La deserción apunta justo en sentido contrario a la aprobación (`r round(ang_des_apr)` grados con la aprobación en primaria). La repitencia es una flecha corta: el plano casi no la dibuja. La mayoría de los registros forman una sola nube alrededor del centro, sin islas separadas; los municipios cercanos entre sí tienen perfiles parecidos en los nueve indicadores. Los más alejados están en dos extremos. A la izquierda, `r paste(lej_izq$ID, collapse = "; ")`: coberturas en secundaria y media nulas o casi nulas, y en algunos aprobación de 0 % en secundaria, que en realidad indica que no hubo estudiantes en ese nivel. A la derecha, `r paste(lej_der$ID, collapse = " y ")`: coberturas netas por encima de 100 % (`r paste(coma(100 * lej_der$COBERTURA_NETA_SECUNDARIA, 0), collapse = " % y ")` % en secundaria), algo imposible si la población estuviera bien estimada; en toda la base hay `r fint(n_cob_100)` registros con cobertura neta de secundaria o media mayor que 100 %.
+>
+> ⭐ **Qué significa para el cliente:** en el plano se leen sus dos fondos a la vez. **Ir hacia donde apuntan las flechas azules es tener más acceso; ir hacia donde apuntan las de aprobación es tener más rendimiento.** Como los dos haces casi no se tocan, un municipio puede estar bien en uno y mal en el otro. Los casos de la izquierda son lugares donde casi no hay oferta de secundaria y media: candidatos claros al fondo de infraestructura. Los de la derecha probablemente reciben estudiantes de municipios vecinos o tienen la población mal proyectada: su posición no dice que estén mejor que los demás. Antes de usar el plano para decidir, el Ministerio debe revisar esos datos con la entidad que los reporta.
+
+## 5.2 El grupo que le importa al cliente: los registros con deserción mayor que 6,5 %
+
+```{r grupo}
+grupo_tab <- d %>% group_by(Grupo) %>%
+  summarise(Registros = n(), PC1 = mean(PC1), PC2 = mean(PC2),
+            `Cob. secundaria (%)` = 100 * mean(COBERTURA_NETA_SECUNDARIA), `Cob. media (%)` = 100 * mean(COBERTURA_NETA_MEDIA),
+            `Aprob. primaria (%)` = 100 * mean(APROBACIÓN_PRIMARIA), `Aprob. secundaria (%)` = 100 * mean(APROBACIÓN_SECUNDARIA),
+            `Deserción (%)` = 100 * mean(DESERCIÓN), `Repitencia (%)` = 100 * mean(REPITENCIA), .groups = "drop")
+guardar_tabla(grupo_tab, "grupo_desercion_alta.csv")
+kable(grupo_tab, digits = 2, caption = "Perfil promedio del grupo de deserción alta frente al resto")
+g_alto <- filter(d, Grupo != "Resto")
+pct_grupo <- 100 * nrow(g_alto) / n
+pct_izq <- 100 * mean(g_alto$PC1 < 0)
+pct_cuadrante <- 100 * mean(g_alto$PC1 < 0 & g_alto$PC2 < 0)
+pct_cuadrante_resto <- 100 * mean(d$PC1[d$Grupo == "Resto"] < 0 & d$PC2[d$Grupo == "Resto"] < 0)
+deptos_grupo <- sort(table(g_alto$DEPARTAMENTO), decreasing = TRUE)
+repite <- table(table(paste(g_alto$MUNICIPIO, g_alto$DEPARTAMENTO)))
+mun_varios <- sum(table(paste(g_alto$MUNICIPIO, g_alto$DEPARTAMENTO)) >= 3)
+```
+
+> ⭐ **Qué se ve:** son `r fint(nrow(g_alto))` registros (`r coma(pct_grupo, 1)` % del total), es decir, municipios-año en los que más de 6 de cada 100 estudiantes abandonaron. En el plano (puntos naranja) **`r coma(pct_izq, 0)` de cada 100 están a la izquierda** del centro y `r coma(pct_cuadrante, 0)` de cada 100 en el cuadrante de abajo a la izquierda, frente a `r coma(pct_cuadrante_resto, 0)` del resto. Lo que tienen en común: menos cobertura en media (`r coma(grupo_tab[["Cob. media (%)"]][1], 1)` % frente a `r coma(grupo_tab[["Cob. media (%)"]][2], 1)` %) y menos aprobación en primaria (`r coma(grupo_tab[["Aprob. primaria (%)"]][1], 1)` % frente a `r coma(grupo_tab[["Aprob. primaria (%)"]][2], 1)` %), y una repitencia algo más alta (`r coma(grupo_tab[["Repitencia (%)"]][1], 1)` % frente a `r coma(grupo_tab[["Repitencia (%)"]][2], 1)` %). Se concentran en `r paste(names(deptos_grupo)[1:3], collapse = ", ")`, y `r mun_varios` municipios aparecen en el grupo tres años o más.
+>
+> ⭐ **Qué significa para el cliente:** la deserción alta no viene sola: aparece en municipios que **también** tienen menos cobertura en los niveles altos y peor aprobación. Son municipios con los dos problemas a la vez, y por eso no basta con uno de los fondos. Que muchos repitan año tras año dice que no es un mal año aislado.
+>
+> ⭐ **Qué decide:** el grupo de deserción alta debe ser **el primero en la lista de los dos fondos**, empezando por los municipios que aparecen varios años. Y como una parte del grupo queda a la derecha del plano (con buen desempeño general), la lista se arma con la deserción directa, no con la posición en el plano.
+
+# 6. Lo común y lo propio
+
+Ahora cambiamos la pregunta. El análisis factorial no busca el mejor resumen, sino **qué parte de cada variable comparte con las demás** (la parte común, que el modelo atribuye a una dimensión de fondo) y **qué parte es propia** de esa variable. Si una variable es casi toda propia, no se puede deducir de las otras y no debería desaparecer dentro de un indicador general.
+
+## 6.1 ¿Cuánto comparte cada variable?
+
+```{r un-factor, fig.height = 5}
+f1 <- suppressWarnings(fa(X, nfactors = 1, fm = "ml"))
+L1 <- setNames(as.numeric(f1$loadings[, 1]), vars)
+if (L1["COBERTURA_NETA_SECUNDARIA"] < 0) L1 <- -L1
+reparto <- data.frame(Variable = vars, Bloque = bloque, Carga = L1,
+                      Comun = 100 * as.numeric(f1$communality), Propia = 100 * as.numeric(f1$uniquenesses))
+guardar_tabla(reparto, "af_un_factor_comun_propia.csv")
+pct_comun1 <- mean(reparto$Comun)
+
+g_reparto <- reparto %>% select(Variable, `Parte común` = Comun, `Parte propia` = Propia) %>%
+  pivot_longer(-Variable) %>%
+  mutate(Variable = factor(corta[Variable], levels = corta[reparto$Variable[order(reparto$Comun)]]),
+         name = factor(name, levels = c("Parte propia", "Parte común"))) %>%
+  ggplot(aes(value, Variable, fill = name)) + geom_col(width = 0.7) +
+  geom_text(aes(label = ifelse(value >= 6, coma(value, 0), "")), position = position_stack(vjust = 0.5), color = "white", fontface = "bold", size = 3.3) +
+  scale_fill_manual(values = c(`Parte común` = azul, `Parte propia` = naranja), breaks = c("Parte común", "Parte propia"), name = NULL) +
+  scale_x_continuous(expand = c(0, 0)) + tema + theme(panel.grid.major.y = element_blank()) +
+  labs(title = "Qué parte de cada variable comparte la dimensión común y qué parte es propia",
+       subtitle = paste0("Un factor, máxima verosimilitud. De cada 100 partes; en promedio, ", coma(pct_comun1, 1), " son comunes"),
+       x = "De cada 100", y = NULL)
+print(g_reparto)
+guardar_fig(g_reparto, "af_un_factor_comun_propia.png", 8.5, 5)
+kable(reparto[, -2], digits = c(0, 3, 1, 1), row.names = FALSE,
+      col.names = c("Variable", "Carga (correlación con el factor)", "Parte común (de 100)", "Parte propia (de 100)"),
+      caption = "Un factor (fa(datos, nfactors = 1, fm = \"ml\"))")
+```
+
+> ⭐ **Qué se ve:** la dimensión común la forman las coberturas: secundaria (`r coma(reparto$Comun[3], 0)` de cada 100 partes comunes), media (`r coma(reparto$Comun[4], 0)`), primaria (`r coma(reparto$Comun[2], 0)`) y transición (`r coma(reparto$Comun[1], 0)`). Las cinco variables de permanencia y rendimiento quedan con **menos de `r ceiling(max(reparto$Comun[5:9]))` de cada 100 partes comunes**: son casi enteras parte propia. En promedio, `r coma(pct_comun1, 1)` de cada 100 partes son comunes. La cobertura de secundaria llega casi al tope (`r coma(reparto$Comun[3], 1)`): con este método, el factor prácticamente *es* esa variable, un caso límite que revisamos en el punto 7.3.
+>
+> ⭐ **Qué significa para el cliente:** si se busca **una sola** dimensión de fondo, lo que aparece no es una «calidad educativa general», sino **el acceso**. Todo lo que tiene que ver con aprobar, quedarse o repetir no se parece a esa dimensión: un indicador general construido así le diría cuánto acceso tiene un municipio y nada sobre si sus estudiantes avanzan.
+>
+> ⭐ **Qué decide:** no usar un indicador de una sola dimensión para el fondo de tutorías.
+
+## 6.2 ¿Alcanza una sola dimensión?
+
+Si una sola dimensión explicara por qué las variables se mueven juntas, la correlación entre dos variables debería parecerse al producto de sus cargas: $r_{ij} \approx \lambda_i \lambda_j$. La diferencia entre las dos es el error del modelo.
+
+```{r reproducidas, fig.width = 7.5, fig.height = 6.3}
+idx <- which(upper.tri(R), arr.ind = TRUE)
+pares <- data.frame(Var1 = vars[idx[, 1]], Var2 = vars[idx[, 2]], Observada = R[idx], Reproducida = (L1 %o% L1)[idx])
+pares$Error <- pares$Observada - pares$Reproducida
+pares$Tipo <- with(pares, ifelse(bloque[Var1] == "Acceso" & bloque[Var2] == "Acceso", "Las dos de acceso",
+                          ifelse(bloque[Var1] != "Acceso" & bloque[Var2] != "Acceso", "Las dos de permanencia", "Una de cada bloque")))
+pares <- pares[order(-abs(pares$Error)), ]
+guardar_tabla(pares, "af_correlaciones_observadas_vs_reproducidas.csv")
+peor <- pares[1, ]
+
+g_rep <- ggplot(pares, aes(Reproducida, Observada, color = Tipo)) +
+  geom_abline(slope = 1, intercept = 0, color = gris, linetype = "dashed") + geom_point(size = 3, alpha = 0.85) +
+  geom_segment(data = peor, aes(x = Reproducida, xend = Reproducida, y = Reproducida, yend = Observada), color = "red", linewidth = 1,
+               arrow = arrow(length = unit(0.15, "cm"), ends = "both"), inherit.aes = FALSE) +
+  annotate("label", x = peor$Reproducida + 0.05, y = (peor$Observada + peor$Reproducida) / 2, hjust = 0, size = 3, color = "red",
+           label = paste0("Error más grande: ", coma(peor$Error, 2), "\n", corta[peor$Var1], " y ", corta[peor$Var2])) +
+  scale_color_manual(values = c(`Las dos de acceso` = azul, `Una de cada bloque` = gris, `Las dos de permanencia` = naranja), name = NULL) +
+  coord_equal(xlim = c(-0.7, 1), ylim = c(-0.7, 1)) + tema +
+  labs(title = "Correlaciones observadas frente a reproducidas\npor una sola dimensión",
+       subtitle = "Cada punto es una pareja de variables;\nsobre la diagonal, el modelo la reproduce bien", x = "Reproducida por el modelo de un factor", y = "Observada en los datos")
+print(g_rep)
+guardar_fig(g_rep, "af_observadas_vs_reproducidas.png", 7.5, 6.3)
+kable(head(pares[, 1:5], 6), digits = 3, row.names = FALSE,
+      col.names = c("Variable 1", "Variable 2", "Correlación observada", "Reproducida por un factor", "Error"),
+      caption = paste0("Las seis parejas (de ", nrow(pares), ") que una sola dimensión reproduce peor"))
+res_tipo <- pares %>% group_by(Tipo) %>% summarise(Parejas = n(), Error_medio = mean(abs(Error)), Error_maximo = max(abs(Error)), .groups = "drop")
+kable(res_tipo, digits = 3, col.names = c("Tipo de pareja", "Parejas", "Error medio (en valor absoluto)", "Error máximo"),
+      caption = "El error por tipo de pareja")
+n_err_010 <- sum(abs(pares$Error) > 0.10)
+n_top_per <- which(pares$Tipo != "Las dos de permanencia")[1] - 1
+```
+
+> ⭐ **Qué se ve:** el error más grande está en **`r peor$Var1` y `r peor$Var2`**: en los datos se correlacionan `r coma(peor$Observada, 2)` y el modelo de una dimensión reproduce `r coma(peor$Reproducida, 2)`, un error de **`r coma(peor$Error, 2)`**. No es un caso aislado: `r n_err_010` de las `r nrow(pares)` parejas tienen un error mayor que 0,10, y las `r n_top_per` parejas peor reproducidas son todas de permanencia y rendimiento (error medio de ese tipo de pareja: `r coma(res_tipo$Error_medio[res_tipo$Tipo == "Las dos de permanencia"], 2)`). Entre las coberturas el modelo se equivoca menos (error medio de `r coma(res_tipo$Error_medio[res_tipo$Tipo == "Las dos de acceso"], 2)`), aunque tampoco es perfecto: subestima la relación entre transición y primaria. En la gráfica, los puntos naranja forman una columna sobre el cero: el modelo dice que esas variables no tienen nada que ver entre sí, y en los datos sí lo tienen.
+>
+> ⭐ **Qué significa para el cliente:** **una sola dimensión no alcanza.** Explica por qué las coberturas suben y bajan juntas, pero no por qué un municipio que aprueba bien en primaria también aprueba bien en secundaria, ni por qué donde hay más deserción hay menos aprobación. Hay al menos una segunda cosa en común que el modelo de una dimensión no ve.
+>
+> ⭐ **Qué decide:** probar con dos dimensiones (punto 7).
+
+## 6.3 ¿Qué variable conserva más información propia?
+
+```{r propia}
+f2_tmp <- suppressWarnings(fa(X, nfactors = 2, fm = "ml", rotate = "oblimin"))
+propias <- data.frame(Variable = vars, Propia_1 = reparto$Propia, Propia_2 = 100 * as.numeric(f2_tmp$uniquenesses))
+propias <- propias[order(-propias$Propia_2), ]
+kable(propias, digits = 1, row.names = FALSE,
+      col.names = c("Variable", "Parte propia con un factor (de 100)", "Parte propia con dos factores (de 100)"),
+      caption = "Variables ordenadas por la parte propia que conservan con dos factores")
+mas_propia <- propias$Variable[1]
+mas_propia_1 <- reparto$Variable[which.max(reparto$Propia)]
+```
+
+> ⭐ **Qué se ve:** con un factor, la variable con más parte propia es `r mas_propia_1` (`r coma(max(reparto$Propia), 1)` de cada 100 partes), pero casi todas las de permanencia están en el mismo nivel. La diferencia aparece cuando se pide una segunda dimensión: la aprobación y la deserción pasan a compartir buena parte con ella, y **`r mas_propia` sigue siendo `r coma(propias$Propia_2[1], 0)` de cada 100 partes propia**. Es la variable que menos se deja explicar por las demás.
+>
+> ⭐ **Qué significa para el cliente:** la repitencia representa **a los estudiantes que se quedan en el sistema pero no avanzan**: no abandonan (por eso no se parece a la deserción) y no se reflejan en la cobertura. Es la parte del problema de permanencia que ningún índice de acceso ni de aprobación muestra. Si se disuelve en un indicador general, los municipios con muchos repitentes y poca deserción aparecerían como municipios sin problema.
+>
+> ⭐ **Qué decide:** mantener la repitencia **como un indicador aparte** en el tablero del fondo de tutorías. Si se ignora, se afecta la decisión de **qué tipo de tutoría** dar: el refuerzo académico para los que repiten es distinto de la prevención del abandono.
+
+# 7. ¿Dos dimensiones con nombre?
+
+## 7.1 ¿Cuántas dimensiones caben?
+
+Con $p$ variables hay $p(p-1)/2$ correlaciones. Un modelo con $k$ dimensiones deja libres para ponerse a prueba
+$$\text{grados de libertad} = \frac{(p-k)^2 - (p+k)}{2}.$$
+Si da negativo, el modelo tiene más incógnitas que datos y no se puede estimar.
+
+```{r grados, fig.height = 4}
+gl <- data.frame(Dimensiones = 1:(p - 1))
+gl$Grados_de_libertad <- ((p - gl$Dimensiones)^2 - (p + gl$Dimensiones)) / 2
+k_max <- max(gl$Dimensiones[gl$Grados_de_libertad >= 0])
+guardar_tabla(gl, "af_grados_de_libertad.csv")
+g_gl <- ggplot(gl, aes(Dimensiones, Grados_de_libertad, fill = Grados_de_libertad >= 0)) + geom_col(width = 0.7) +
+  geom_hline(yintercept = 0, color = gris) +
+  geom_text(aes(label = Grados_de_libertad, vjust = ifelse(Grados_de_libertad >= 0, -0.4, 1.3)), size = 3.3) +
+  scale_fill_manual(values = c(`TRUE` = azul, `FALSE` = naranja), guide = "none") + scale_x_continuous(breaks = gl$Dimensiones) + tema +
+  labs(title = paste0("Con ", p, " variables caben como máximo ", k_max, " dimensiones"),
+       subtitle = "Naranja: grados de libertad negativos, el modelo no se puede estimar", x = "Dimensiones (factores)", y = "Grados de libertad")
+print(g_gl)
+guardar_fig(g_gl, "af_grados_de_libertad.png", 8, 4)
+```
+
+> ⭐ **Qué se ve:** con `r p` variables hay `r p * (p - 1) / 2` correlaciones. Con 2 dimensiones quedan ((`r p` − 2)² − (`r p` + 2)) / 2 = `r gl$Grados_de_libertad[2]` grados de libertad, y el límite es **`r k_max` dimensiones** (con `r k_max + 1` la cuenta da `r gl$Grados_de_libertad[k_max + 1]`).
+>
+> ⭐ **Qué significa para el cliente:** con nueve indicadores sí hay espacio para preguntar si existen dos dimensiones, que es la pregunta de los dos fondos. Que quepan hasta `r k_max` no quiere decir que existan `r k_max`: es el máximo que la cuenta permite.
+>
+> ⭐ **Qué decide:** estimar el modelo de dos dimensiones.
+
+## 7.2 Dos dimensiones
+
+```{r dos-factores}
+# Ordena y orienta una solución de dos factores: primero el de cobertura, luego el de aprobación, ambos con «más = mejor»
+orientar <- function(f) {
+  L <- unclass(f$loadings)
+  a <- which.max(abs(L["COBERTURA_NETA_SECUNDARIA", ])); orden <- c(a, 3 - a)
+  L <- L[, orden]
+  sg <- c(sign(L["COBERTURA_NETA_SECUNDARIA", 1]), sign(L["APROBACIÓN_SECUNDARIA", 2]))
+  L <- sweep(L, 2, sg, `*`)
+  Phi <- f$Phi[orden, orden] * outer(sg, sg)
+  colnames(L) <- c("Dimensión 1", "Dimensión 2"); dimnames(Phi) <- list(colnames(L), colnames(L))
+  list(L = L, Phi = Phi, h2 = f$communality, u2 = f$uniquenesses)
+}
+f2_ml <- suppressWarnings(fa(X, nfactors = 2, fm = "ml", rotate = "oblimin"))
+o_ml <- orientar(f2_ml)
+phi_ml <- o_ml$Phi[1, 2]
+tab_ml <- data.frame(Variable = vars, round(o_ml$L, 3), Parte_comun = round(100 * o_ml$h2, 1), check.names = FALSE)
+guardar_tabla(tab_ml, "af_2_factores_ml_oblimin.csv")
+kable(tab_ml, row.names = FALSE, col.names = c("Variable", "Dimensión 1", "Dimensión 2", "Parte común (de 100)"),
+      caption = "Dos dimensiones: fa(datos, nfactors = 2, fm = \"ml\", rotate = \"oblimin\")")
+kable(round(o_ml$Phi, 3), caption = "Correlación entre las dos dimensiones (oblimin)")
+
+E2 <- R - o_ml$L %*% o_ml$Phi %*% t(o_ml$L); diag(E2) <- 0
+err2 <- abs(E2[upper.tri(E2)])
+fuertes1 <- vars[abs(o_ml$L[, 1]) >= 0.4]; fuertes2 <- vars[abs(o_ml$L[, 2]) >= 0.3]
+```
+
+> ⭐ **Qué se ve:** la **dimensión 1** la forman las cuatro coberturas (cargas de `r coma(min(o_ml$L[1:4, 1]), 2)` a `r coma(max(o_ml$L[1:4, 1]), 2)`) y la **dimensión 2** las tres aprobaciones (`r coma(min(o_ml$L[5:7, 2]), 2)` a `r coma(max(o_ml$L[5:7, 2]), 2)`), con la deserción (`r coma(o_ml$L["DESERCIÓN", 2], 2)`) y la repitencia (`r coma(o_ml$L["REPITENCIA", 2], 2)`) en sentido contrario. Ninguna variable carga más de `r coma(max(abs(o_ml$L[1:4, 2]), abs(o_ml$L[5:9, 1])), 2)` en la dimensión que no es la suya. Las dos dimensiones se correlacionan **`r coma(phi_ml, 2)`**. Con dos dimensiones, el error más grande entre correlaciones observadas y reproducidas baja de `r coma(abs(peor$Error), 2)` a `r coma(max(err2), 2)`.
+>
+> ⭐ **Qué significa para el cliente:** hay dos cosas en común, y cada una la sostiene un grupo de variables, no una sola: **la dimensión 1 es acceso** y **la dimensión 2 es rendimiento y permanencia** (aprobar y no abandonar). Su correlación de `r coma(phi_ml, 2)` es casi nula: un municipio puede estar bien en acceso y mal en permanencia, o al revés. Considerarlas **casi independientes** es razonable; completamente independientes no, porque la correlación no es exactamente cero y oblimin la deja aparecer.
+>
+> ⭐ **Qué decide:** los nombres **Acceso** y **Rendimiento y permanencia** son una propuesta. Antes de usarlos para los dos fondos, comprobamos si se mantienen con otro método.
+
+## 7.3 ¿Son estables?
+
+```{r minres}
+f2_mr <- suppressWarnings(fa(X, nfactors = 2, fm = "minres", rotate = "oblimin"))
+o_mr <- orientar(f2_mr)
+tucker <- function(a, b) abs(sum(a * b)) / sqrt(sum(a^2) * sum(b^2))
+comp_cargas <- data.frame(Variable = vars,
+                          ML_1 = o_ml$L[, 1], MinRes_1 = o_mr$L[, 1],
+                          ML_2 = o_ml$L[, 2], MinRes_2 = o_mr$L[, 2],
+                          Comun_ML = 100 * o_ml$h2, Comun_MinRes = 100 * o_mr$h2)
+guardar_tabla(comp_cargas, "af_ml_vs_minres.csv")
+kable(comp_cargas, digits = c(0, 2, 2, 2, 2, 1, 1), row.names = FALSE,
+      col.names = c("Variable", "Dim. 1 (ML)", "Dim. 1 (MinRes)", "Dim. 2 (ML)", "Dim. 2 (MinRes)", "Parte común ML", "Parte común MinRes"),
+      caption = "Las mismas dos dimensiones con máxima verosimilitud (ML) y con MinRes")
+
+estab <- data.frame(
+  Medida = c("Congruencia de la dimensión 1 (1 = cargas idénticas)", "Congruencia de la dimensión 2",
+             "Correlación entre las dimensiones", "Variable con más carga en la dimensión 1", "Variable con más carga en la dimensión 2",
+             "Mayor cambio en una carga", "Parte común de la cobertura en secundaria (de 100)"),
+  ML = c(1, 1, coma(phi_ml, 3), vars[which.max(abs(o_ml$L[, 1]))], vars[which.max(abs(o_ml$L[, 2]))], "—", coma(100 * o_ml$h2["COBERTURA_NETA_SECUNDARIA"], 1)),
+  MinRes = c(coma(tucker(o_ml$L[, 1], o_mr$L[, 1]), 3), coma(tucker(o_ml$L[, 2], o_mr$L[, 2]), 3), coma(o_mr$Phi[1, 2], 3),
+             vars[which.max(abs(o_mr$L[, 1]))], vars[which.max(abs(o_mr$L[, 2]))],
+             coma(max(abs(o_ml$L - o_mr$L)), 2), coma(100 * o_mr$h2["COBERTURA_NETA_SECUNDARIA"], 1)))
+guardar_tabla(estab, "af_estabilidad.csv")
+kable(estab, col.names = c("", "Máxima verosimilitud", "MinRes"), caption = "¿Cambia algo al cambiar solo el método?")
+cambio_max <- max(abs(o_ml$L - o_mr$L)); var_cambio <- vars[which.max(apply(abs(o_ml$L - o_mr$L), 1, max))]
+cong_min <- min(tucker(o_ml$L[, 1], o_mr$L[, 1]), tucker(o_ml$L[, 2], o_mr$L[, 2]))
+```
+
+> ⭐ **Qué se ve:** con MinRes **las mismas variables forman las mismas dos dimensiones**: las coberturas en la primera y las aprobaciones, con la deserción y la repitencia en contra, en la segunda. La congruencia entre las cargas de los dos métodos es de `r coma(cong_min, 3)` o más (1 sería idénticas), la correlación entre dimensiones pasa de `r coma(phi_ml, 3)` a `r coma(o_mr$Phi[1, 2], 3)` y la variable que más carga en cada dimensión es la misma. El cambio más grande en una carga es de `r coma(cambio_max, 2)`, en `r var_cambio`. La diferencia que sí importa es la cobertura en secundaria: con máxima verosimilitud su parte común llega a `r coma(100 * o_ml$h2["COBERTURA_NETA_SECUNDARIA"], 1)` de 100 (el tope, un caso límite) y con MinRes queda en `r coma(100 * o_mr$h2["COBERTURA_NETA_SECUNDARIA"], 1)`, repartiendo más peso entre las otras coberturas.
+>
+> ⭐ **Qué significa para el cliente:** **la estructura es estable**: la interpretación de dos dimensiones, acceso y rendimiento y permanencia, sigue siendo la misma con los dos métodos, así que los nombres se sostienen. Lo que no es estable es el peso exacto de cada cobertura dentro de la dimensión de acceso: máxima verosimilitud la hace depender casi solo de la secundaria. Por eso **no conviene fijar las ponderaciones** de un índice de acceso con este modelo.
+>
+> ⭐ **Qué decide:** usar **Acceso** y **Rendimiento y permanencia** como los dos ejes de los fondos, pero medir el acceso con las cuatro coberturas y no solo con la secundaria.
+
+# 8. La recomendación al cliente
+
+1. **Sí puede resumir sus nueve indicadores en un número, pero ese número solo diría «cómo está el municipio en general»**: la primera componente sube cuando el municipio tiene a la vez más cobertura, más aprobación y menos deserción.
+2. **Ese número conserva `r coma(var_pca$Pct[1], 0)` de cada 100 partes de la información y deja por fuera para qué necesita ayuda cada municipio**: de la repitencia conserva `r coma(conserva$Con_PC1[9], 0)` de cada 100 partes, y si atiende al 20 % con el número más bajo, deja por fuera a `r coma(alcance$Fuera[4], 0)` de cada 100 de los municipios-año con más deserción.
+3. **Detrás de los indicadores hay dos dimensiones, Acceso y Rendimiento y permanencia, casi independientes (correlación de `r coma(phi_ml, 2)`) y estables al cambiar el método; la repitencia debe seguir analizándose aparte**, porque conserva `r coma(propias$Propia_2[propias$Variable == "REPITENCIA"], 0)` de cada 100 partes propias aun con dos dimensiones.
+4. **Recomendamos mantener dos fondos separados, asignar el de infraestructura según el acceso y el de tutorías según el rendimiento y la permanencia, revisar la repitencia y la deserción directamente, y empezar por los `r fint(nrow(g_alto))` registros con deserción mayor que 6,5 %**, que concentran los dos problemas a la vez (`r coma(pct_cuadrante, 0)` de cada 100 están abajo a la izquierda del plano, frente a `r coma(pct_cuadrante_resto, 0)` del resto).
+
+### Qué no sabemos todavía
+
+* **No sabemos qué causa nada.** Que el acceso y la permanencia sean dimensiones distintas no dice que ampliar cupos no ayude a la permanencia, ni que las tutorías vayan a reducir la deserción. Solo describe qué indicadores suben y bajan juntos en estos datos.
+* **No sabemos si los fondos funcionarán.** El análisis ordena municipios; no predice cómo cambiará un municipio después de recibir un fondo, ni cómo estará el próximo año.
+* **No sabemos lo que no está en los datos:** pobreza, distancia a la escuela, conflicto, docentes, infraestructura física o conectividad. Pueden estar detrás de los dos problemas a la vez.
+* **No sabemos qué pasa en los `r fint(n_fuera)` registros excluidos**, que son sobre todo municipios pequeños y áreas con datos faltantes en algún nivel; el análisis no los representa y pueden ser los que más necesitan el fondo de infraestructura.
+* **No sabemos si las dimensiones se mantienen con otros indicadores.** Las encontramos con estas nueve variables; con otras (por ejemplo, la cobertura bruta) el peso de cada una podría cambiar. Y cada fila es un municipio en un año: las filas del mismo municipio no son independientes, así que las cifras no deben leerse como si viniéramos de una muestra al azar.
+* **Los umbrales son reglas de trabajo.** El 6,5 % de deserción y el corte del 20 % no vienen de los datos; el Ministerio debe fijarlos según su presupuesto.
