@@ -1,0 +1,691 @@
+---
+title: "Taller 7 de noviembre: ¿Son distintos estos grupos?"
+subtitle: "Comparación multivariada de perfiles educativos municipales"
+author: "Equipo: Luisa Fernanda Velasco López, David Santiago Lugo, Jairo Arturo Barrera y Gabriela Martínez Silva"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    code_folding: hide
+    self_contained: true
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width = 9,
+  fig.height = 6,
+  dpi = 120,
+  out.width = "90%"
+)
+
+# Coma decimal en tablas y gráficos (el texto usa los ayudantes fmt() y fmt_p()).
+options(OutDec = ",", knitr.kable.NA = "—")
+
+paquetes <- c("dplyr", "tidyr", "ggplot2", "knitr", "MASS")
+faltantes <- paquetes[!vapply(paquetes, requireNamespace, logical(1), quietly = TRUE)]
+if (length(faltantes) > 0) {
+  install.packages(faltantes, repos = "https://cloud.r-project.org")
+}
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(knitr)
+  library(MASS)
+})
+
+# ---------------------------------------------------------
+# Ayudantes de formato
+# ---------------------------------------------------------
+fmt <- function(x, d = 2) formatC(x, format = "f", digits = d, decimal.mark = ",")
+
+# Un valor p nunca se reporta como 0: por debajo de 0,001 se escribe «< 0,001».
+fmt_p <- function(p) {
+  ifelse(p < 0.001, "< 0,001", formatC(p, format = "f", digits = 3, decimal.mark = ","))
+}
+
+# ---------------------------------------------------------
+# 1. LOCALIZAR educacion_limpio.csv (se busca hacia arriba desde el Rmd)
+# ---------------------------------------------------------
+ruta_rmd <- tryCatch(
+  dirname(normalizePath(knitr::current_input(dir = TRUE), winslash = "/", mustWork = TRUE)),
+  error = function(e) NULL
+)
+inicios <- unique(normalizePath(c(getwd(), ruta_rmd), winslash = "/", mustWork = TRUE))
+
+carpetas_superiores <- function(ruta, max_niveles = 10) {
+  resultado <- character(0)
+  actual <- ruta
+  for (i in seq_len(max_niveles)) {
+    resultado <- c(resultado, actual)
+    padre <- dirname(actual)
+    if (identical(padre, actual)) break
+    actual <- padre
+  }
+  resultado
+}
+carpetas_busqueda <- unique(unlist(lapply(inicios, carpetas_superiores), use.names = FALSE))
+
+candidatos <- unlist(lapply(carpetas_busqueda, function(carpeta) {
+  c(file.path(carpeta, "data", "raw", "educacion_limpio.csv"),
+    file.path(carpeta, "educacion_limpio.csv"))
+}))
+candidatos <- unique(candidatos[file.exists(candidatos)])
+
+if (length(candidatos) == 0) {
+  stop(paste0(
+    "NO SE ENCONTRÓ LA BASE DE DATOS. El archivo esperado es educacion_limpio.csv ",
+    "en la carpeta data/raw/ del proyecto. Directorio de trabajo actual: ", getwd(), "."
+  ))
+}
+archivo <- normalizePath(candidatos[1], winslash = "/", mustWork = TRUE)
+message("Base de datos localizada: ", archivo)
+
+# ---------------------------------------------------------
+# 2. CARPETAS DE SALIDA (carpeta nueva dentro de outputs/)
+# ---------------------------------------------------------
+carpeta_base <- dirname(archivo)
+project_root <- if (identical(basename(carpeta_base), "raw") &&
+                    identical(basename(dirname(carpeta_base)), "data")) {
+  dirname(dirname(carpeta_base))
+} else {
+  inicios[1]
+}
+
+out_dir <- file.path(project_root, "outputs", "taller-07-hotelling")
+dir.create(file.path(out_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(out_dir, "figures"), recursive = TRUE, showWarnings = FALSE)
+
+set.seed(20261107)
+```
+
+# 1. El encargo y las comparaciones
+
+El cliente es la Dirección de Cobertura y Equidad Territorial del Ministerio de Educación Nacional, que debe decidir cómo repartir dos fondos: uno de **infraestructura y ampliación de cupos**, asociado con dificultades de acceso, y otro de **tutorías y acompañamiento**, relacionado con aprobación y permanencia escolar. Las dos comparaciones que le sirven son:
+
+- **Una muestra:** el perfil de los municipios con deserción alta frente a una referencia, que es el **promedio de todos los municipios de 2024 de la misma base** (1.122 municipios del archivo `educacion_limpio.csv`, de los cuales 62 son del grupo alto). No es una meta del Ministerio ni un valor publicado; se usa como referencia descriptiva.
+- **Dos muestras:** los municipios con deserción superior al 6,5 % frente a los municipios con deserción igual o inferior al 6,5 %.
+
+Se estudian **seis indicadores**: cobertura neta y aprobación en primaria, secundaria y media. Se eligieron porque los tres niveles permiten ver *dónde* se concentra el rezago (los cupos dependen de la cobertura y las tutorías de la aprobación) y porque son los indicadores que cada fondo puede mover. La deserción se usa **únicamente para definir los grupos** y no entra como variable explicativa, para no separar los grupos con la misma variable que los define.
+
+# 2. Preparación de los datos
+
+## 2.1. Lectura y selección de 2024
+
+```{r carga-datos}
+datos <- read.csv(archivo, check.names = FALSE, stringsAsFactors = FALSE)
+
+variables <- c(
+  "COBERTURA_NETA_PRIMARIA", "COBERTURA_NETA_SECUNDARIA", "COBERTURA_NETA_MEDIA",
+  "APROBACIÓN_PRIMARIA", "APROBACIÓN_SECUNDARIA", "APROBACIÓN_MEDIA"
+)
+etiquetas <- c("Cobertura primaria", "Cobertura secundaria", "Cobertura media",
+               "Aprobación primaria", "Aprobación secundaria", "Aprobación media")
+requeridas <- c("AÑO", "MUNICIPIO", "DEPARTAMENTO", "DESERCIÓN", variables, "POBLACIÓN_5_16")
+no_encontradas <- setdiff(requeridas, names(datos))
+if (length(no_encontradas)) stop(paste("Faltan columnas:", paste(no_encontradas, collapse = ", ")))
+
+datos_2024 <- datos %>%
+  filter(AÑO == 2024) %>%
+  mutate(
+    ID_MUNICIPIO = paste(MUNICIPIO, DEPARTAMENTO, sep = " - "),
+    GRUPO = factor(ifelse(DESERCIÓN > 0.065, "Deserción alta", "Deserción no alta"),
+                   levels = c("Deserción no alta", "Deserción alta"))
+  )
+
+if (nrow(datos_2024) == 0) stop("No hay registros de 2024 en el archivo seleccionado.")
+if (anyDuplicated(datos_2024$ID_MUNICIPIO)) stop("Hay municipios duplicados en 2024; revise la unidad de análisis.")
+if (any(!complete.cases(datos_2024[, c(variables, "DESERCIÓN", "POBLACIÓN_5_16")]))) {
+  stop("Hay valores faltantes en variables del análisis. Revise la base antes de continuar.")
+}
+if (any(!vapply(datos_2024[, c(variables, "DESERCIÓN", "POBLACIÓN_5_16")], is.numeric, logical(1)))) {
+  stop("Las variables seleccionadas deben ser numéricas.")
+}
+
+# Comprueba que la tasa esté expresada como proporción (0 a 1), no como porcentaje (0 a 100).
+rango_desercion <- range(datos_2024$DESERCIÓN)
+if (rango_desercion[2] > 1) stop("DESERCIÓN parece estar expresada en porcentaje (0-100). Ajuste el umbral de 0.065 a 6.5.")
+
+validacion <- data.frame(
+  Indicador = c("Registros de 2024", "Municipios únicos", "Indicadores comparados", "Deserción mínima", "Deserción máxima", "Valores faltantes"),
+  Resultado = c(nrow(datos_2024), n_distinct(datos_2024$ID_MUNICIPIO), length(variables),
+                fmt(rango_desercion[1], 4), fmt(rango_desercion[2], 4),
+                sum(is.na(datos_2024[, c(variables, "DESERCIÓN")]))) |> as.character()
+)
+kable(validacion, caption = "Validación de la muestra de 2024")
+```
+
+**Lectura.** Los datos de 2024 contienen `r nrow(datos_2024)` municipios únicos, sin valores faltantes en los seis indicadores ni en la deserción. La deserción está expresada como proporción (máximo `r fmt(rango_desercion[2], 3)`), de modo que 0,065 equivale al 6,5 % y el umbral es coherente con la escala. Para el cliente esto significa que cada fila es un municipio distinto y que la comparación puede hacerse sin imputar datos; el umbral de 6,5 % es un criterio analítico del equipo, no una clasificación oficial del Ministerio.
+
+## 2.2. Tamaño de los grupos
+
+```{r resumen-muestra}
+resumen_muestra <- datos_2024 %>% count(GRUPO) %>%
+  mutate(Porcentaje = 100 * n / sum(n)) %>%
+  rename(Grupo = GRUPO, Municipios = n)
+kable(resumen_muestra, digits = 2, caption = "Distribución de municipios por grupo")
+
+n_alta_tot <- sum(datos_2024$GRUPO == "Deserción alta")
+n_no_tot <- sum(datos_2024$GRUPO == "Deserción no alta")
+prop_mayoritaria <- n_no_tot / nrow(datos_2024)
+```
+
+**Lectura.** Solo `r n_alta_tot` municipios (`r fmt(100 * n_alta_tot / nrow(datos_2024), 1)` %) tienen deserción alta, frente a `r n_no_tot` (`r fmt(100 * prop_mayoritaria, 1)` %) que no. El desbalance es fuerte: quien dijera siempre «deserción no alta» acertaría en `r fmt(100 * prop_mayoritaria, 1)` de cada 100 municipios sin mirar un solo indicador. Esa cifra será la vara contra la cual se mida cualquier clasificador en la sección 4.7, y obliga a leer la exactitud global con mucha cautela.
+
+## 2.3. Exploración inicial: anomalías en los indicadores
+
+```{r anomalias}
+anomalias <- data.frame(
+  Indicador = variables,
+  Valores_en_cero = as.integer(colSums(datos_2024[, variables] == 0)),
+  Valores_mayores_a_1 = as.integer(colSums(datos_2024[, variables] > 1))
+)
+kable(anomalias, caption = "Valores atípicos por construcción: indicadores en 0 o por encima de 1 (2024)")
+
+fila_anomala <- apply(datos_2024[, variables], 1, function(r) any(r == 0 | r > 1))
+n_anomalas <- sum(fila_anomala)
+
+# Sensibilidad: distancia D entre grupos sin las filas con anomalías (el D con todos los datos se calcula en 4.2).
+Ya_s <- as.matrix(datos_2024[!fila_anomala & datos_2024$GRUPO == "Deserción alta", variables])
+Yn_s <- as.matrix(datos_2024[!fila_anomala & datos_2024$GRUPO == "Deserción no alta", variables])
+Sp_s <- ((nrow(Ya_s) - 1) * cov(Ya_s) + (nrow(Yn_s) - 1) * cov(Yn_s)) / (nrow(Ya_s) + nrow(Yn_s) - 2)
+dif_s <- colMeans(Ya_s) - colMeans(Yn_s)
+D_sin_anomalias <- sqrt(as.numeric(t(dif_s) %*% solve(Sp_s, dif_s)))
+```
+
+**Lectura.** Hay indicadores con valores de **cobertura iguales a 0 o superiores a 1** (una cobertura neta no puede pasar de 100 %), y también aprobaciones en 0. En total `r n_anomalas` municipios (`r fmt(100 * n_anomalas / nrow(datos_2024), 1)` %) tienen al menos un valor así, probablemente por desajustes entre la matrícula y las proyecciones de población o por ceros que representan datos no reportados. Estos valores pueden distorsionar las medias y, sobre todo, inflar las covarianzas, de las que depende la distancia D. Como control, al excluir esas filas la distancia entre grupos pasa a `r fmt(D_sin_anomalias, 2)`: la conclusión no cambia, pero el análisis principal conserva todos los municipios y las cifras deben leerse con esa advertencia.
+
+# 3. Una muestra: ¿el grupo de deserción alta difiere de la referencia?
+
+Se contrasta el vector promedio de los municipios con deserción alta frente al vector promedio de todos los municipios de 2024. La referencia nacional incluye a los municipios del propio grupo; por ello, esta comparación se interpreta como una **referencia descriptiva interna**, no como una prueba confirmatoria independiente. El valor p de una prueba de una muestra se presenta con esa limitación explícita.
+
+## 3.1. Diferencias variable por variable
+
+```{r una-muestra-diferencias}
+Y_alta <- as.matrix(datos_2024 %>% filter(GRUPO == "Deserción alta") %>% dplyr::select(all_of(variables)))
+Y_no_alta <- as.matrix(datos_2024 %>% filter(GRUPO == "Deserción no alta") %>% dplyr::select(all_of(variables)))
+Y_total <- as.matrix(datos_2024 %>% dplyr::select(all_of(variables)))
+if (nrow(Y_alta) <= ncol(Y_alta)) stop("El grupo de deserción alta tiene muy pocas observaciones para Hotelling.")
+media_alta <- colMeans(Y_alta)
+media_no_alta <- colMeans(Y_no_alta)
+media_nacional <- colMeans(Y_total)
+dif_una <- media_alta - media_nacional
+d1 <- setNames(100 * dif_una, c("cob_prim", "cob_sec", "cob_med", "apr_prim", "apr_sec", "apr_med"))
+
+tabla_una <- data.frame(Indicador = variables, Media_desercion_alta = media_alta,
+                        Referencia_nacional = media_nacional,
+                        Diferencia = dif_una, Diferencia_pp = 100 * dif_una)
+kable(tabla_una, digits = 4, row.names = FALSE, caption = "Grupo de deserción alta frente al promedio nacional")
+
+graf_una <- data.frame(Indicador = factor(etiquetas, levels = rev(etiquetas)),
+                       Diferencia = 100 * as.numeric(dif_una))
+g_una <- ggplot(graf_una, aes(Diferencia, Indicador)) +
+  geom_col(fill = "#2878A5") + geom_vline(xintercept = 0, linetype = 2) +
+  geom_text(aes(label = paste0(fmt(Diferencia, 1), " pp")), hjust = 1.1, size = 3.6) +
+  scale_x_continuous(expand = expansion(mult = c(0.18, 0.05))) +
+  labs(title = "Diferencias del grupo de deserción alta frente a la referencia nacional",
+       x = "Diferencia (puntos porcentuales)", y = NULL) + theme_minimal()
+g_una
+ggsave(file.path(out_dir, "figures", "diferencias_una_muestra.png"), g_una, width = 9, height = 6, dpi = 120)
+```
+
+**Lectura.** Los seis indicadores del grupo de deserción alta están por debajo del promedio nacional. La caída es mínima en cobertura primaria (`r fmt(d1[["cob_prim"]], 1)` pp) y se amplía en cobertura secundaria (`r fmt(d1[["cob_sec"]], 1)` pp) y sobre todo en cobertura media (`r fmt(d1[["cob_med"]], 1)` pp); en aprobación las diferencias van de `r fmt(d1[["apr_med"]], 1)` pp (media) a `r fmt(d1[["apr_sec"]], 1)` pp (secundaria). Para el cliente esto indica que el rezago de estos municipios es de acceso en los grados altos más que en primaria, y que la aprobación también se resiente; con esto puede dirigir infraestructura y cupos hacia secundaria y media, y reservar las tutorías para primaria y secundaria.
+
+## 3.2. Magnitud y prueba de una muestra: D y T²
+
+```{r hotelling-una-muestra}
+hotelling_1 <- function(X, mu0) {
+  X <- as.matrix(X); n <- nrow(X); p <- ncol(X)
+  mu0 <- as.numeric(mu0)
+  if (length(mu0) != p) stop("El vector de referencia debe tener una entrada por variable.")
+  if (n <= p) stop("Se necesitan más observaciones que variables.")
+  S <- cov(X)
+  delta <- colMeans(X) - mu0
+  D2 <- as.numeric(t(delta) %*% solve(S, delta))
+  T2 <- n * D2
+  Fstat <- ((n - p) / (p * (n - 1))) * T2
+  pv <- pf(Fstat, p, n - p, lower.tail = FALSE)
+  data.frame(n = n, p = p, D = sqrt(D2), T2 = T2, F = Fstat, gl1 = p, gl2 = n-p, valor_p = pv)
+}
+
+res_una <- hotelling_1(Y_alta, media_nacional)
+kable(res_una %>% mutate(valor_p = fmt_p(valor_p)), digits = 3,
+      caption = "Hotelling de una muestra: referencia nacional descriptiva")
+```
+
+**Lectura de D.** La distancia es **D = `r fmt(res_una$D, 2)`**: el perfil promedio del grupo de deserción alta queda a unas `r fmt(res_una$D, 1)` desviaciones (en la métrica multivariada de Mahalanobis) de la referencia nacional. Es una distancia grande, entre tres y cuatro veces la de los ejemplos de las notas (0,42 del Atlántico, 0,49 entre hombres y mujeres), y la probabilidad de que sea azar es `r fmt_p(res_una$valor_p)`. Para el cliente esto quiere decir que el grupo no es un conjunto de municipios corrientes: su perfil educativo es claramente distinto del promedio del país, aunque, como se advierte abajo, esa probabilidad no debe tomarse como evidencia independiente.
+
+**Precaución de interpretación:** la fórmula de Hotelling de una muestra supone que el vector de referencia es fijo y externo. Aquí se estima con la misma base y contiene observaciones del grupo evaluado. En consecuencia, D describe la distancia estandarizada respecto de la referencia, pero el valor p no debe presentarse como evidencia inferencial independiente. Para una conclusión inferencial sobre grupos, se utiliza la prueba de dos muestras de la sección 4.
+
+## 3.3. ¿Qué parte del grupo queda del otro lado de la referencia?
+
+Se proyecta cada municipio sobre la dirección que mejor separa al grupo de la referencia, $\mathbf{d} = S^{-1}(\bar{x}_{alta} - \mu_0)$. Una proyección positiva significa que el municipio queda **del lado del grupo, lejos de la referencia**; una proyección menor o igual a cero lo deja del lado de la referencia.
+
+```{r separacion-una-muestra}
+S_alta <- cov(Y_alta)
+dir_una <- solve(S_alta, media_alta - media_nacional)
+proy_una <- as.numeric(sweep(Y_alta, 2, media_nacional, "-") %*% dir_una)
+proy_no_alta <- as.numeric(sweep(Y_no_alta, 2, media_nacional, "-") %*% dir_una)
+
+res_separacion_una <- data.frame(
+  Grupo = c("Deserción alta", "Deserción no alta"),
+  Municipios = c(length(proy_una), length(proy_no_alta)),
+  Lado_del_grupo = c(sum(proy_una > 0), sum(proy_no_alta > 0)),
+  Lado_de_la_referencia = c(sum(proy_una <= 0), sum(proy_no_alta <= 0))
+) %>%
+  mutate(Porcentaje_lado_del_grupo = 100 * Lado_del_grupo / Municipios)
+kable(res_separacion_una, digits = 1,
+      caption = "Posición de cada grupo respecto a la referencia (proyección sobre la dirección discriminante)")
+
+pct_alta_lado <- 100 * mean(proy_una > 0)
+pct_no_alta_lado <- 100 * mean(proy_no_alta > 0)
+n_lado_grupo <- sum(proy_una > 0) + sum(proy_no_alta > 0)
+pureza_lado <- 100 * sum(proy_una > 0) / n_lado_grupo
+pureza_base <- 100 * n_alta_tot / nrow(datos_2024)
+
+caso_una <- datos_2024 %>% filter(GRUPO == "Deserción alta") %>%
+  mutate(Proyeccion = proy_una) %>% arrange(Proyeccion) %>%
+  dplyr::select(MUNICIPIO, DEPARTAMENTO, all_of(variables), Proyeccion) %>% head(3)
+kable(caso_una, digits = 4, row.names = FALSE, caption = "Tres casos del grupo de deserción alta ubicados más cerca de la referencia")
+```
+
+**Lectura de la separación.** A primera vista el resultado es contundente: `r fmt(pct_alta_lado, 1)` % del grupo de deserción alta (`r sum(proy_una > 0)` de `r length(proy_una)` municipios) queda del lado opuesto a la referencia. Pero ese lado también lo ocupa `r fmt(pct_no_alta_lado, 1)` % del grupo mayoritario (`r sum(proy_no_alta > 0)` de `r length(proy_no_alta)` municipios), así que de cada 100 municipios que caen allí solo `r fmt(pureza_lado, 1)` tienen deserción alta, frente a `r fmt(pureza_base, 1)` de cada 100 en toda la base. La separación real es menor que la que sugiere el 98 %: la dirección se calculó con los mismos 62 municipios, por lo que el resultado es optimista, y para el cliente esto significa que el perfil sirve para *describir* al grupo, no para *encontrarlo* entre los demás.
+
+**Los tres casos.** El primer municipio de la tabla es el único del grupo que queda del lado de la referencia (proyección ≤ 0): tiene deserción alta pero indicadores de cobertura y aprobación propios de un municipio promedio, y por eso ningún filtro basado en estos seis indicadores lo detectaría. Los otros dos tienen proyecciones bajas (`r fmt(caso_una$Proyeccion[2], 2)` y `r fmt(caso_una$Proyeccion[3], 2)`) frente a la proyección promedio del grupo (`r fmt(mean(proy_una), 2)`), es decir, también quedan cerca de la referencia. Son ejemplos para inspección, no evidencia de causalidad ni un clasificador validado: la proyección describe el solapamiento, y la validación del poder de separación se hace en la sección 4.7.
+
+# 4. Dos muestras: ¿son diferentes los perfiles educativos?
+
+Se comparan municipios con deserción alta y no alta. La hipótesis nula es que ambos grupos tienen el mismo vector de medias de los seis indicadores; la alternativa es que difieren en al menos una dimensión.
+
+## 4.1. Diferencias y gráfico
+
+```{r dos-muestras-diferencias}
+n1 <- nrow(Y_alta); n2 <- nrow(Y_no_alta); p <- ncol(Y_alta); N <- n1 + n2
+if (min(n1, n2) <= p) stop("Cada grupo debe tener más observaciones que variables para Hotelling.")
+diferencias <- media_alta - media_no_alta
+d2 <- setNames(100 * diferencias, c("cob_prim", "cob_sec", "cob_med", "apr_prim", "apr_sec", "apr_med"))
+
+tabla_dos <- data.frame(Indicador = variables, Media_desercion_alta = media_alta,
+                        Media_desercion_no_alta = media_no_alta,
+                        Diferencia = diferencias, Diferencia_pp = 100 * diferencias)
+kable(tabla_dos, digits = 4, row.names = FALSE, caption = "Comparación de medias entre los dos grupos")
+
+graf_dos <- data.frame(Indicador = factor(etiquetas, levels = rev(etiquetas)),
+                       Diferencia = 100 * as.numeric(diferencias))
+g_dos <- ggplot(graf_dos, aes(Diferencia, Indicador)) + geom_col(fill = "#C05621") +
+  geom_vline(xintercept = 0, linetype = 2) +
+  geom_text(aes(label = paste0(fmt(Diferencia, 1), " pp")), hjust = 1.1, size = 3.6) +
+  scale_x_continuous(expand = expansion(mult = c(0.18, 0.05))) +
+  labs(title = "Deserción alta frente a no alta", subtitle = "Diferencia: media del grupo alto menos media del grupo no alto",
+       x = "Diferencia (puntos porcentuales)", y = NULL) + theme_minimal()
+g_dos
+ggsave(file.path(out_dir, "figures", "diferencias_dos_muestras.png"), g_dos, width = 9, height = 6, dpi = 120)
+```
+
+**Lectura.** Frente a los municipios sin deserción alta, el grupo alto tiene menos cobertura y menos aprobación en los seis indicadores. Las mayores brechas están en cobertura media (`r fmt(d2[["cob_med"]], 1)` pp) y secundaria (`r fmt(d2[["cob_sec"]], 1)` pp); en aprobación son de `r fmt(d2[["apr_prim"]], 1)` pp en primaria y `r fmt(d2[["apr_sec"]], 1)` pp en secundaria, mientras que la cobertura primaria casi no se distingue (`r fmt(d2[["cob_prim"]], 1)` pp). Para el cliente, el problema de estos municipios no está repartido por igual: se concentra en llegar y mantenerse en la secundaria y la media, y ahí debe apuntar el fondo de cupos.
+
+## 4.2. Distancia D y prueba T² de Hotelling
+
+```{r hotelling-dos-muestras}
+hotelling_2 <- function(X1, X2) {
+  X1 <- as.matrix(X1); X2 <- as.matrix(X2)
+  n1 <- nrow(X1); n2 <- nrow(X2); p <- ncol(X1); N <- n1+n2
+  if (ncol(X1) != ncol(X2)) stop("Los grupos deben tener el mismo número de variables.")
+  if (min(n1,n2) <= p) stop("Cada grupo debe tener más observaciones que variables.")
+  S1 <- cov(X1); S2 <- cov(X2)
+  Sp <- ((n1-1)*S1 + (n2-1)*S2)/(N-2)
+  delta <- colMeans(X1)-colMeans(X2)
+  D2 <- as.numeric(t(delta) %*% solve(Sp, delta))
+  T2 <- (n1*n2/N)*D2
+  Fstat <- ((N-p-1)/(p*(N-2)))*T2
+  pv <- pf(Fstat, p, N-p-1, lower.tail = FALSE)
+  list(tabla = data.frame(n_alta=n1, n_no_alta=n2, p=p, D=sqrt(D2), T2=T2,
+                          F=Fstat, gl1=p, gl2=N-p-1, valor_p=pv),
+       Sp=Sp, S1=S1, S2=S2, delta=delta)
+}
+
+res_dos <- hotelling_2(Y_alta, Y_no_alta)
+kable(res_dos$tabla %>% mutate(valor_p = fmt_p(valor_p)), digits = 3,
+      caption = "Prueba T² de Hotelling para dos muestras independientes")
+D_dos <- res_dos$tabla$D
+```
+
+**Lectura de D.** La distancia entre los dos grupos es **D = `r fmt(D_dos, 2)`**, es decir, unas `r fmt(D_dos, 1)` desviaciones estándar multivariadas, con una probabilidad de azar `r fmt_p(res_dos$tabla$valor_p)` (F = `r fmt(res_dos$tabla$F, 2)` con `r res_dos$tabla$gl1` y `r res_dos$tabla$gl2` grados de libertad). Es una diferencia **real y grande**, casi tres veces la de hombres y mujeres en las notas. Para el cliente, los municipios con deserción alta tienen de verdad otro perfil de cobertura y aprobación, lo que justifica diferenciar la inversión; pero que la diferencia sea grande todavía no dice que sirva para *identificar* municipios uno a uno, algo que se verifica en la sección 4.7.
+
+## 4.3. Diagnóstico de supuestos
+
+```{r box-m}
+# Prueba M de Box (equivalente a biotools::boxM para dos grupos).
+box_m_manual <- function(X1, X2) {
+  g <- 2; p <- ncol(X1); n1 <- nrow(X1); n2 <- nrow(X2); N <- n1 + n2
+  S1 <- cov(X1); S2 <- cov(X2)
+  Sp <- ((n1 - 1) * S1 + (n2 - 1) * S2) / (N - g)
+  ld <- function(S) as.numeric(determinant(S, logarithm = TRUE)$modulus)
+  M <- (N - g) * ld(Sp) - (n1 - 1) * ld(S1) - (n2 - 1) * ld(S2)
+  c1 <- (1 / (n1 - 1) + 1 / (n2 - 1) - 1 / (N - g)) * (2 * p^2 + 3 * p - 1) / (6 * (p + 1) * (g - 1))
+  chi2 <- M * (1 - c1)
+  gl <- p * (p + 1) * (g - 1) / 2
+  data.frame(Chi2 = chi2, gl = gl, valor_p = pchisq(chi2, gl, lower.tail = FALSE))
+}
+box_m <- box_m_manual(Y_alta, Y_no_alta)
+kable(box_m %>% mutate(valor_p = fmt_p(valor_p)), digits = 2,
+      caption = "Prueba de Box M: homogeneidad de matrices de covarianza")
+```
+
+**Lectura.** La prueba de Box M da χ² = `r fmt(box_m$Chi2, 1)` con `r box_m$gl` grados de libertad y una probabilidad `r fmt_p(box_m$valor_p)`: las matrices de covarianza de los dos grupos **no son iguales**. Esto avisa que el Hotelling clásico, que mezcla las dos covarianzas en una sola, debe leerse con cautela; sin embargo, Box M es muy sensible a datos no normales y a los valores atípicos de la sección 2.3, y la diferencia entre grupos es tan grande (D = `r fmt(D_dos, 2)`) que la conclusión «los grupos son distintos» no depende de ese detalle. Para el cliente, la magnitud de la diferencia es confiable, pero conviene no apoyarse en el valor p exacto.
+
+```{r rangos}
+diagnostico_rangos <- datos_2024 %>%
+  dplyr::group_by(GRUPO) %>%
+  dplyr::summarise(
+    dplyr::across(dplyr::all_of(variables), list(min = min, max = max), .names = "{.col}_{.fn}"),
+    .groups = "drop"
+  ) %>%
+  tidyr::pivot_longer(cols = -GRUPO, names_to = c("Indicador", ".value"),
+                      names_pattern = "(.*)_(min|max)$") %>%
+  dplyr::mutate(Indicador = gsub("_", " ", Indicador))
+
+knitr::kable(diagnostico_rangos, digits = 3,
+             caption = "Rangos de los indicadores educativos por grupo",
+             col.names = c("Grupo", "Indicador", "Mínimo", "Máximo"),
+             align = c("l", "l", "c", "c"))
+```
+
+**Lectura.** Los rangos confirman las anomalías de la sección 2.3. En el grupo no alto hay mínimos de 0 en los seis indicadores y coberturas que llegan a `r fmt(max(Y_no_alta[, "COBERTURA_NETA_SECUNDARIA"]), 2)` en secundaria; en el grupo alto el mínimo de 0 aparece en cobertura media y hay una cobertura primaria de `r fmt(max(Y_alta[, "COBERTURA_NETA_PRIMARIA"]), 2)`. Las aprobaciones, en cambio, quedan acotadas entre 0 y 1. Para el cliente esto significa que unas pocas cifras de cobertura son poco creíbles; no cambian el sentido de los resultados, pero justifican pedir a las secretarías que revisen esos municipios antes de asignar recursos.
+
+```{r revision-valores}
+resumen_indicadores <- datos_2024 %>%
+  dplyr::select(dplyr::all_of(variables)) %>%
+  tidyr::pivot_longer(cols = dplyr::everything(), names_to = "Indicador", values_to = "Valor") %>%
+  dplyr::group_by(Indicador) %>%
+  dplyr::summarise(
+    Minimo = min(Valor),
+    Q1 = quantile(Valor, 0.25),
+    Mediana = median(Valor),
+    Media = mean(Valor),
+    Q3 = quantile(Valor, 0.75),
+    Maximo = max(Valor),
+    .groups = "drop"
+  )
+
+knitr::kable(resumen_indicadores, digits = 4,
+             caption = "Resumen de distribución y escala de los seis indicadores")
+```
+
+**Lectura.** Los seis indicadores están en la misma escala (proporciones) y sus medias y medianas son muy cercanas, lo que indica distribuciones sin un sesgo grave en el centro. La cobertura media es la más baja (mediana `r fmt(median(datos_2024$COBERTURA_NETA_MEDIA), 2)`) y la aprobación primaria la más alta (mediana `r fmt(median(datos_2024$APROBACIÓN_PRIMARIA), 2)`), de modo que el margen de mejora está sobre todo en el acceso a la media. Esto respalda comparar las diferencias en puntos porcentuales sin reescalar.
+
+La prueba clásica de Hotelling requiere independencia, normalidad multivariada aproximada y matrices de covarianza poblacionales iguales. La estructura municipal de la base también debe revisarse: si existen dependencias territoriales no modeladas, la independencia puede no cumplirse plenamente.
+
+## 4.4. Comprobación mediante MANOVA
+
+```{r manova}
+formula_manova <- as.formula(paste("cbind(", paste(sprintf("`%s`", variables), collapse = ", "), ") ~ GRUPO"))
+modelo_manova <- manova(formula_manova, data = datos_2024)
+res_pillai <- summary(modelo_manova, test = "Pillai")
+
+tabla_manova <- data.frame(
+  Fuente = rownames(res_pillai$stats)[1],
+  Grados_de_libertad = res_pillai$stats[1, "Df"],
+  Pillai = res_pillai$stats[1, "Pillai"],
+  F_aproximada = res_pillai$stats[1, "approx F"],
+  GL_numerador = res_pillai$stats[1, "num Df"],
+  GL_denominador = res_pillai$stats[1, "den Df"],
+  Valor_p = fmt_p(res_pillai$stats[1, "Pr(>F)"])
+)
+kable(tabla_manova, digits = 4, row.names = FALSE, caption = "Resultados del análisis multivariado de varianza")
+pillai_simple <- res_pillai$stats[1, "Pillai"]
+```
+
+**Lectura.** MANOVA con el estadístico de Pillai da `r fmt(pillai_simple, 3)`, F = `r fmt(res_pillai$stats[1, "approx F"], 2)` y una probabilidad de azar `r fmt_p(res_pillai$stats[1, "Pr(>F)"])`. La F coincide con la de Hotelling (`r fmt(res_dos$tabla$F, 2)`), como debe ocurrir con dos grupos: es la comprobación de que `hotelling_2()` está bien programada y de que la diferencia multivariada existe. Para el cliente, la conclusión «los dos perfiles son distintos» no depende de la herramienta usada. Ninguna de las dos pruebas demuestra que la deserción *cause* las diferencias: el grupo se definió a partir de la tasa de deserción y la comparación es observacional.
+
+## 4.5. ¿La diferencia es de nivel o de perfil?
+
+```{r nivel-perfil}
+signos <- data.frame(
+  Indicador = etiquetas,
+  Diferencia_pp = 100 * diferencias,
+  Signo = ifelse(diferencias < 0, "Negativo", "Positivo"),
+  Diferencia_estandarizada = diferencias / sqrt(diag(res_dos$Sp))
+)
+kable(signos, digits = 2, row.names = FALSE, caption = "Signo y tamaño de la diferencia por indicador (alta menos no alta)")
+if (!all(diferencias < 0)) stop("Alguna diferencia no es negativa: revise la lectura de nivel/perfil de la sección 4.5.")
+```
+
+**Es una diferencia de nivel.** Las seis diferencias tienen signo negativo (ningún indicador del grupo alto supera al del no alto): cuando un municipio pertenece al grupo de deserción alta, *todos* sus indicadores bajan a la vez, y no unos suben mientras otros bajan, que sería una diferencia de perfil. Pero la caída **no es pareja**: la cobertura en media cae drásticamente (`r fmt(abs(d2[["cob_med"]]), 1)` pp), mientras que en primaria la diferencia es mínima (`r fmt(abs(d2[["cob_prim"]]), 1)` pp), y medida en desviaciones la mayor diferencia es la aprobación en primaria (`r fmt(signos$Diferencia_estandarizada[4], 2)`), porque ese indicador varía poco entre municipios, seguida de la cobertura media (`r fmt(signos$Diferencia_estandarizada[3], 2)`). Para el cliente esto significa que no se necesitan estrategias de signo contrario, sino un mismo problema de rezago con distinta intensidad por nivel: más grave en los últimos grados, y por eso la decisión de cupos debe priorizar secundaria y media.
+
+## 4.6. Dos casos concretos: un municipio por cada grupo
+
+```{r casos-opuestos}
+# Puntajes estandarizados para describir similitud/oposición de perfiles respecto de las medias grupales.
+centro <- (media_alta + media_no_alta) / 2
+escala <- apply(datos_2024[, variables], 2, sd)
+if (any(escala == 0)) stop("Hay una variable sin variación; no se puede estandarizar.")
+Z <- as.matrix(sweep(sweep(datos_2024[, variables], 2, centro, "-"), 2, escala, "/"))
+# Un caso de cada grupo: el municipio más cercano al perfil promedio de su propio grupo,
+# para mostrar municipios observados y no casos inventados.
+datos_casos <- datos_2024 %>%
+  mutate(DIST_ALTA = sqrt(rowSums((Z - matrix((media_alta - centro) / escala, nrow(Z), p, byrow = TRUE))^2)),
+         DIST_NO_ALTA = sqrt(rowSums((Z - matrix((media_no_alta - centro) / escala, nrow(Z), p, byrow = TRUE))^2)))
+caso_alto <- datos_casos %>% filter(GRUPO == "Deserción alta") %>% arrange(DIST_ALTA) %>% slice(1)
+caso_no <- datos_casos %>% filter(GRUPO == "Deserción no alta") %>% arrange(DIST_NO_ALTA) %>% slice(1)
+casos <- bind_rows(caso_alto, caso_no) %>% dplyr::select(MUNICIPIO, DEPARTAMENTO, GRUPO, DESERCIÓN, all_of(variables))
+kable(casos, digits = 4, row.names = FALSE, caption = "Un municipio representativo cercano al centro de cada grupo")
+
+brecha_casos <- 100 * (as.numeric(caso_alto[, variables]) - as.numeric(caso_no[, variables]))
+names(brecha_casos) <- c("cob_prim", "cob_sec", "cob_med", "apr_prim", "apr_sec", "apr_med")
+kable(data.frame(Indicador = etiquetas, Brecha_entre_los_dos_casos_pp = brecha_casos,
+                 Brecha_entre_los_dos_grupos_pp = 100 * diferencias),
+      digits = 1, row.names = FALSE,
+      caption = "Brecha entre los dos casos (alta menos no alta) frente a la brecha entre los grupos")
+```
+
+**Lectura de los dos casos.** El primero es **`r caso_alto$MUNICIPIO` (`r caso_alto$DEPARTAMENTO`)**, con deserción de `r fmt(100 * caso_alto$DESERCIÓN, 1)` %, y el segundo **`r caso_no$MUNICIPIO` (`r caso_no$DEPARTAMENTO`)**, con `r fmt(100 * caso_no$DESERCIÓN, 1)` %. Sus valores son los de un municipio típico de cada grupo: en el de deserción alta solo `r fmt(100 * caso_alto$COBERTURA_NETA_MEDIA, 0)` de cada 100 jóvenes en edad de media están matriculados en ese nivel, frente a `r fmt(100 * caso_no$COBERTURA_NETA_MEDIA, 0)` en el otro (una brecha de `r fmt(brecha_casos[["cob_med"]], 1)` pp), y su aprobación en secundaria es de `r fmt(caso_alto$APROBACIÓN_SECUNDARIA, 2)` frente a `r fmt(caso_no$APROBACIÓN_SECUNDARIA, 2)` (`r fmt(brecha_casos[["apr_sec"]], 1)` pp); son brechas del mismo orden que las de los grupos. La excepción es la cobertura primaria, donde el municipio de deserción alta incluso supera al otro (`r fmt(brecha_casos[["cob_prim"]], 1)` pp), lo cual es coherente con que en primaria la diferencia entre grupos sea mínima. Como la diferencia es de nivel y no de perfil, los dos casos son «opuestos» solo porque están en lados distintos de la comparación, no porque tengan signos contrarios. Para el cliente, el primero muestra qué significa en la práctica el rezago de la media y la secundaria, y el segundo cómo luce un municipio sin deserción alta; no representan a todos los municipios de su grupo.
+
+## 4.7. ¿Separa? Evaluación de LDA frente al clasificador mayoritario
+
+Se valida con 5 pliegues estratificados: la predicción de cada municipio se hace con un modelo que no lo usó para entrenar. Se comparan dos versiones del LDA: la que usa las probabilidades *a priori* de la muestra (94,5 % / 5,5 %) y la **balanceada**, con `prior = c(0.5, 0.5)`, que trata a los dos grupos como igual de probables.
+
+```{r lda-validacion}
+set.seed(20261107)
+dat_lda <- datos_2024 %>% dplyr::select(GRUPO, all_of(variables)) %>% mutate(GRUPO = droplevels(GRUPO))
+niveles <- levels(dat_lda$GRUPO)
+K <- 5
+# Asignación estratificada aleatoria
+fold <- integer(nrow(dat_lda))
+for (g in niveles) {
+  ids <- which(dat_lda$GRUPO == g)
+  fold[ids] <- sample(rep(1:K, length.out = length(ids)))
+}
+
+validar_lda <- function(prior = NULL) {
+  pred <- rep(NA_character_, nrow(dat_lda))
+  for (k in 1:K) {
+    train <- dat_lda[fold != k, , drop = FALSE]
+    test <- dat_lda[fold == k, , drop = FALSE]
+    modelo <- if (is.null(prior)) MASS::lda(GRUPO ~ ., data = train) else MASS::lda(GRUPO ~ ., data = train, prior = prior)
+    pred[fold == k] <- as.character(predict(modelo, newdata = test)$class)
+  }
+  factor(pred, levels = niveles)
+}
+
+pred_muestra <- validar_lda()                           # a priori = proporciones de la muestra
+pred_balanceado <- validar_lda(prior = c(0.5, 0.5))     # a priori iguales
+clase_mayoritaria <- names(which.max(table(dat_lda$GRUPO)))
+pred_mayoritaria <- factor(rep(clase_mayoritaria, nrow(dat_lda)), levels = niveles)
+
+metricas <- function(real, estimado) {
+  cm <- table(factor(real, levels = niveles), factor(estimado, levels = niveles))
+  acc <- sum(diag(cm)) / sum(cm)
+  sens <- cm["Deserción alta", "Deserción alta"] / sum(cm["Deserción alta", ])
+  esp <- cm["Deserción no alta", "Deserción no alta"] / sum(cm["Deserción no alta", ])
+  n_alertas <- sum(cm[, "Deserción alta"])
+  vpp <- ifelse(n_alertas == 0, NA, cm["Deserción alta", "Deserción alta"] / n_alertas)
+  c(Exactitud = acc, Sensibilidad_alta = sens, Especificidad_no_alta = esp,
+    Exactitud_balanceada = mean(c(sens, esp)), Precision_alertas = vpp)
+}
+
+cm_muestra <- table(Real = dat_lda$GRUPO, Predicho = pred_muestra)
+cm_balanceado <- table(Real = dat_lda$GRUPO, Predicho = pred_balanceado)
+kable(as.data.frame.matrix(cm_muestra), caption = "Matriz de confusión: LDA con a priori de la muestra (5 pliegues)")
+```
+
+**Lectura.** Con las probabilidades a priori de la muestra, el LDA predice «deserción alta» solo en `r sum(cm_muestra[, "Deserción alta"])` municipios, y acierta en `r cm_muestra["Deserción alta", "Deserción alta"]`; los otros `r cm_muestra["Deserción alta", "Deserción no alta"]` municipios con deserción alta quedan clasificados como «no alta». Es decir, el modelo casi no reconoce al grupo que le interesa al cliente.
+
+```{r lda-balanceado}
+kable(as.data.frame.matrix(cm_balanceado), caption = "Matriz de confusión: LDA balanceado, prior = c(0,5; 0,5) (5 pliegues)")
+```
+
+**Lectura.** Al balancear los a priori el modelo se vuelve mucho más sensible: señala `r sum(cm_balanceado[, "Deserción alta"])` municipios como de deserción alta y acierta en `r cm_balanceado["Deserción alta", "Deserción alta"]` de los `r sum(cm_balanceado["Deserción alta", ])` reales. El costo es que `r cm_balanceado["Deserción no alta", "Deserción alta"]` municipios con deserción no alta quedan señalados por error (falsas alarmas).
+
+```{r lda-comparacion}
+comparacion_lda <- rbind(
+  `LDA (a priori de la muestra)` = metricas(dat_lda$GRUPO, pred_muestra),
+  `LDA balanceado (prior 0,5/0,5)` = metricas(dat_lda$GRUPO, pred_balanceado),
+  `Clasificador mayoritario («no alta» siempre)` = metricas(dat_lda$GRUPO, pred_mayoritaria)
+)
+kable(as.data.frame(comparacion_lda), digits = 3,
+      caption = "LDA validado por 5 pliegues frente al clasificador mayoritario")
+
+m_mu <- comparacion_lda["LDA (a priori de la muestra)", ]
+m_ba <- comparacion_lda["LDA balanceado (prior 0,5/0,5)", ]
+m_ma <- comparacion_lda["Clasificador mayoritario («no alta» siempre)", ]
+referencia_balanceada <- 0.5   # exactitud balanceada de adivinar siempre una clase o de lanzar una moneda
+```
+
+**Lectura de la comparación.** La vara para la *exactitud simple* es el clasificador mayoritario (`r fmt(m_ma[["Exactitud"]], 3)`), pero la vara justa para la *exactitud balanceada* es **`r fmt(referencia_balanceada, 2)`**, porque adivinar siempre una clase da 100 % en un grupo y 0 % en el otro. Con esa vara el LDA de a priori de la muestra obtiene una exactitud balanceada de **`r fmt(m_mu[["Exactitud_balanceada"]], 3)`**, apenas por encima de `r fmt(referencia_balanceada, 2)`; el LDA balanceado sube a `r fmt(m_ba[["Exactitud_balanceada"]], 3)`. La precisión de las alertas del LDA balanceado es de `r fmt(100 * m_ba[["Precision_alertas"]], 1)` %: de cada 100 municipios señalados solo esa cifra tiene deserción alta realmente, frente a `r fmt(100 * n_alta_tot / nrow(datos_2024), 1)` % que se obtendría señalando municipios al azar: mejora el azar unas `r fmt(m_ba[["Precision_alertas"]] / (n_alta_tot / nrow(datos_2024)), 1)` veces, pero cuatro de cada cinco alertas serían falsas.
+
+**La tensión y su resolución.** Hay una tensión aparente: D = `r fmt(D_dos, 2)` es una distancia grande, que, bajo normalidad y covarianzas iguales y con grupos del mismo tamaño, permitiría acertar en cerca de `r fmt(100 * pnorm(D_dos / 2), 0)` de cada 100 casos de cada grupo; y sin embargo el LDA con a priori de la muestra falla. La causa es el **fuerte desbalance de clases (`r n_alta_tot` frente a `r n_no_tot`)**: la distancia mide cuánto se alejan los *promedios*, pero los municipios de los dos grupos se solapan, y como el grupo no alto es `r fmt(n_no_tot / n_alta_tot, 0)` veces más numeroso, el modelo gana más acertando siempre «no alta». Al balancear los a priori ocurre lo contrario: `r cm_balanceado["Deserción no alta", "Deserción alta"]` municipios del grupo no alto quedan del lado «alto», más del triple de todo el grupo alto (`r n_alta_tot`). Una diferencia grande entre promedios no implica poder identificar a cada miembro del grupo.
+
+**Veredicto: el modelo no separa.** El LDA con a priori de la muestra tiene una exactitud simple de **`r fmt(m_mu[["Exactitud"]], 3)`**, peor que adivinar «no alta» todo el tiempo (**`r fmt(m_ma[["Exactitud"]], 3)`**), y solo detecta a **`r fmt(100 * m_mu[["Sensibilidad_alta"]], 0)` de cada 100** municipios con deserción alta. Balancear los a priori sube la detección a `r fmt(100 * m_ba[["Sensibilidad_alta"]], 0)` de cada 100, pero a cambio de que cuatro de cada cinco alertas sean falsas (`r fmt(100 * (1 - m_ba[["Precision_alertas"]]), 0)` %); ninguna de las dos versiones sirve como filtro. Para el cliente, **los seis indicadores describen bien al grupo pero no lo encuentran**: la decisión de a quién ayudar no puede apoyarse en una regla automática construida con ellos.
+
+# 5. ¿Qué variable viaja con el grupo? Análisis ajustado por población
+
+Se utiliza el logaritmo de la población de 5 a 16 años como covariable de tamaño territorial. La pregunta es si la diferencia multivariada entre grupos permanece al comparar municipios con tamaños poblacionales similares. La población puede relacionarse con la capacidad institucional y la escala de prestación del servicio; este ajuste no elimina todos los posibles factores de confusión.
+
+## 5.1. ¿La población es distinta entre los dos grupos?
+
+```{r poblacion-descriptiva}
+datos_ajuste <- datos_2024 %>% mutate(LOG_POBLACION = log1p(POBLACIÓN_5_16))
+
+desc_poblacion <- datos_ajuste %>%
+  group_by(GRUPO) %>%
+  summarise(Municipios = n(),
+            Mediana_poblacion_5_16 = median(POBLACIÓN_5_16),
+            Media_log_poblacion = mean(LOG_POBLACION),
+            Desv_log_poblacion = sd(LOG_POBLACION),
+            .groups = "drop")
+kable(desc_poblacion, digits = 2, row.names = FALSE, caption = "LOG_POBLACION por grupo")
+
+mu_p <- desc_poblacion$Media_log_poblacion; sd_p <- desc_poblacion$Desv_log_poblacion; n_p <- desc_poblacion$Municipios
+sd_comb <- sqrt(((n_p[1] - 1) * sd_p[1]^2 + (n_p[2] - 1) * sd_p[2]^2) / (sum(n_p) - 2))
+d_poblacion <- (mu_p[2] - mu_p[1]) / sd_comb
+razon_poblacion <- exp(mu_p[2] - mu_p[1])
+
+g_pob <- ggplot(datos_ajuste, aes(GRUPO, LOG_POBLACION, fill = GRUPO)) +
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("Deserción no alta" = "#9DB8CC", "Deserción alta" = "#C05621")) +
+  labs(title = "Población (log) por grupo", x = NULL, y = "log(1 + población de 5 a 16 años)") +
+  theme_minimal()
+g_pob
+ggsave(file.path(out_dir, "figures", "log_poblacion_por_grupo.png"), g_pob, width = 8, height = 5, dpi = 120)
+```
+
+**Lectura.** Los municipios con deserción alta son algo más grandes: la mediana de su población de 5 a 16 años es `r fmt(desc_poblacion$Mediana_poblacion_5_16[2], 0)` frente a `r fmt(desc_poblacion$Mediana_poblacion_5_16[1], 0)`, y su media en logaritmos es `r fmt(mu_p[2], 2)` frente a `r fmt(mu_p[1], 2)` (alrededor de `r fmt(razon_poblacion, 2)` veces más población). Pero la diferencia estandarizada es de solo `r fmt(d_poblacion, 2)` desviaciones, muy lejos de las `r fmt(D_dos, 2)` que separan a los grupos en los indicadores, y el grupo alto es menos disperso que el otro. Para el cliente, la población no cambia mucho de un grupo al otro y, por eso, es poco probable que «ser un municipio grande» explique por sí sola la diferencia de perfiles.
+
+## 5.2. Comparación ajustada (MANCOVA)
+
+El ajuste se hace poniendo la covariable **antes** del grupo (`LOG_POBLACION + GRUPO`): con la descomposición secuencial de `summary.manova()`, el efecto de `GRUPO` se evalúa entonces *después* de descontar lo que explica la población, que es el ajuste real y equivale a una prueba de tipo II (`car::Manova(type = "II")`) para dos términos sin interacción.
+
+```{r mancova}
+formula_mancova <- as.formula(paste("cbind(", paste(sprintf("`%s`", variables), collapse = ", "), ") ~ LOG_POBLACION + GRUPO"))
+modelo_mancova <- manova(formula_mancova, data = datos_ajuste)
+res_mancova <- summary(modelo_mancova, test = "Pillai")
+
+tabla_mancova <- data.frame(
+  Fuente = rownames(res_mancova$stats)[1:2],
+  Pillai = res_mancova$stats[1:2, "Pillai"],
+  F_aproximada = res_mancova$stats[1:2, "approx F"],
+  GL_numerador = res_mancova$stats[1:2, "num Df"],
+  GL_denominador = res_mancova$stats[1:2, "den Df"],
+  Valor_p = fmt_p(res_mancova$stats[1:2, "Pr(>F)"])
+)
+kable(tabla_mancova, digits = 4, row.names = FALSE, caption = "MANCOVA: GRUPO ajustado por LOG_POBLACION (Pillai)")
+
+pillai_ajustado <- res_mancova$stats["GRUPO", "Pillai"]
+pillai_pob <- res_mancova$stats["LOG_POBLACION", "Pillai"]
+
+# Orden anterior (GRUPO + LOG_POBLACION): GRUPO no queda ajustado, solo se compara con el residual del modelo completo.
+res_orden_inverso <- summary(manova(as.formula(paste("cbind(", paste(sprintf("`%s`", variables), collapse = ", "), ") ~ GRUPO + LOG_POBLACION")),
+                                    data = datos_ajuste), test = "Pillai")
+pillai_orden_inverso <- res_orden_inverso$stats["GRUPO", "Pillai"]
+
+comparacion_ajuste <- data.frame(
+  Modelo = c("Sin ajustar (GRUPO)", "Ajustado por población (LOG_POBLACION + GRUPO)"),
+  Pillai_de_GRUPO = c(pillai_simple, pillai_ajustado)
+)
+kable(comparacion_ajuste, digits = 4, caption = "Efecto de GRUPO antes y después de ajustar por población")
+
+# Relación descriptiva entre población y los seis indicadores
+cor_poblacion <- sapply(datos_ajuste[, variables], function(x) cor(x, datos_ajuste$LOG_POBLACION, use = "complete.obs"))
+kable(data.frame(Indicador = names(cor_poblacion), Correlacion_con_log_poblacion = as.numeric(cor_poblacion)),
+      digits = 3, caption = "Correlación descriptiva con el logaritmo de la población")
+```
+
+**Lectura del ajuste.** Al ajustar por población, el estadístico de Pillai de `GRUPO` pasa de `r fmt(pillai_simple, 3)` a `r fmt(pillai_ajustado, 3)` y su probabilidad de azar sigue siendo `r fmt_p(res_mancova$stats["GRUPO", "Pr(>F)"])`. Es decir, la diferencia entre los perfiles **casi no se mueve**: la población territorial *no* explica la diferencia entre los grupos. (Con el orden anterior, `GRUPO + LOG_POBLACION`, el valor era `r fmt(pillai_orden_inverso, 3)`, un valor un poco mayor justamente porque ese orden no ajusta de verdad a `GRUPO`.) La población, por su parte, sí tiene un efecto propio sobre los indicadores (Pillai `r fmt(pillai_pob, 3)`), pero no es el que separa a los grupos.
+
+**Lectura de las correlaciones.** La población se relaciona con los indicadores de forma moderada en cobertura primaria (`r fmt(cor_poblacion[["COBERTURA_NETA_PRIMARIA"]], 2)`) y baja en el resto (cobertura secundaria `r fmt(cor_poblacion[["COBERTURA_NETA_SECUNDARIA"]], 2)`, media `r fmt(cor_poblacion[["COBERTURA_NETA_MEDIA"]], 2)`, aprobación primaria `r fmt(cor_poblacion[["APROBACIÓN_PRIMARIA"]], 2)`). Como los grupos difieren poco en población (`r fmt(d_poblacion, 2)` desviaciones) y la población se asocia débilmente con los indicadores, no puede absorber una brecha de `r fmt(D_dos, 1)` desviaciones, y por eso ajustar no la reduce. Para el cliente, el tamaño del municipio viaja con el grupo solo de forma leve y no es una razón para dejar de priorizarlo: la diferencia persiste entre municipios de tamaño parecido. Es una asociación observacional y no permite afirmar causalidad.
+
+# 6. Las tres preguntas y la decisión para el cliente
+
+```{r decision-cliente}
+p_hot <- res_dos$tabla$valor_p
+D_hot <- res_dos$tabla$D
+```
+
+| Comparación | ¿Es real? | ¿Es grande? (D) | ¿Separa? |
+|---|---|---|---|
+| **Una muestra:** deserción alta frente al promedio nacional | Sí (p `r fmt_p(res_una$valor_p)`), pero la referencia incluye al grupo, así que es descriptivo | Sí: D = `r fmt(res_una$D, 2)` | No: `r fmt(pct_no_alta_lado, 0)` % del grupo no alto cae del mismo lado que el grupo alto |
+| **Dos muestras:** deserción alta frente a no alta | Sí (Hotelling p `r fmt_p(p_hot)`; MANOVA coincide) | Sí: D = `r fmt(D_hot, 2)`, equivale a unas 1,4 desviaciones estandarizadas | No: LDA con exactitud `r fmt(m_mu[["Exactitud"]], 3)` (< `r fmt(m_ma[["Exactitud"]], 3)` de adivinar «no alta»), detecta `r fmt(100 * m_mu[["Sensibilidad_alta"]], 0)` de cada 100; balanceado, `r fmt(100 * (1 - m_ba[["Precision_alertas"]]), 0)` % de alertas falsas |
+
+**Decisión para el Ministerio.**
+
+1. **Infraestructura y cupos:** orientar este fondo a **secundaria y media**, donde ocurren las mayores caídas de cobertura (`r fmt(abs(d2[["cob_sec"]]), 1)` pp y `r fmt(abs(d2[["cob_med"]]), 1)` pp respectivamente); en primaria la diferencia es de solo `r fmt(abs(d2[["cob_prim"]]), 1)` pp y no justifica prioridad.
+2. **Tutorías y acompañamiento:** dirigirlas a atacar las caídas de aprobación en **primaria** (`r fmt(abs(d2[["apr_prim"]]), 1)` pp) y **secundaria** (`r fmt(abs(d2[["apr_sec"]]), 1)` pp), más pronunciadas que en media (`r fmt(abs(d2[["apr_med"]]), 1)` pp).
+3. **Advertencia:** **no utilizar estos seis indicadores como filtro ni regla automática** para identificar o predecir qué municipios tendrán deserción alta, porque los indicadores probados no logran separar los grupos: la diferencia es real y grande, pero un municipio concreto con deserción alta puede verse igual a uno promedio.
+4. **Alcance:** la diferencia no se explica por la población territorial, pero es una asociación observacional y no prueba que la deserción cause el rezago; los fondos deben asignarse complementando estos hallazgos con visitas, información presupuestal y contexto territorial.
+
+# 7. Limitaciones
+
+1. El umbral del 6,5 % es una regla analítica del equipo, no un estándar oficial.
+2. La referencia nacional de la comparación de una muestra se calcula con la misma base y contiene al grupo analizado; por eso se utiliza descriptivamente y no como prueba independiente. La proyección de la sección 3.3 usa los mismos 62 municipios para estimar la dirección, por lo que su separación es optimista.
+3. Hotelling clásico requiere independencia, normalidad multivariada aproximada y homogeneidad de covarianzas; Box M (sección 4.3) indica que esta última no se cumple. La magnitud de D hace robusta la conclusión de que los grupos son distintos, pero el valor p exacto no debe sobreinterpretarse.
+4. Hay `r n_anomalas` municipios con coberturas en 0 o mayores a 1 (sección 2.3) que pueden distorsionar medias y covarianzas; se conservaron en el análisis principal.
+5. El desbalance de clases (`r n_alta_tot` frente a `r n_no_tot`) limita la detección del grupo minoritario; el balanceo de a priori mejora la sensibilidad a costa de falsas alarmas.
+6. El ajuste por población controla solo una covariable observada; pueden existir otros factores territoriales no incluidos.
+7. Los resultados son asociaciones entre perfiles municipales y grupos definidos por deserción. No permiten atribuir causalidad.
+
+# 8. Conclusión ejecutiva
+
+Los municipios con deserción alta tienen un perfil de cobertura y aprobación **real y grande**: D = `r fmt(D_dos, 2)` frente a los municipios sin deserción alta (`r fmt(res_una$D, 2)` frente al promedio nacional), con una diferencia de nivel —los seis indicadores bajan— cuya intensidad aumenta con el nivel educativo en cobertura y es más marcada en primaria y secundaria en aprobación. Esa diferencia no se explica por el tamaño poblacional. Sin embargo, los seis indicadores **no separan** a los municipios uno a uno: el LDA no mejora al clasificador que siempre dice «no alta» y, aun balanceado, la mayoría de sus alertas son falsas. La Dirección debe usar la evidencia para **dirigir los fondos por nivel educativo** (cupos a secundaria y media, tutorías a primaria y secundaria) y no como filtro automático para decidir qué municipios intervenir.
+
+```{r exportar-tablas, include=FALSE}
+write.csv(validacion, file.path(out_dir, "tables", "validacion_muestra.csv"), row.names = FALSE)
+write.csv(anomalias, file.path(out_dir, "tables", "anomalias_indicadores.csv"), row.names = FALSE)
+write.csv(tabla_una, file.path(out_dir, "tables", "comparacion_una_muestra.csv"), row.names = FALSE)
+write.csv(res_separacion_una, file.path(out_dir, "tables", "separacion_una_muestra.csv"), row.names = FALSE)
+write.csv(tabla_dos, file.path(out_dir, "tables", "comparacion_dos_muestras.csv"), row.names = FALSE)
+write.csv(res_dos$tabla, file.path(out_dir, "tables", "hotelling_dos_muestras.csv"), row.names = FALSE)
+write.csv(comparacion_lda, file.path(out_dir, "tables", "evaluacion_lda.csv"))
+write.csv(comparacion_ajuste, file.path(out_dir, "tables", "ajuste_poblacion.csv"), row.names = FALSE)
+```

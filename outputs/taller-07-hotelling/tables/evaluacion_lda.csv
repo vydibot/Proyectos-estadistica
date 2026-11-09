@@ -1,0 +1,4 @@
+"","Exactitud","Sensibilidad_alta","Especificidad_no_alta","Exactitud_balanceada","Precision_alertas"
+"LDA (a priori de la muestra)",0.940285204991087,0.0806451612903226,0.990566037735849,0.535605599513086,0.333333333333333
+"LDA balanceado (prior 0,5/0,5)",0.815508021390374,0.790322580645161,0.816981132075472,0.803651856360317,0.201646090534979
+"Clasificador mayoritario («no alta» siempre)",0.944741532976827,0,1,0.5,NA
