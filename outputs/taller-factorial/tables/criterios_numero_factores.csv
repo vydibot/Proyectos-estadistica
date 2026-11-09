@@ -1,7 +1,0 @@
-"Criterio","Factores","Tipo"
-"Límite por grados de libertad",22,"Máximo posible"
-"Kaiser (autovalor de R > 1)",6,"Sugerencia"
-"Análisis paralelo (MinRes, 50 simulaciones)",7,"Sugerencia"
-"MAP de Velicer (mínimo)",5,"Sugerencia"
-"BIC (mínimo entre 1 y 10 factores)",10,"Sugerencia"
-"Hipótesis de política: acceso y permanencia",2,"Hipótesis"
